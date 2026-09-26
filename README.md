@@ -1,3 +1,5 @@
+![Chameleon](./assets/images/text_logo_color.svg)
+
 # Chameleon
 
 Chameleon is a free and open-source, deeply customizable Jellyfin client built to adapt seamlessly across your screens with high-performance playback and personalized library layouts.

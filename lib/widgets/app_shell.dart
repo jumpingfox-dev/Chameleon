@@ -2,7 +2,6 @@ import 'package:forui/forui.dart';
 import 'package:forui_phosphor/forui_phosphor.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 
 import '../screens/home.dart';
 import '../screens/library.dart';

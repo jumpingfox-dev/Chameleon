@@ -71,7 +71,11 @@ class _LoginScreenState extends State<LoginScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const AppLogo(asset: 'assets/images/text_logo.svg', height: 48),
+                const AppLogo(
+                    asset: 'assets/images/text_logo.svg',
+                    colorAsset: 'assets/images/text_logo_color.svg',
+                    height: 48
+                ),
                 const SizedBox(height: 24),
                 FCard(
                   builder: (context, style, _) => Padding(

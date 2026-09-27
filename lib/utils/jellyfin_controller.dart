@@ -5,6 +5,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/painting.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'library_cache.dart';
+
 class JellyfinLibrary {
   const JellyfinLibrary({required this.id, required this.name, this.collectionType});
 
@@ -183,6 +185,7 @@ class JellyfinController extends ChangeNotifier {
     libraries = const [];
     genres = const [];
     notifyListeners();
+    libraryCache.clear(); // another account may see different libraries
   }
 }
 

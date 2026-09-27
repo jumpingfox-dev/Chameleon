@@ -16,6 +16,10 @@ import 'utils/orientation.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Keep more posters in memory so scrolling back doesn't re-download them.
+  PaintingBinding.instance.imageCache
+    ..maximumSize = 1500
+    ..maximumSizeBytes = 200 << 20; // 200 MB (the default is 100 MB)
   themeController = await ThemeController.load();
   fontController = await FontController.load();
 

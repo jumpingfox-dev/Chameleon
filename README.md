@@ -1,4 +1,6 @@
-![Chameleon](./assets/images/text_logo_color.svg)
+<div align="center">
+   <img src="./assets/images/text_logo_color.svg" alt="Chameleon" style="margin: 20px 0;">
+</div>
 
 # Chameleon
 

@@ -1,8 +1,10 @@
 import 'dart:async';
 
+import 'package:chameleon/utils/home_layout.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:forui/forui.dart';
 import 'package:go_router/go_router.dart';
+import 'package:media_kit/media_kit.dart';
 
 import 'screens/login.dart';
 import 'screens/player.dart';
@@ -16,12 +18,14 @@ import 'utils/orientation.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  MediaKit.ensureInitialized();
   // Keep more posters in memory so scrolling back doesn't re-download them.
   PaintingBinding.instance.imageCache
     ..maximumSize = 1500
     ..maximumSizeBytes = 200 << 20; // 200 MB (the default is 100 MB)
   themeController = await ThemeController.load();
   fontController = await FontController.load();
+  homeLayout = await HomeLayoutController.load();
 
   jellyfin = JellyfinController();
   await jellyfin.load();
@@ -45,8 +49,7 @@ final GoRouter _router = GoRouter(
   },
   routes: [
     GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
-    GoRoute(path: '/play/:id', builder: (context, state) => PlayerScreen(itemId: state.pathParameters['id']!),
-    ),
+    GoRoute(path: '/play/:id', builder: (context, state) => PlayerScreen(itemId: state.pathParameters['id']!),),
     StatefulShellRoute.indexedStack(
       builder: (context, state, navigationShell) =>
           AppShell(navigationShell: navigationShell, location: state.uri.path),

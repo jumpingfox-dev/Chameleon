@@ -32,7 +32,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   Widget build(BuildContext context) => FScaffold(
     child: ListView(
-      padding: const EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.symmetric(vertical: 16),
       children: [
         // Tab pills, above the card.
         SingleChildScrollView(
@@ -51,7 +51,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ],
           ),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 16),
         _tabs[_index].build(),
       ],
     ),

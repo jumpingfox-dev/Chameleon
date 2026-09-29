@@ -5,6 +5,7 @@ import 'package:material_ui/material_ui.dart';
 
 import '../utils/jellyfin_controller.dart';
 import '../utils/library_cache.dart';
+import '../widgets/detail_page.dart';
 import '../widgets/poster_card.dart';
 
 /// Shows one library's movies/shows/albums, or everything in one genre.
@@ -215,15 +216,6 @@ class _LibraryScreenState extends State<LibraryScreen> {
     );
   }
 
-  void _open(JellyfinItem item) {
-    switch (item.type) {
-      case 'BoxSet':
-        context.push('/home/collection/${item.id}');
-      case JellyfinItemKind.movie:
-        context.push('/play/${item.id}');
-    }
-  }
-
   @override
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: libraryViewOverride,
@@ -260,8 +252,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
             FHeaderAction(
               // Shows the view you'll switch *to*: a tall rectangle for posters, a wide one for thumbnails.
               icon: view == LibraryView.poster
-                  ? const _AspectIcon(width: 18, height: 10) // 16:9 → thumbnails
-                  : const _AspectIcon(width: 11, height: 16), // 2:3 → posters
+                  ? const AspectIcon(width: 18, height: 10) // 16:9 → thumbnails
+                  : const AspectIcon(width: 11, height: 16), // 2:3 → posters
               onPress: () => libraryViewOverride.value =
               view == LibraryView.poster ? LibraryView.thumbnail : LibraryView.poster,
             ),
@@ -315,7 +307,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
                 gridDelegate: libraryGridDelegate(view),
                 itemCount: items.length,
                 itemBuilder: (context, i) =>
-                    PosterCard(item: items[i], view: view, onPress: () => _open(items[i])),
+                    PosterCard(item: items[i], view: view, onPress: () => openItem(context, items[i])),
               ),
             ],
             if (_hasMore)
@@ -331,27 +323,4 @@ class _LibraryScreenState extends State<LibraryScreen> {
       },
     );
   }
-}
-
-/// An outlined rectangle icon at a given aspect ratio, colored like other icons.
-class _AspectIcon extends StatelessWidget {
-  const _AspectIcon({required this.width, required this.height});
-
-  final double width;
-  final double height;
-
-  @override
-  Widget build(BuildContext context) => SizedBox.square(
-    dimension: 20, // same footprint as a normal icon
-    child: Center(
-      child: Container(
-        width: width,
-        height: height,
-        decoration: BoxDecoration(
-          border: Border.all(color: IconTheme.of(context).color ?? const Color(0xFFFFFFFF), width: 1.6),
-          borderRadius: BorderRadius.circular(2),
-        ),
-      ),
-    ),
-  );
 }

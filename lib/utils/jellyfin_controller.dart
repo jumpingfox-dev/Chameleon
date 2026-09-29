@@ -5,6 +5,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/painting.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../widgets/home_modules.dart';
+import 'app_cache.dart';
 import 'library_cache.dart';
 
 class JellyfinLibrary {
@@ -84,6 +86,13 @@ class JellyfinController extends ChangeNotifier {
         ? parts.first.substring(0, 1).toUpperCase()
         : (parts.first[0] + parts.last[0]).toUpperCase();
   }
+
+  /// The direct-play address for an item: the original file, sent untouched.
+  /// mpv decodes it on the device, so the server never has to transcode.
+  String streamUrl(String itemId) => '$_kServer/Videos/$itemId/stream?static=true';
+
+  /// Authenticates media requests with a header, keeping the token out of the URL.
+  Map<String, String> get authHeaders => {'Authorization': 'MediaBrowser Token="$_kToken"'};
 
   /// A random id for this install. Jellyfin tracks sessions by it, so it must stay stable.
   Future<String> _deviceId(SharedPreferences prefs) async {
@@ -186,6 +195,8 @@ class JellyfinController extends ChangeNotifier {
     genres = const [];
     notifyListeners();
     libraryCache.clear(); // another account may see different libraries
+    clearHomeCache(); // another account sees different recommendations and progress
+    appCache.clear();
   }
 }
 

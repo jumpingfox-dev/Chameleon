@@ -4,50 +4,203 @@ import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../utils/jellyfin_controller.dart';
+import '../utils/home_layout.dart';
 import '../widgets/nav_button.dart';
+import '../widgets/home_modules.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
   @override
-  Widget build(BuildContext context) => FScaffold(
-    child: ListenableBuilder(
-      listenable: jellyfin, // libraries arrive after sign-in, so rebuild when they do
-      builder: (context, _) {
-        final isPhone = MediaQuery.sizeOf(context).width < 600;
+  State<HomeScreen> createState() => _HomeScreenState();
+}
 
-        return ListView(
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          children: [
-            // Library pills: phones only, since wider screens have them in the top bar.
-            if (isPhone && (jellyfin.libraries.isNotEmpty || jellyfin.genres.isNotEmpty)) ...[
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal, // scrolls sideways if there are many libraries
-                child: Row(
-                  spacing: 4,
+class _HomeScreenState extends State<HomeScreen> {
+  /// While true, the home screen's modules can be added, removed and rearranged.
+  bool _editing = false;
+
+  void _toggleEditing() => setState(() => _editing = !_editing);
+  GoRouter? _router;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_router != null) return; // set up once
+    _router = GoRouter.of(context);
+    _router!.routerDelegate.addListener(_onNavigate);
+  }
+
+  /// Leaving Home (to a library, another tab, the player, ...) ends edit mode.
+  void _onNavigate() {
+    final path = _router!.routerDelegate.currentConfiguration.uri.path;
+    if (_editing && path != '/home' && mounted) setState(() => _editing = false);
+    if (path == '/home') homeVisible.value++; // lets sections older than 10 minutes refresh
+  }
+
+  @override
+  void dispose() {
+    _router?.routerDelegate.removeListener(_onNavigate);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => FScaffold(
+    child: Stack(
+      children: [
+        ListenableBuilder(
+          listenable: Listenable.merge([jellyfin, homeLayout]),
+          builder: (context, _) {
+            final isPhone = MediaQuery.sizeOf(context).width < 600;
+
+            return ListView(
+              // Extra space at the bottom so the last module isn't hidden behind the Edit button.
+              padding: const EdgeInsets.only(top: 8, bottom: 60),
+              children: [
+                // Library links: phones only, since wider screens have them in the top bar.
+                if (isPhone && (jellyfin.libraries.isNotEmpty || jellyfin.genres.isNotEmpty)) ...[
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      spacing: 4,
+                      children: [
+                        NavButton(
+                          label: 'Favorites',
+                          icon: FPhosphorIcons.heart,
+                          onPress: () => context.go('/home/favorites'),
+                        ),
+                        for (final library in jellyfin.libraries)
+                          NavButton(
+                            label: library.name,
+                            icon: libraryIcon(library.collectionType),
+                            onPress: () => context.go('/home/library/${library.id}'),
+                          ),
+                        if (jellyfin.genres.isNotEmpty)
+                          NavButton(
+                            label: 'Genres',
+                            icon: FPhosphorIcons.tag,
+                            onPress: () => context.go('/home/genres'),
+                          ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                ],
+
+                if (_editing) const _EditModeBanner(),
+
+                for (final (i, module) in homeLayout.value.indexed)
+                  HomeModuleView(
+                    key: ValueKey(module.id), // keeps each section's content attached when it moves
+                    module: module,
+                    editing: _editing,
+                    isFirst: i == 0,
+                    isLast: i == homeLayout.value.length - 1,
+                  ),
+
+                if (homeLayout.value.isEmpty && !_editing)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 48),
+                    child: Center(
+                      child: Text(
+                        'Your home screen is empty. Select the pencil to add sections.',
+                        style: context.theme.typography.body.md.copyWith(color: context.theme.colors.mutedForeground),
+                      ),
+                    ),
+                  ),
+
+                if (_editing) const AddHomeModules(),
+              ],
+            );
+          },
+        ),
+
+        // ── Edit / Done ──
+        Positioned(
+          right: 16,
+          bottom: 16,
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 200),
+            switchInCurve: Curves.easeOut,
+            switchOutCurve: Curves.easeIn,
+            // Keep both buttons pinned to the bottom-right corner while they crossfade,
+            // instead of centering them (which makes the smaller one slide sideways).
+            layoutBuilder: (current, previous) => Stack(
+              alignment: Alignment.bottomRight,
+              children: [...previous, ?current],
+            ),
+            // Fade plus a slight scale, growing from the corner the button sits in.
+            transitionBuilder: (child, animation) => FadeTransition(
+              opacity: animation,
+              child: ScaleTransition(
+                scale: Tween(begin: 0.9, end: 1.0).animate(animation),
+                alignment: Alignment.bottomRight,
+                child: child,
+              ),
+            ),
+            child: _editing
+                ? FButton(
+              key: const ValueKey('done'),
+              mainAxisSize: .min,
+              onPress: _toggleEditing,
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                spacing: 8,
+                children: [Icon(FPhosphorIcons.check, size: 18), Text('Done')],
+              ),
+            )
+                : Semantics(
+              key: const ValueKey('edit'),
+              label: 'Edit home screen',
+              button: true,
+              child: FButton.icon(
+                onPress: _toggleEditing,
+                child: const Icon(FPhosphorIcons.pencilSimple),
+              ),
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+/// Shown at the top of the home screen while editing.
+class _EditModeBanner extends StatelessWidget {
+  const _EditModeBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.theme.colors;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          border: Border.all(color: colors.primary),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            spacing: 12,
+            children: [
+              Icon(FPhosphorIcons.pencilSimple, color: colors.primary),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  spacing: 2,
                   children: [
-                    for (final library in jellyfin.libraries)
-                      NavButton(
-                        label: library.name,
-                        icon: libraryIcon(library.collectionType),
-                        onPress: () => context.go('/home/library/${library.id}'),
-                      ),
-                    if (jellyfin.genres.isNotEmpty)
-                      NavButton(
-                        label: 'Genres',
-                        icon: FPhosphorIcons.tag,
-                        onPress: () => context.go('/home/genres'),
-                      ),
+                    Text('Editing your home screen', style: context.theme.typography.body.md),
+                    Text(
+                      'Add, remove and rearrange sections. Select Done when you\'re finished.',
+                      style: context.theme.typography.body.sm.copyWith(color: colors.mutedForeground),
+                    ),
                   ],
                 ),
               ),
-              const SizedBox(height: 16),
             ],
-
-            // ...the rest of your home page content
-          ],
-        );
-      },
-    ),
-  );
+          ),
+        ),
+      ),
+    );
+  }
 }

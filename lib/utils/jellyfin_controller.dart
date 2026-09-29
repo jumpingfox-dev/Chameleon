@@ -89,10 +89,10 @@ class JellyfinController extends ChangeNotifier {
 
   /// The direct-play address for an item: the original file, sent untouched.
   /// mpv decodes it on the device, so the server never has to transcode.
-  String streamUrl(String itemId) => '$_kServer/Videos/$itemId/stream?static=true';
+  String streamUrl(String itemId) => '${client!.baseUrl}/Videos/$itemId/stream?static=true';
 
   /// Authenticates media requests with a header, keeping the token out of the URL.
-  Map<String, String> get authHeaders => {'Authorization': 'MediaBrowser Token="$_kToken"'};
+  Map<String, String> get authHeaders => {'Authorization': 'MediaBrowser Token="${client!.token}"'};
 
   /// A random id for this install. Jellyfin tracks sessions by it, so it must stay stable.
   Future<String> _deviceId(SharedPreferences prefs) async {

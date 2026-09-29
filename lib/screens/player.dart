@@ -44,6 +44,15 @@ class _PlayerScreenState extends State<PlayerScreen> {
   bool _controlsVisible = true;
   Timer? _hideTimer;
 
+  /// Fit shows the whole picture (with bars if the shape differs from the screen);
+  /// fill zooms in to cover the screen, trimming the edges.
+  BoxFit _fit = BoxFit.contain;
+
+  void _toggleFit() {
+    setState(() => _fit = _fit == BoxFit.contain ? BoxFit.cover : BoxFit.contain);
+    _showControls();
+  }
+
   @override
   void initState() {
     super.initState();
@@ -67,21 +76,15 @@ class _PlayerScreenState extends State<PlayerScreen> {
       if (!mounted) return;
       setState(() => _item = item);
 
-      await _player.open(
-        Media(jellyfin.streamUrl(item.id), httpHeaders: jellyfin.authHeaders),
-        play: false,
-      );
-
-      // Resume where you left off, once the file's length is known.
+      // Open directly at the saved position (or the beginning), so there's no seek afterwards.
       final resume = _resumePosition(item);
-      if (resume > Duration.zero) {
-        await _player.stream.duration
-            .firstWhere((d) => d > Duration.zero)
-            .timeout(const Duration(seconds: 15), onTimeout: () => Duration.zero);
-        await _player.seek(resume);
-      }
-
-      await _player.play();
+      await _player.open(
+        Media(
+          jellyfin.streamUrl(item.id),
+          httpHeaders: jellyfin.authHeaders,
+          start: resume > Duration.zero ? resume : null,
+        ),
+      );
       _reporter = PlaybackReporter(client: client, itemId: item.id, player: _player)..start();
     } on JellyfinException catch (e) {
       if (mounted) setState(() => _error = describeJellyfinError(e));
@@ -203,6 +206,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
               child: Video(
                 controller: _video,
                 controls: NoVideoControls, // our own controls below
+                fit: _fit,
                 fill: _black,
                 subtitleViewConfiguration: const SubtitleViewConfiguration(
                   style: TextStyle(
@@ -232,7 +236,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
                 ignoring: !_controlsVisible,
                 child: _PlayerControls(
                   player: _player,
-                  title: _item == null ? '' : _titleFor(_item!),
+                  item: _item,
+                  filled: _fit == BoxFit.cover,
+                  onToggleFit: _toggleFit,
                   onBack: () => context.pop(),
                   onPlayOrPause: _playOrPause,
                   onSeekBy: _seekBy,
@@ -280,14 +286,68 @@ Duration _resumePosition(JellyfinItem item) {
   return Duration(microseconds: ticks ~/ 10);
 }
 
-/// "Breaking Bad — S1:E2 · Cat's in the Bag..." for episodes, the name for everything else.
-String _titleFor(JellyfinItem item) {
-  if (item.type != JellyfinItemKind.episode) return item.name;
-  final series = item.raw['SeriesName'] as String?;
-  final season = item.raw['ParentIndexNumber'];
-  final episode = item.raw['IndexNumber'];
-  final code = season != null && episode != null ? 'S$season:E$episode · ' : '';
-  return series == null ? '$code${item.name}' : '$series — $code${item.name}';
+/// The logo (the show's logo for an episode), or the name as text when there's no logo.
+/// Episodes get a second line: "S1:E2 · Episode name".
+class _PlayerTitle extends StatelessWidget {
+  const _PlayerTitle({required this.item});
+
+  final JellyfinItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    final isEpisode = item.type == JellyfinItemKind.episode;
+
+    // Movies carry their own logo; episodes point at their show's.
+    final (logoItemId, logoTag) = isEpisode
+        ? (item.raw['ParentLogoItemId'] as String?, item.raw['ParentLogoImageTag'] as String?)
+        : (item.id, item.imageTags['Logo']);
+    final name = isEpisode ? (item.raw['SeriesName'] as String?) ?? item.name : item.name;
+
+    final season = item.raw['ParentIndexNumber'];
+    final episode = item.raw['IndexNumber'];
+    final episodeLine = isEpisode
+        ? [if (season != null && episode != null) 'S$season:E$episode', item.name].join(' · ')
+        : null;
+
+    final nameText = Text(
+      name,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: context.theme.typography.display.lg.copyWith(color: _white),
+    );
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      spacing: 4,
+      children: [
+        if (logoItemId != null && logoTag != null)
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 280, maxHeight: 56),
+            child: Image.network(
+              jellyfin.client!.images.url(
+                itemId: logoItemId,
+                type: JellyfinImagesApi.typeLogo,
+                tag: logoTag,
+                fillWidth: 560,
+              ),
+              fit: BoxFit.contain,
+              alignment: Alignment.centerLeft,
+              errorBuilder: (_, _, _) => nameText, // the logo failed to load: fall back to the name
+            ),
+          )
+        else
+          nameText,
+        if (episodeLine != null)
+          Text(
+            episodeLine,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: context.theme.typography.body.sm.copyWith(color: const Color(0xCCFFFFFF)),
+          ),
+      ],
+    );
+  }
 }
 
 /// "1:02:03" or "4:05".
@@ -302,7 +362,9 @@ String _formatTime(Duration d) {
 class _PlayerControls extends StatelessWidget {
   const _PlayerControls({
     required this.player,
-    required this.title,
+    required this.item,
+    required this.filled,
+    required this.onToggleFit,
     required this.onBack,
     required this.onPlayOrPause,
     required this.onSeekBy,
@@ -311,7 +373,9 @@ class _PlayerControls extends StatelessWidget {
   });
 
   final Player player;
-  final String title;
+  final JellyfinItem? item;
+  final bool filled;
+  final VoidCallback onToggleFit;
   final VoidCallback onBack;
   final VoidCallback onPlayOrPause;
   final void Function(Duration) onSeekBy;
@@ -344,14 +408,7 @@ class _PlayerControls extends StatelessWidget {
             spacing: 12,
             children: [
               _RoundButton(icon: FPhosphorIcons.arrowLeft, label: 'Back', onPress: onBack),
-              Expanded(
-                child: Text(
-                  title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: context.theme.typography.display.lg.copyWith(color: _white),
-                ),
-              ),
+              Expanded(child: item == null ? const SizedBox.shrink() : _PlayerTitle(item: item!)),
             ],
           ),
         ),
@@ -410,6 +467,13 @@ class _PlayerControls extends StatelessWidget {
                     },
                   ),
                   const Spacer(),
+                  _RoundButton(
+                    icon: filled ? FPhosphorIcons.cornersIn : FPhosphorIcons.cornersOut,
+                    label: filled ? 'Fit to screen' : 'Fill screen',
+                    size: 44,
+                    onPress: onToggleFit,
+                  ),
+                  const SizedBox(width: 8),
                   _RoundButton(icon: FPhosphorIcons.subtitles, label: 'Audio and subtitles', size: 44, onPress: onTracks),
                 ],
               ),

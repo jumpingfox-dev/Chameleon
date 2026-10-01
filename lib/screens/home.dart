@@ -1,8 +1,8 @@
 import 'package:forui/forui.dart';
-import 'package:forui_phosphor/forui_phosphor.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../theme/app_icons.dart';
 import '../utils/jellyfin_controller.dart';
 import '../utils/home_layout.dart';
 import '../widgets/nav_button.dart';
@@ -33,8 +33,10 @@ class _HomeScreenState extends State<HomeScreen> {
   /// Leaving Home (to a library, another tab, the player, ...) ends edit mode.
   void _onNavigate() {
     final path = _router!.routerDelegate.currentConfiguration.uri.path;
-    if (_editing && path != '/home' && mounted) setState(() => _editing = false);
-    if (path == '/home') homeVisible.value++; // lets sections older than 10 minutes refresh
+    if (_editing && path != '/home' && mounted)
+      setState(() => _editing = false);
+    if (path == '/home')
+      homeVisible.value++; // lets sections older than 10 minutes refresh
   }
 
   @override
@@ -54,10 +56,17 @@ class _HomeScreenState extends State<HomeScreen> {
 
             return ListView(
               // Extra space at the bottom so the last module isn't hidden behind the Edit button.
-              padding: const EdgeInsets.only(top: 8, bottom: 60),
+              padding: const EdgeInsets.fromLTRB(
+                4,
+                12,
+                4,
+                48,
+              ), // room for focus outlines at every edge
               children: [
                 // Library links: phones only, since wider screens have them in the top bar.
-                if (isPhone && (jellyfin.libraries.isNotEmpty || jellyfin.genres.isNotEmpty)) ...[
+                if (isPhone &&
+                    (jellyfin.libraries.isNotEmpty ||
+                        jellyfin.genres.isNotEmpty)) ...[
                   SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
                     child: Row(
@@ -65,19 +74,20 @@ class _HomeScreenState extends State<HomeScreen> {
                       children: [
                         NavButton(
                           label: 'Favorites',
-                          icon: FPhosphorIcons.heart,
+                          icon: appIcons.favorite,
                           onPress: () => context.go('/home/favorites'),
                         ),
                         for (final library in jellyfin.libraries)
                           NavButton(
                             label: library.name,
                             icon: libraryIcon(library.collectionType),
-                            onPress: () => context.go('/home/library/${library.id}'),
+                            onPress: () =>
+                                context.go('/home/library/${library.id}'),
                           ),
                         if (jellyfin.genres.isNotEmpty)
                           NavButton(
                             label: 'Genres',
-                            icon: FPhosphorIcons.tag,
+                            icon: appIcons.genres,
                             onPress: () => context.go('/home/genres'),
                           ),
                       ],
@@ -90,7 +100,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
                 for (final (i, module) in homeLayout.value.indexed)
                   HomeModuleView(
-                    key: ValueKey(module.id), // keeps each section's content attached when it moves
+                    key: ValueKey(
+                      module.id,
+                    ), // keeps each section's content attached when it moves
                     module: module,
                     editing: _editing,
                     isFirst: i == 0,
@@ -103,7 +115,9 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: Center(
                       child: Text(
                         'Your home screen is empty. Select the pencil to add sections.',
-                        style: context.theme.typography.body.md.copyWith(color: context.theme.colors.mutedForeground),
+                        style: context.theme.typography.body.md.copyWith(
+                          color: context.theme.colors.mutedForeground,
+                        ),
                       ),
                     ),
                   ),
@@ -139,24 +153,27 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             child: _editing
                 ? FButton(
-              key: const ValueKey('done'),
-              mainAxisSize: .min,
-              onPress: _toggleEditing,
-              child: const Row(
-                mainAxisSize: MainAxisSize.min,
-                spacing: 8,
-                children: [Icon(FPhosphorIcons.check, size: 18), Text('Done')],
-              ),
-            )
+                    key: const ValueKey('done'),
+                    mainAxisSize: .min,
+                    onPress: _toggleEditing,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      spacing: 8,
+                      children: [
+                        Icon(appIcons.done, size: 18, fill: 1),
+                        Text('Done'),
+                      ],
+                    ),
+                  )
                 : Semantics(
-              key: const ValueKey('edit'),
-              label: 'Edit home screen',
-              button: true,
-              child: FButton.icon(
-                onPress: _toggleEditing,
-                child: const Icon(FPhosphorIcons.pencilSimple),
-              ),
-            ),
+                    key: const ValueKey('edit'),
+                    label: 'Edit home screen',
+                    button: true,
+                    child: FButton.icon(
+                      onPress: _toggleEditing,
+                      child: Icon(appIcons.edit, fill: 1),
+                    ),
+                  ),
           ),
         ),
       ],
@@ -183,16 +200,21 @@ class _EditModeBanner extends StatelessWidget {
           child: Row(
             spacing: 12,
             children: [
-              Icon(FPhosphorIcons.pencilSimple, color: colors.primary),
+              Icon(appIcons.edit, color: colors.primary, fill: 1),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   spacing: 2,
                   children: [
-                    Text('Editing your home screen', style: context.theme.typography.body.md),
+                    Text(
+                      'Editing your home screen',
+                      style: context.theme.typography.body.md,
+                    ),
                     Text(
                       'Add, remove and rearrange sections. Select Done when you\'re finished.',
-                      style: context.theme.typography.body.sm.copyWith(color: colors.mutedForeground),
+                      style: context.theme.typography.body.sm.copyWith(
+                        color: colors.mutedForeground,
+                      ),
                     ),
                   ],
                 ),

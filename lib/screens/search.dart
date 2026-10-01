@@ -57,9 +57,13 @@ class _SearchScreenState extends State<SearchScreen> {
   }
 
   void _onTextChanged() {
-    if (_query.text == _lastSearched) return; // cursor moves also notify; ignore them
+    if (_query.text == _lastSearched)
+      return; // cursor moves also notify; ignore them
     _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 400), () => _search(_query.text));
+    _debounce = Timer(
+      const Duration(milliseconds: 400),
+      () => _search(_query.text),
+    );
   }
 
   Future<void> _search(String text) async {
@@ -69,7 +73,7 @@ class _SearchScreenState extends State<SearchScreen> {
     if (query.isEmpty || client == null) {
       setState(() {
         _results = const [];
-        _people = const[];
+        _people = const [];
         _error = null;
       });
       return;
@@ -79,14 +83,21 @@ class _SearchScreenState extends State<SearchScreen> {
     setState(() => _loading = true);
     try {
       final (page, people) = await (
-      client.items.list(
-        searchTerm: query,
-        includeItemTypes: const [JellyfinItemKind.movie, JellyfinItemKind.series],
-        recursive: true,
-        sortBy: const ['SortName'],
-        limit: 60,
-      ),
-      client.persons.list(searchTerm: query, personTypes: const ['Actor'], limit: 20),
+        client.items.list(
+          searchTerm: query,
+          includeItemTypes: const [
+            JellyfinItemKind.movie,
+            JellyfinItemKind.series,
+          ],
+          recursive: true,
+          sortBy: const ['SortName'],
+          limit: 60,
+        ),
+        client.persons.list(
+          searchTerm: query,
+          personTypes: const ['Actor'],
+          limit: 20,
+        ),
       ).wait;
       if (!mounted || id != _requestId) return;
       setState(() {
@@ -94,13 +105,15 @@ class _SearchScreenState extends State<SearchScreen> {
         _people = people.items;
         _error = null;
       });
-      if (!mounted || id != _requestId) return; // a newer search has started; drop this one
+      if (!mounted || id != _requestId)
+        return; // a newer search has started; drop this one
       setState(() {
         _results = page.items;
         _error = null;
       });
     } on JellyfinException catch (e) {
-      if (mounted && id == _requestId) setState(() => _error = describeJellyfinError(e));
+      if (mounted && id == _requestId)
+        setState(() => _error = describeJellyfinError(e));
     } finally {
       if (mounted && id == _requestId) setState(() => _loading = false);
     }
@@ -125,7 +138,10 @@ class _SearchScreenState extends State<SearchScreen> {
       // Little or no watch history: show a random mix instead.
       if (items.isEmpty) {
         items = (await client.items.list(
-          includeItemTypes: const [JellyfinItemKind.movie, JellyfinItemKind.series],
+          includeItemTypes: const [
+            JellyfinItemKind.movie,
+            JellyfinItemKind.series,
+          ],
           recursive: true,
           sortBy: const ['Random'],
           limit: 24,
@@ -147,7 +163,9 @@ class _SearchScreenState extends State<SearchScreen> {
         FTextField(
           control: .managed(controller: _query),
           hint: 'Search movies, shows, and actors',
-          autofocus: _routeQuery == null, // open the keyboard when arriving from the bottom bar
+          autofocus:
+              _routeQuery ==
+              null, // open the keyboard when arriving from the bottom bar
           clearable: (value) => value.text.isNotEmpty,
           textInputAction: TextInputAction.search,
           onSubmit: (text) {
@@ -162,25 +180,35 @@ class _SearchScreenState extends State<SearchScreen> {
   );
 
   Widget _buildResults(BuildContext context) {
-    final muted = context.theme.typography.body.md.copyWith(color: context.theme.colors.mutedForeground);
-    if (_loading && _results.isEmpty) return const Center(child: FCircularProgress());
+    final muted = context.theme.typography.body.md.copyWith(
+      color: context.theme.colors.mutedForeground,
+    );
+    if (_loading && _results.isEmpty)
+      return const Center(child: FCircularProgress());
     if (_error != null) return Center(child: Text(_error!));
     if (_query.text.trim().isEmpty) {
-      if (_suggestions.isEmpty) return Center(child: Text('Search your library', style: muted));
+      if (_suggestions.isEmpty)
+        return Center(child: Text('Search your library', style: muted));
       final view = libraryViewFor(context);
       return CustomScrollView(
         slivers: [
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.only(bottom: 12),
-              child: Text('Suggested For You', style: context.theme.typography.display.lg),
+              child: Text(
+                'Suggested For You',
+                style: context.theme.typography.display.lg,
+              ),
             ),
           ),
           SliverGrid.builder(
             gridDelegate: libraryGridDelegate(view),
             itemCount: _suggestions.length,
-            itemBuilder: (context, i) =>
-                PosterCard(item: _suggestions[i], view: view, onPress: () => openItem(context, _suggestions[i])),
+            itemBuilder: (context, i) => PosterCard(
+              item: _suggestions[i],
+              view: view,
+              onPress: () => openItem(context, _suggestions[i]),
+            ),
           ),
           const SliverToBoxAdapter(child: SizedBox(height: 16)),
         ],
@@ -188,7 +216,9 @@ class _SearchScreenState extends State<SearchScreen> {
     }
 
     if (_results.isEmpty && _people.isEmpty) {
-      return Center(child: Text('No results for "${_query.text.trim()}"', style: muted));
+      return Center(
+        child: Text('No results for "${_query.text.trim()}"', style: muted),
+      );
     }
 
     final view = libraryViewFor(context);
@@ -216,8 +246,11 @@ class _SearchScreenState extends State<SearchScreen> {
           SliverGrid.builder(
             gridDelegate: libraryGridDelegate(view),
             itemCount: _results.length,
-            itemBuilder: (context, i) =>
-                PosterCard(item: _results[i], view: view, onPress: () => openItem(context, _results[i])),
+            itemBuilder: (context, i) => PosterCard(
+              item: _results[i],
+              view: view,
+              onPress: () => openItem(context, _results[i]),
+            ),
           ),
         ],
         const SliverToBoxAdapter(child: SizedBox(height: 16)),

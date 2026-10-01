@@ -3,10 +3,12 @@ import 'package:material_ui/material_ui.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 
+import '../theme/app_icons.dart';
 import '../utils/font_controller.dart';
 import '../utils/theme_controller.dart';
 import '../utils/theme_presets.dart';
 import '../widgets/custom_theme_editor.dart';
+import '../widgets/choice_picker.dart';
 
 /// One entry per settings tab. Add a line here to add a tab.
 typedef _SettingsTab = ({String label, Widget Function() build});
@@ -36,7 +38,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       children: [
         // Tab pills, above the card.
         SingleChildScrollView(
-          scrollDirection: Axis.horizontal, // scrolls sideways if there are more pills than fit
+          scrollDirection: Axis
+              .horizontal, // scrolls sideways if there are more pills than fit
           child: Row(
             spacing: 8,
             children: [
@@ -60,7 +63,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
 /// A bordered settings section with a title and subtitle, like the forui example.
 class _SettingsCard extends StatelessWidget {
-  const _SettingsCard({required this.title, required this.subtitle, required this.children});
+  const _SettingsCard({
+    required this.title,
+    required this.subtitle,
+    required this.children,
+  });
 
   final String title;
   final String subtitle;
@@ -126,10 +133,10 @@ class _FontPreviewState extends State<_FontPreview> {
       duration: const Duration(milliseconds: 200),
       child: _style == null
           ? Text(
-        widget.font,
-        key: const ValueKey('placeholder'),
-        style: TextStyle(color: context.theme.colors.mutedForeground),
-      )
+              widget.font,
+              key: const ValueKey('placeholder'),
+              style: TextStyle(color: context.theme.colors.mutedForeground),
+            )
           : Text(widget.font, key: const ValueKey('loaded'), style: _style),
     ),
   );
@@ -137,28 +144,57 @@ class _FontPreviewState extends State<_FontPreview> {
 
 /// A font selector FSelect reusable widget
 class _FontSelect extends StatelessWidget {
-  const _FontSelect({required this.label, required this.value, required this.onChange});
+  const _FontSelect({
+    required this.label,
+    required this.value,
+    required this.onChange,
+  });
 
   final String label;
   final String value;
   final ValueChanged<String> onChange;
 
   @override
-  Widget build(BuildContext context) => FSelect<String>.searchBuilder(
-    label: Text(label),
-    format: (font) => font,
-    filter: searchFonts,
-    searchFieldProperties: const FSelectSearchFieldProperties(hint: 'Search Google Fonts'),
-    contentBuilder: (context, _, fonts) => [
-      for (final font in fonts) .item(title: _FontPreview(font), value: font),
-    ],
-    control: FSelectControl.lifted(
+  Widget build(BuildContext context) {
+    // Phones: a compact dropdown (touch only). Elsewhere: a field that opens a remote-friendly list.
+    if (MediaQuery.sizeOf(context).width < 600) {
+      return FSelect<String>.searchBuilder(
+        label: Text(label),
+        format: (font) => font,
+        filter: searchFonts,
+        searchFieldProperties: const FSelectSearchFieldProperties(
+          hint: 'Search Google Fonts',
+        ),
+        contentBuilder: (context, _, fonts) => [
+          for (final font in fonts)
+            .item(title: _FontPreview(font), value: font),
+        ],
+        control: FSelectControl.lifted(
+          value: value,
+          onChange: (font) {
+            if (font != null) onChange(font);
+          },
+        ),
+      );
+    }
+
+    return ChoiceField(
+      label: label,
       value: value,
-      onChange: (font) {
-        if (font != null) onChange(font);
+      onPress: () async {
+        final picked = await showChoicePicker<String>(
+          context: context,
+          title: label,
+          searchable: true,
+          searchHint: 'Search Google Fonts',
+          selected: value,
+          search: (query) async => [...await searchFonts(query)],
+          itemBuilder: (context, font) => _FontPreview(font),
+        );
+        if (picked != null) onChange(picked);
       },
-    ),
-  );
+    );
+  }
 }
 
 /// Appearance Settings Tab
@@ -187,25 +223,72 @@ class _AppearanceCard extends StatelessWidget {
             value: fontController.body,
             onChange: fontController.setBody,
           ),
+
           /// END: Font Picker
           const SizedBox(height: 16),
+
           /// START: Theme Select
-          FSelect<ThemePreset>(
-            label: const Text('Theme'),
-            hint: 'Prism',
-            items: {for (final p in themeController.allPresets) p.label: p},
-            control: FSelectControl.lifted(
-              value: preset,
-              onChange: (selected) {
-                if (selected != null) themeController.select(selected);
+          if (MediaQuery.sizeOf(context).width < 600)
+            FSelect<ThemePreset>(
+              label: const Text('Theme'),
+              hint: 'Prism',
+              items: {for (final p in themeController.allPresets) p.label: p},
+              control: FSelectControl.lifted(
+                value: preset,
+                onChange: (selected) {
+                  if (selected != null) themeController.select(selected);
+                },
+              ),
+            )
+          else
+            ChoiceField(
+              label: 'Theme',
+              value: preset.label,
+              onPress: () async {
+                final picked = await showChoicePicker<ThemePreset>(
+                  context: context,
+                  title: 'Theme',
+                  selected: preset,
+                  search: (_) async => themeController.allPresets.toList(),
+                  itemBuilder: (context, p) => Text(p.label),
+                );
+                if (picked != null) themeController.select(picked);
               },
             ),
-          ),
           if (preset.id == customThemeId) ...[
             const SizedBox(height: 16),
             const CustomThemeEditor(),
           ],
+
           /// END: Theme Select
+          const SizedBox(height: 16),
+
+          /// START: Icon Picker
+          ListenableBuilder(
+            listenable: iconController,
+            builder: (context, _) => ChoiceField(
+              label: 'Icons',
+              value: iconController.value.label,
+              onPress: () async {
+                final picked = await showChoicePicker<IconStyle>(
+                  context: context,
+                  title: 'Icons',
+                  selected: iconController.value,
+                  search: (_) async => IconStyle.values,
+                  itemBuilder: (context, style) => Row(
+                    spacing: 12,
+                    children: [
+                      // A small preview of each style.
+                      Icon(style == IconStyle.phosphor ? phosphorIconSet.play : materialIconSet.play, size: 18),
+                      Icon(style == IconStyle.phosphor ? phosphorIconSet.favorite : materialIconSet.favorite, size: 18),
+                      Text(style.label),
+                    ],
+                  ),
+                );
+                if (picked != null) iconController.select(picked);
+              },
+            ),
+          ),
         ],
       );
     },
@@ -221,9 +304,7 @@ class _AccountCard extends StatelessWidget {
     return _SettingsCard(
       title: 'Account',
       subtitle: 'Choose fonts and a theme, or select "Custom" to build your own theme.',
-      children: [
-
-      ],
+      children: [],
     );
   }
 }
@@ -237,9 +318,7 @@ class _PlaybackCard extends StatelessWidget {
     return _SettingsCard(
       title: 'Playback',
       subtitle: 'Choose fonts and a theme, or select "Custom" to build your own theme.',
-      children: [
-
-      ],
+      children: [],
     );
   }
 }
@@ -253,9 +332,7 @@ class _ServerCard extends StatelessWidget {
     return _SettingsCard(
       title: 'Server',
       subtitle: 'Choose fonts and a theme, or select "Custom" to build your own theme.',
-      children: [
-
-      ],
+      children: [],
     );
   }
 }
@@ -269,9 +346,7 @@ class _AboutCard extends StatelessWidget {
     return _SettingsCard(
       title: 'About',
       subtitle: 'Choose fonts and a theme, or select "Custom" to build your own theme.',
-      children: [
-
-      ],
+      children: [],
     );
   }
 }

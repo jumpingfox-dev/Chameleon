@@ -19,7 +19,9 @@ class UiScaler extends StatelessWidget {
 
     final scale = width < phoneBreakpoint
         ? 1.0
-        : (width / designWidth).clamp(0.8, 2.5).toDouble(); // don't get tiny or huge
+        : (width / designWidth)
+              .clamp(0.8, 2.5)
+              .toDouble(); // don't get tiny or huge
 
     if (scale == 1.0) return child;
 

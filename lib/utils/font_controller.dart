@@ -116,7 +116,9 @@ class FontController extends ChangeNotifier {
   static Future<FontController> load() async {
     final prefs = await SharedPreferences.getInstance();
     String pick(String? saved, String fallback) =>
-        saved != null && GoogleFonts.asMap().containsKey(saved) ? saved : fallback;
+        saved != null && GoogleFonts.asMap().containsKey(saved)
+        ? saved
+        : fallback;
     return FontController._(
       pick(prefs.getString(_displayKey), defaultDisplay),
       pick(prefs.getString(_bodyKey), defaultBody),

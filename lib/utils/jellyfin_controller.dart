@@ -10,7 +10,11 @@ import 'app_cache.dart';
 import 'library_cache.dart';
 
 class JellyfinLibrary {
-  const JellyfinLibrary({required this.id, required this.name, this.collectionType});
+  const JellyfinLibrary({
+    required this.id,
+    required this.name,
+    this.collectionType,
+  });
 
   final String id;
   final String name;
@@ -31,7 +35,9 @@ String composeServerUrl(String host, String port) {
 /// Splits a saved server URL back into Host and Port for pre-filling the form.
 (String host, String port) splitServerUrl(String url) {
   final uri = Uri.parse(url);
-  final scheme = uri.scheme == 'https' ? 'https://' : ''; // http is the default, so hide it
+  final scheme = uri.scheme == 'https'
+      ? 'https://'
+      : ''; // http is the default, so hide it
   final path = uri.path == '/' ? '' : uri.path;
   return ('$scheme${uri.host}$path', uri.hasPort ? '${uri.port}' : '');
 }
@@ -50,10 +56,12 @@ String normalizeServerUrl(String input) {
 String describeJellyfinError(Object error) {
   if (error is! JellyfinException) return 'Something went wrong: $error';
   return switch (error.type) {
-    JellyfinErrorType.connection => "Couldn't reach the server. Check the address and your network.",
+    JellyfinErrorType.connection =>
+      "Couldn't reach the server. Check the address and your network.",
     JellyfinErrorType.timeout => 'The server took too long to respond.',
     JellyfinErrorType.auth => 'Wrong username or password.',
-    JellyfinErrorType.notFound => "That address doesn't look like a Jellyfin server.",
+    JellyfinErrorType.notFound =>
+      "That address doesn't look like a Jellyfin server.",
     _ => error.message,
   };
 }
@@ -89,23 +97,32 @@ class JellyfinController extends ChangeNotifier {
 
   /// The direct-play address for an item: the original file, sent untouched.
   /// mpv decodes it on the device, so the server never has to transcode.
-  String streamUrl(String itemId) => '${client!.baseUrl}/Videos/$itemId/stream?static=true';
+  String streamUrl(String itemId) =>
+      '${client!.baseUrl}/Videos/$itemId/stream?static=true';
 
   /// Authenticates media requests with a header, keeping the token out of the URL.
-  Map<String, String> get authHeaders => {'Authorization': 'MediaBrowser Token="${client!.token}"'};
+  Map<String, String> get authHeaders => {
+    'Authorization': 'MediaBrowser Token="${client!.token}"',
+  };
 
   /// A random id for this install. Jellyfin tracks sessions by it, so it must stay stable.
   Future<String> _deviceId(SharedPreferences prefs) async {
     var id = prefs.getString(_kDeviceId);
     if (id == null) {
       final random = Random.secure();
-      id = List.generate(16, (_) => random.nextInt(256).toRadixString(16).padLeft(2, '0')).join();
+      id = List.generate(
+        16,
+        (_) => random.nextInt(256).toRadixString(16).padLeft(2, '0'),
+      ).join();
       await prefs.setString(_kDeviceId, id);
     }
     return id;
   }
 
-  Future<JellyfinClient> _createClient(String url, SharedPreferences prefs) async => JellyfinClient(
+  Future<JellyfinClient> _createClient(
+    String url,
+    SharedPreferences prefs,
+  ) async => JellyfinClient(
     baseUrl: url,
     credentials: JellyfinCredentials(
       client: _clientName,
@@ -129,12 +146,17 @@ class JellyfinController extends ChangeNotifier {
     try {
       await _refresh();
     } on JellyfinException catch (e) {
-      if (e.isAuthError) await _clearSession(); // token revoked or expired: back to login
+      if (e.isAuthError)
+        await _clearSession(); // token revoked or expired: back to login
       // Connection errors (server offline) keep the session, so you stay signed in.
     }
   }
 
-  Future<void> signIn({required String server, required String username, required String password}) async {
+  Future<void> signIn({
+    required String server,
+    required String username,
+    required String password,
+  }) async {
     final prefs = await SharedPreferences.getInstance();
     final url = normalizeServerUrl(server);
     final newClient = await _createClient(url, prefs);
@@ -142,7 +164,10 @@ class JellyfinController extends ChangeNotifier {
     // Confirms the address is a Jellyfin server before sending credentials.
     serverName = (await newClient.system.publicInfo()).serverName;
 
-    final auth = await newClient.user.authenticateByName(username: username, password: password);
+    final auth = await newClient.user.authenticateByName(
+      username: username,
+      password: password,
+    );
     newClient.setSession(token: auth.accessToken, userId: auth.user.id);
 
     client = newClient;
@@ -157,17 +182,26 @@ class JellyfinController extends ChangeNotifier {
   Future<void> _refresh() async {
     final c = client!;
     final (me, views, genreResult) = await (
-    c.user.currentUser(),
-    c.library.userViews(),
-    c.genres.list(includeItemTypes: const ['Movie', 'Series']), // drop to include music genres
+      c.user.currentUser(),
+      c.library.userViews(),
+      c.genres.list(
+        includeItemTypes: const ['Movie', 'Series'],
+      ), // drop to include music genres
     ).wait;
 
     userName = me.name;
     final tag = me.primaryImageTag;
-    userImage = tag == null ? null : NetworkImage('${c.baseUrl}/UserImage?userId=${me.id}&tag=$tag');
+    userImage = tag == null
+        ? null
+        : NetworkImage('${c.baseUrl}/UserImage?userId=${me.id}&tag=$tag');
 
     libraries = [
-      for (final v in views) JellyfinLibrary(id: v.id, name: v.name, collectionType: v.collectionType),
+      for (final v in views)
+        JellyfinLibrary(
+          id: v.id,
+          name: v.name,
+          collectionType: v.collectionType,
+        ),
     ];
     genres = [for (final g in genreResult.items) g.name];
     notifyListeners();
@@ -186,7 +220,9 @@ class JellyfinController extends ChangeNotifier {
   Future<void> _clearSession() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_kToken);
-    await prefs.remove(_kUserId); // the server address is kept to pre-fill login
+    await prefs.remove(
+      _kUserId,
+    ); // the server address is kept to pre-fill login
     client?.clearSession();
     client = null;
     userName = null;

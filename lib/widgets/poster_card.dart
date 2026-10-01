@@ -1,8 +1,8 @@
 import 'package:dart_jellyfin/dart_jellyfin.dart';
 import 'package:forui/forui.dart';
-import 'package:forui_phosphor/forui_phosphor.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../theme/app_icons.dart';
 import '../utils/jellyfin_controller.dart';
 import 'hover_lift.dart';
 
@@ -14,7 +14,9 @@ final libraryViewOverride = ValueNotifier<LibraryView?>(null);
 
 LibraryView libraryViewFor(BuildContext context) =>
     libraryViewOverride.value ??
-        (MediaQuery.sizeOf(context).width < 600 ? LibraryView.poster : LibraryView.thumbnail);
+    (MediaQuery.sizeOf(context).width < 600
+        ? LibraryView.poster
+        : LibraryView.thumbnail);
 
 /// An outlined rectangle icon at a given aspect ratio, colored like other icons.
 /// A wide one means thumbnails, a tall one means posters.
@@ -32,7 +34,10 @@ class AspectIcon extends StatelessWidget {
         width: width,
         height: height,
         decoration: BoxDecoration(
-          border: Border.all(color: IconTheme.of(context).color ?? const Color(0xFFFFFFFF), width: 1.6),
+          border: Border.all(
+            color: IconTheme.of(context).color ?? const Color(0xFFFFFFFF),
+            width: 1.6,
+          ),
           borderRadius: BorderRadius.circular(2),
         ),
       ),
@@ -45,18 +50,22 @@ double _tileWidth(LibraryView view) => view == LibraryView.poster ? 170 : 320;
 double _aspect(LibraryView view) => view == LibraryView.poster ? 2 / 3 : 16 / 9;
 
 /// Grid sizing for each view: narrow tall posters, or wider 16:9 thumbnails.
-SliverGridDelegate libraryGridDelegate(LibraryView view) => SliverGridDelegateWithMaxCrossAxisExtent(
-  maxCrossAxisExtent: _tileWidth(view),
-  mainAxisSpacing: _gridSpacing,
-  crossAxisSpacing: _gridSpacing,
-  childAspectRatio: _aspect(view),
-);
+SliverGridDelegate libraryGridDelegate(LibraryView view) =>
+    SliverGridDelegateWithMaxCrossAxisExtent(
+      maxCrossAxisExtent: _tileWidth(view),
+      mainAxisSpacing: _gridSpacing,
+      crossAxisSpacing: _gridSpacing,
+      childAspectRatio: _aspect(view),
+    );
 
 /// The height a grid of [count] items takes at [width], using the same layout rules as Flutter's grid.
 /// The library page uses it to work out where each letter section starts.
 double libraryGridHeight(int count, double width, LibraryView view) {
   if (count == 0 || width <= 0) return 0;
-  final columns = (width / (_tileWidth(view) + _gridSpacing)).ceil().clamp(1, 1000);
+  final columns = (width / (_tileWidth(view) + _gridSpacing)).ceil().clamp(
+    1,
+    1000,
+  );
   final tileWidth = (width - (columns - 1) * _gridSpacing) / columns;
   final rows = (count / columns).ceil();
   return rows * (tileWidth / _aspect(view)) + (rows - 1) * _gridSpacing;
@@ -91,7 +100,8 @@ bool isWatched(JellyfinItem item) {
   if (userData == null) return false;
   if (userData['Played'] == true) return true;
   // Series: Jellyfin may only report the unwatched count, so zero left means finished.
-  return item.type == JellyfinItemKind.series && userData['UnplayedItemCount'] == 0;
+  return item.type == JellyfinItemKind.series &&
+      userData['UnplayedItemCount'] == 0;
 }
 
 /// A round check in the theme's primary color, for the corner of watched artwork.
@@ -109,9 +119,16 @@ class WatchedBadge extends StatelessWidget {
       decoration: BoxDecoration(
         color: colors.primary,
         shape: BoxShape.circle,
-        boxShadow: const [BoxShadow(color: Color(0x66000000), blurRadius: 4)], // lifts it off bright artwork
+        boxShadow: const [
+          BoxShadow(color: Color(0x66000000), blurRadius: 4),
+        ], // lifts it off bright artwork
       ),
-      child: Icon(FPhosphorIcons.check, size: size * 0.6, color: colors.primaryForeground),
+      child: Icon(
+        appIcons.check,
+        size: size * 0.6,
+        color: colors.primaryForeground,
+        fill: 1
+      ),
     );
   }
 }
@@ -130,7 +147,9 @@ class WatchProgressBar extends StatelessWidget {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          const ColoredBox(color: Color(0x73000000)), // track: readable on any artwork
+          const ColoredBox(
+            color: Color(0x73000000),
+          ), // track: readable on any artwork
           FractionallySizedBox(
             alignment: Alignment.centerLeft,
             widthFactor: value,
@@ -160,7 +179,13 @@ class PosterCard extends StatelessWidget {
     if (view == LibraryView.thumbnail) {
       final thumb = item.imageTags['Thumb'];
       if (thumb != null) {
-        return client.images.url(itemId: item.id, type: JellyfinImagesApi.typeThumb, tag: thumb, fillWidth: 640, quality: 90);
+        return client.images.url(
+          itemId: item.id,
+          type: JellyfinImagesApi.typeThumb,
+          tag: thumb,
+          fillWidth: 640,
+          quality: 90,
+        );
       }
       final backdrops = item.raw['BackdropImageTags'] as List?;
       if (backdrops != null && backdrops.isNotEmpty) {
@@ -194,31 +219,48 @@ class PosterCard extends StatelessWidget {
       label: item.name,
       button: true,
       child: HoverLift(
-        builder: (context, active) => AnimatedScale(
-          scale: active ? 1.0 : 0.94,
-          duration: const Duration(milliseconds: 150),
-          curve: Curves.easeOut,
-          child: FTappable(
-            onPress: onPress,
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  url == null
-                      ? _placeholder(context, colors)
-                      : Image.network(
-                    url,
-                    fit: BoxFit.cover,
-                    width: double.infinity,
-                    height: double.infinity,
-                    errorBuilder: (_, _, _) => _placeholder(context, colors),
-                  ),
-                  if (watchProgress(item) case final progress?)
-                    Positioned(left: 8, right: 8, bottom: 8, child: WatchProgressBar(progress)),
-                  if (isWatched(item))
-                    const Positioned(top: 8, right: 8, child: WatchedBadge()),
-                ],
+        builder: (context, active) => FTappable(
+          onPress: onPress,
+          child: AnimatedScale(
+            scale: active ? 1.0 : 0.94,
+            duration: const Duration(milliseconds: 150),
+            curve: Curves.easeOut,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 150),
+              // Hovered or focused: a border drawn over the artwork's edge (it takes up no space).
+              foregroundDecoration: BoxDecoration(
+                border: Border.all(
+                  color: active ? context.theme.colors.primary : const Color(0x00000000),
+                  width: 2.5,
+                ),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    url == null
+                        ? _placeholder(context, colors)
+                        : Image.network(
+                            url,
+                            fit: BoxFit.cover,
+                            width: double.infinity,
+                            height: double.infinity,
+                            errorBuilder: (_, _, _) =>
+                                _placeholder(context, colors),
+                          ),
+                    if (watchProgress(item) case final progress?)
+                      Positioned(
+                        left: 8,
+                        right: 8,
+                        bottom: 8,
+                        child: WatchProgressBar(progress),
+                      ),
+                    if (isWatched(item))
+                      const Positioned(top: 8, right: 8, child: WatchedBadge()),
+                  ],
+                ),
               ),
             ),
           ),
@@ -237,7 +279,9 @@ class PosterCard extends StatelessWidget {
           textAlign: TextAlign.center,
           maxLines: 3,
           overflow: TextOverflow.ellipsis,
-          style: context.theme.typography.body.sm.copyWith(color: colors.mutedForeground),
+          style: context.theme.typography.body.sm.copyWith(
+            color: colors.mutedForeground,
+          ),
         ),
       ),
     ),

@@ -24,7 +24,13 @@ enum HomeModuleType {
 /// One section on the home screen: its type, what it shows, and how.
 @immutable
 class HomeModule {
-  const HomeModule({required this.id, required this.type, this.param, this.label, this.view});
+  const HomeModule({
+    required this.id,
+    required this.type,
+    this.param,
+    this.label,
+    this.view,
+  });
 
   /// Unique within the layout, so two Genre sections can be told apart.
   final String id;
@@ -39,13 +45,21 @@ class HomeModule {
   /// 'poster' or 'thumbnail', or null for the type's default.
   final String? view;
 
-  HomeModule withView(String? view) => HomeModule(id: id, type: type, param: param, label: label, view: view);
+  HomeModule withView(String? view) =>
+      HomeModule(id: id, type: type, param: param, label: label, view: view);
 
-  Map<String, Object?> toJson() => {'id': id, 'type': type.name, 'param': param, 'label': label, 'view': view};
+  Map<String, Object?> toJson() => {
+    'id': id,
+    'type': type.name,
+    'param': param,
+    'label': label,
+    'view': view,
+  };
 
   static HomeModule? fromJson(Map<String, dynamic> json) {
     final type = HomeModuleType.values.asNameMap()[json['type']];
-    if (type == null) return null; // a type from a newer or older version: skip it
+    if (type == null)
+      return null; // a type from a newer or older version: skip it
     return HomeModule(
       id: (json['id'] as String?) ?? type.name,
       type: type,
@@ -71,7 +85,9 @@ class HomeLayoutController extends ValueNotifier<List<HomeModule>> {
     HomeModuleType.suggested,
   ];
 
-  static List<HomeModule> get _defaults => [for (final t in defaultTypes) HomeModule(id: t.name, type: t)];
+  static List<HomeModule> get _defaults => [
+    for (final t in defaultTypes) HomeModule(id: t.name, type: t),
+  ];
 
   static Future<HomeLayoutController> load() async {
     final prefs = await SharedPreferences.getInstance();
@@ -82,7 +98,9 @@ class HomeLayoutController extends ValueNotifier<List<HomeModule>> {
       try {
         modules = [
           for (final entry in jsonDecode(raw) as List)
-            if (HomeModule.fromJson(entry as Map<String, dynamic>) case final module?) module,
+            if (HomeModule.fromJson(entry as Map<String, dynamic>)
+                case final module?)
+              module,
         ];
       } catch (_) {
         // Unreadable: fall back below.
@@ -98,25 +116,35 @@ class HomeLayoutController extends ValueNotifier<List<HomeModule>> {
     if (names == null) return null;
     final byName = HomeModuleType.values.asNameMap();
     final views = <String, String>{
-      for (final entry in prefs.getStringList('home_module_views') ?? const <String>[])
+      for (final entry
+          in prefs.getStringList('home_module_views') ?? const <String>[])
         if (entry.split('=') case [final name, final view]) name: view,
     };
     return [
       for (final name in names)
-        if (byName[name] case final type?) HomeModule(id: type.name, type: type, view: views[name]),
+        if (byName[name] case final type?)
+          HomeModule(id: type.name, type: type, view: views[name]),
     ];
   }
 
   /// Section types you can still add: any not on the screen yet, plus the ones allowed more than once.
-  List<HomeModuleType> get available =>
-      HomeModuleType.values.where((t) => t.allowsMultiple || !value.any((m) => m.type == t)).toList();
+  List<HomeModuleType> get available => HomeModuleType.values
+      .where((t) => t.allowsMultiple || !value.any((m) => m.type == t))
+      .toList();
 
-  Future<void> add(HomeModuleType type, {String? param, String? label}) => _save([
-    ...value,
-    HomeModule(id: '${type.name}-${DateTime.now().microsecondsSinceEpoch}', type: type, param: param, label: label),
-  ]);
+  Future<void> add(HomeModuleType type, {String? param, String? label}) =>
+      _save([
+        ...value,
+        HomeModule(
+          id: '${type.name}-${DateTime.now().microsecondsSinceEpoch}',
+          type: type,
+          param: param,
+          label: label,
+        ),
+      ]);
 
-  Future<void> remove(String id) => _save(value.where((m) => m.id != id).toList());
+  Future<void> remove(String id) =>
+      _save(value.where((m) => m.id != id).toList());
 
   /// Moves a section up (-1) or down (+1).
   Future<void> move(String id, int by) async {
@@ -137,7 +165,10 @@ class HomeLayoutController extends ValueNotifier<List<HomeModule>> {
   Future<void> _save(List<HomeModule> modules) async {
     value = List.unmodifiable(modules);
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_key, jsonEncode([for (final m in modules) m.toJson()]));
+    await prefs.setString(
+      _key,
+      jsonEncode([for (final m in modules) m.toJson()]),
+    );
   }
 }
 

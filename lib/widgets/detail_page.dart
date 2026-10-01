@@ -2,16 +2,18 @@ import 'dart:math' as math;
 
 import 'package:dart_jellyfin/dart_jellyfin.dart';
 import 'package:forui/forui.dart';
-import 'package:forui_phosphor/forui_phosphor.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../theme/app_icons.dart';
 import '../utils/app_cache.dart';
+import '../utils/focus_rows.dart';
 import '../utils/jellyfin_controller.dart';
 import 'expandable_text.dart';
 import 'hover_lift.dart';
 import 'person_tile.dart';
 import 'poster_card.dart';
+import 'scroll_into_view.dart';
 
 /// Bumped whenever a favorite is added or removed, so pages listing favorites can refresh.
 final favoritesChanged = ValueNotifier<int>(0);
@@ -22,13 +24,28 @@ final favoritesChanged = ValueNotifier<int>(0);
 void openItem(BuildContext context, JellyfinItem item) {
   switch (item.type) {
     case JellyfinItemKind.movie:
-      showDetailPopout(context, load: movieDetails(item.id), layout: const MovieLayout(), cacheKey: 'movie:${item.id}');
+      showDetailPopout(
+        context,
+        load: movieDetails(item.id),
+        layout: const MovieLayout(),
+        cacheKey: 'movie:${item.id}',
+      );
     case JellyfinItemKind.series:
-      showDetailPopout(context, load: seriesDetails(item.id), layout: const SeriesLayout(), cacheKey: 'series:${item.id}');
+      showDetailPopout(
+        context,
+        load: seriesDetails(item.id),
+        layout: const SeriesLayout(),
+        cacheKey: 'series:${item.id}',
+      );
     case JellyfinItemKind.episode:
       context.push('/play/${item.id}');
     case 'BoxSet':
-      showDetailPopout(context, load: collectionDetails(item.id), layout: const CollectionLayout(), cacheKey: 'collection:${item.id}');
+      showDetailPopout(
+        context,
+        load: collectionDetails(item.id),
+        layout: const CollectionLayout(),
+        cacheKey: 'collection:${item.id}',
+      );
     case JellyfinItemKind.person:
       openPerson(context, item.id);
   }
@@ -58,26 +75,36 @@ Future<void> playItem(BuildContext context, JellyfinItem item) async {
 Future<JellyfinItem?> nextEpisodeFor(String seriesId) async {
   final client = jellyfin.client!;
 
-  final nextUp = await client.tvShows.nextUp(seriesId: seriesId, limit: 1, enableResumable: true);
+  final nextUp = await client.tvShows.nextUp(
+    seriesId: seriesId,
+    limit: 1,
+    enableResumable: true,
+  );
   if (nextUp.items.firstOrNull case final episode?) return episode;
 
   final seasons = (await client.tvShows.seasons(seriesId: seriesId)).items;
   final firstSeason =
-      seasons.where((s) => ((s.raw['IndexNumber'] as int?) ?? 0) > 0).firstOrNull ?? seasons.firstOrNull;
+      seasons
+          .where((s) => ((s.raw['IndexNumber'] as int?) ?? 0) > 0)
+          .firstOrNull ??
+      seasons.firstOrNull;
   if (firstSeason == null) return null;
 
-  final episodes = await client.tvShows.episodes(seriesId: seriesId, seasonId: firstSeason.id);
+  final episodes = await client.tvShows.episodes(
+    seriesId: seriesId,
+    seasonId: firstSeason.id,
+  );
   return episodes.items.firstOrNull;
 }
 
 /// Shows a detail layout in a large card floating over the current screen's content,
 /// leaving the nav bars visible and usable. Any popout already open is closed first.
 Future<void> showDetailPopout(
-    BuildContext context, {
-      required DetailLoader load,
-      required DetailLayout layout,
-      String? cacheKey,
-    }) {
+  BuildContext context, {
+  required DetailLoader load,
+  required DetailLayout layout,
+  String? cacheKey,
+}) {
   // The tab's navigator covers only the area between the nav bars, so the popout does too.
   // Read everything needed from `context` now: if it belongs to a popout, it's about to close.
   final navigator = Navigator.of(context);
@@ -103,7 +130,12 @@ Future<void> showDetailPopout(
               height: constraints.maxHeight * (isPhone ? 0.96 : 0.92),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(16),
-                child: DetailPage(load: load, layout: layout, popout: true, cacheKey: cacheKey),
+                child: DetailPage(
+                  load: load,
+                  layout: layout,
+                  popout: true,
+                  cacheKey: cacheKey,
+                ),
               ),
             ),
           ),
@@ -114,7 +146,10 @@ Future<void> showDetailPopout(
       final curved = CurvedAnimation(parent: animation, curve: Curves.easeOut);
       return FadeTransition(
         opacity: curved,
-        child: ScaleTransition(scale: Tween(begin: 0.96, end: 1.0).animate(curved), child: child),
+        child: ScaleTransition(
+          scale: Tween(begin: 0.96, end: 1.0).animate(curved),
+          child: child,
+        ),
       );
     },
   );
@@ -129,7 +164,11 @@ void closeDetailPopouts(BuildContext context) =>
 /// What a detail page loads: the main item, the items that belong to it,
 /// and anything extra a particular layout needs (seasons, tracks, ...).
 class DetailData {
-  const DetailData({required this.item, this.children = const [], this.extra = const {}});
+  const DetailData({
+    required this.item,
+    this.children = const [],
+    this.extra = const {},
+  });
 
   final JellyfinItem item;
   final List<JellyfinItem> children;
@@ -140,44 +179,46 @@ class DetailData {
 
 typedef DetailLoader = Future<DetailData> Function(JellyfinClient client);
 
-DetailLoader movieDetails(String id) => (client) async => DetailData(item: (await client.items.byId(id))!);
+DetailLoader movieDetails(String id) =>
+    (client) async => DetailData(item: (await client.items.byId(id))!);
 
 DetailLoader collectionDetails(String id) => (client) async {
   final (collection, page) = await (
-  client.items.byId(id),
-  client.items.list(
-    parentId: id,
-    sortBy: const ['ProductionYear', 'SortName'],
-    limit: 200,
-    fields: const ['Genres', 'OfficialRating', 'ProductionYear'],
-  ),
+    client.items.byId(id),
+    client.items.list(
+      parentId: id,
+      sortBy: const ['ProductionYear', 'SortName'],
+      limit: 200,
+      fields: const ['Genres', 'OfficialRating', 'ProductionYear'],
+    ),
   ).wait;
   return DetailData(item: collection!, children: page.items);
 };
 
 DetailLoader personDetails(String id) => (client) async {
   final (person, page) = await (
-  client.items.byId(id),
-  client.items.list(
-    personIds: [id],
-    includeItemTypes: const [JellyfinItemKind.movie, JellyfinItemKind.series],
-    recursive: true,
-    sortBy: const ['ProductionYear', 'SortName'],
-    descending: true,
-  ),
+    client.items.byId(id),
+    client.items.list(
+      personIds: [id],
+      includeItemTypes: const [JellyfinItemKind.movie, JellyfinItemKind.series],
+      recursive: true,
+      sortBy: const ['ProductionYear', 'SortName'],
+      descending: true,
+    ),
   ).wait;
   return DetailData(item: person!, children: page.items);
 };
 
 DetailLoader seriesDetails(String id) => (client) async {
   final (series, seasons) = await (
-  client.items.byId(id),
-  client.tvShows.seasons(seriesId: id),
+    client.items.byId(id),
+    client.tvShows.seasons(seriesId: id),
   ).wait;
   // Regular seasons in order, with "Specials" (season 0) at the end.
   final ordered = [...seasons.items]
     ..sort((a, b) {
-      final ai = (a.raw['IndexNumber'] as int?) ?? 0, bi = (b.raw['IndexNumber'] as int?) ?? 0;
+      final ai = (a.raw['IndexNumber'] as int?) ?? 0,
+          bi = (b.raw['IndexNumber'] as int?) ?? 0;
       if (ai == 0) return 1;
       if (bi == 0) return -1;
       return ai.compareTo(bi);
@@ -344,7 +385,13 @@ class SeriesLayout extends DetailLayout {
 
 /// A detail page: loads its data, shows loading and errors, and hands the result to a layout.
 class DetailPage extends StatefulWidget {
-  const DetailPage({super.key, required this.load, required this.layout, this.popout = false, this.cacheKey});
+  const DetailPage({
+    super.key,
+    required this.load,
+    required this.layout,
+    this.popout = false,
+    this.cacheKey,
+  });
 
   /// Fetches the page's data. Called on open and on "Try again".
   final DetailLoader load;
@@ -427,7 +474,11 @@ class _DetailPageState extends State<DetailPage> {
           spacing: 12,
           children: [
             Text(_error ?? 'Nothing to show'),
-            FButton(mainAxisSize: .min, onPress: _load, child: const Text('Try again')),
+            FButton(
+              mainAxisSize: .min,
+              onPress: _load,
+              child: const Text('Try again'),
+            ),
           ],
         ),
       );
@@ -442,8 +493,8 @@ class _DetailPageState extends State<DetailPage> {
       );
     }
 
-// Popout: tapping any empty space closes it (cards absorb their own taps), and each
-// info card shows its own close button.
+    // Popout: tapping any empty space closes it (cards absorb their own taps), and each
+    // info card shows its own close button.
     if (widget.popout) {
       final isPhone = MediaQuery.sizeOf(context).width < 600;
       return GestureDetector(
@@ -451,7 +502,8 @@ class _DetailPageState extends State<DetailPage> {
         onTap: () => Navigator.of(context).pop(),
         child: _PopoutScope(
           child: ScrollConfiguration(
-            behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
+            behavior: ScrollConfiguration.of(context)
+                .copyWith(scrollbars: false),
             child: Padding(
               padding: EdgeInsets.symmetric(horizontal: isPhone ? 12 : 24),
               child: body,
@@ -472,7 +524,7 @@ class _DetailPageState extends State<DetailPage> {
               top: topPadding + widget.layout.backButtonOffset.dy,
               left: widget.layout.backButtonOffset.dx,
               child: _FloatingIconButton(
-                icon: FPhosphorIcons.arrowLeft,
+                icon: appIcons.back,
                 label: 'Back',
                 filled: _scrolled,
                 onPress: () => context.pop(),
@@ -528,11 +580,17 @@ class SliverDetailCard extends StatelessWidget {
       if (subtitle != null)
         Text(
           subtitle!,
-          style: context.theme.typography.body.sm.copyWith(color: context.theme.colors.mutedForeground),
+          style: context.theme.typography.body.sm.copyWith(
+            color: context.theme.colors.mutedForeground,
+          ),
         ),
       if (text != null && text.isNotEmpty) ...[
         const SizedBox(height: 8),
-        ExpandableText(text, limit: isPhone ? 150 : 400, style: context.theme.typography.body.md),
+        ExpandableText(
+          text,
+          limit: isPhone ? 150 : 400,
+          style: context.theme.typography.body.md,
+        ),
       ],
     ];
 
@@ -553,7 +611,11 @@ class SliverDetailCard extends StatelessWidget {
                   children: [
                     image(160),
                     Expanded(
-                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, spacing: 4, children: details),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        spacing: 4,
+                        children: details,
+                      ),
                     ),
                   ],
                 ),
@@ -584,15 +646,15 @@ class DetailPoster extends StatelessWidget {
         child: tag == null
             ? ColoredBox(color: context.theme.colors.muted)
             : Image.network(
-          jellyfin.client!.images.url(
-            itemId: item.id,
-            type: JellyfinImagesApi.typePrimary,
-            tag: tag,
-            fillWidth: (width * 2).round(),
-            quality: 90,
-          ),
-          fit: BoxFit.cover,
-        ),
+                jellyfin.client!.images.url(
+                  itemId: item.id,
+                  type: JellyfinImagesApi.typePrimary,
+                  tag: tag,
+                  fillWidth: (width * 2).round(),
+                  quality: 90,
+                ),
+                fit: BoxFit.cover,
+              ),
       ),
     );
   }
@@ -614,7 +676,12 @@ class _RatingBadge extends StatelessWidget {
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-        child: Text(rating, style: context.theme.typography.body.sm.copyWith(color: colors.mutedForeground)),
+        child: Text(
+          rating,
+          style: context.theme.typography.body.sm.copyWith(
+            color: colors.mutedForeground,
+          ),
+        ),
       ),
     );
   }
@@ -627,23 +694,27 @@ class _GenreButtons extends StatelessWidget {
   final List<String> genres;
 
   @override
-  Widget build(BuildContext context) => Wrap(
-    spacing: 8,
-    runSpacing: 8,
-    children: [
-      for (final genre in genres)
-        FButton(
-          variant: .outline,
-          size: .xs,
-          mainAxisSize: .min,
-          onPress: () {
-            final router = GoRouter.of(context); // grab it before the popout (and this context) closes
-            closeDetailPopouts(context);
-            router.push('/home/genre/${Uri.encodeComponent(genre)}');
-          },
-          child: Text(genre),
-        ),
-    ],
+  Widget build(BuildContext context) => ScrollIntoViewOnFocus(
+    child: Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        for (final genre in genres)
+          FButton(
+            variant: .outline,
+            size: .xs,
+            mainAxisSize: .min,
+            onPress: () {
+              final router = GoRouter.of(
+                context,
+              ); // grab it before the popout (and this context) closes
+              closeDetailPopouts(context);
+              router.push('/home/genre/${Uri.encodeComponent(genre)}');
+            },
+            child: Text(genre),
+          ),
+      ],
+    ),
   );
 }
 
@@ -674,7 +745,13 @@ class _InlineItemGrid extends StatelessWidget {
       padding: EdgeInsets.zero,
       gridDelegate: libraryGridDelegate(view),
       itemCount: items.length,
-      itemBuilder: (context, i) => PosterCard(item: items[i], view: view, onPress: () => openItem(context, items[i])),
+      itemBuilder: (context, i) => ScrollIntoViewOnFocus(
+        child: PosterCard(
+          item: items[i],
+          view: view,
+          onPress: () => openItem(context, items[i]),
+        ),
+      ),
     );
   }
 }
@@ -683,7 +760,8 @@ class _InlineItemGrid extends StatelessWidget {
 class _PopoutScope extends InheritedWidget {
   const _PopoutScope({required super.child});
 
-  static bool of(BuildContext context) => context.dependOnInheritedWidgetOfExactType<_PopoutScope>() != null;
+  static bool of(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<_PopoutScope>() != null;
 
   @override
   bool updateShouldNotify(_PopoutScope oldWidget) => false;
@@ -697,16 +775,22 @@ class _TapShield extends StatelessWidget {
   final Widget child;
 
   @override
-  Widget build(BuildContext context) =>
-      GestureDetector(behavior: HitTestBehavior.opaque, onTap: () {}, child: child);
+  Widget build(BuildContext context) => GestureDetector(
+    behavior: HitTestBehavior.opaque,
+    onTap: () {},
+    child: child,
+  );
 }
 
 /// The card used by every detail layout. It absorbs taps, and in a popout shows a
 /// close button in its top-right corner.
 class _DetailCard extends StatelessWidget {
-  const _DetailCard({required this.child});
+  const _DetailCard({required this.child, this.showClose = true});
 
   final Widget child;
+
+  /// False for cards under a backdrop banner, which carries the close button instead.
+  final bool showClose;
 
   @override
   Widget build(BuildContext context) => _TapShield(
@@ -714,14 +798,17 @@ class _DetailCard extends StatelessWidget {
       builder: (context, style, _) => Stack(
         children: [
           Padding(padding: style.padding, child: child),
-          if (_PopoutScope.of(context))
+          if (showClose && _PopoutScope.of(context))
             Positioned(
               top: 8,
               right: 8,
               child: FButton.icon(
                 variant: .ghost,
+                autofocus:
+                    FocusManager.instance.highlightMode ==
+                    FocusHighlightMode.traditional,
                 onPress: () => Navigator.of(context).pop(),
-                child: const Icon(FPhosphorIcons.x),
+                child: Icon(appIcons.close, fill: 1),
               ),
             ),
         ],
@@ -757,7 +844,13 @@ class SliverItemGrid extends StatelessWidget {
     return SliverGrid.builder(
       gridDelegate: libraryGridDelegate(view),
       itemCount: items.length,
-      itemBuilder: (context, i) => PosterCard(item: items[i], view: view, onPress: () => openItem(context, items[i])),
+      itemBuilder: (context, i) => ScrollIntoViewOnFocus(
+        child: PosterCard(
+          item: items[i],
+          view: view,
+          onPress: () => openItem(context, items[i]),
+        ),
+      ),
     );
   }
 }
@@ -783,7 +876,10 @@ class _CloseOnNavigationState extends State<_CloseOnNavigation> {
     super.didChangeDependencies();
     if (_router != null) return; // set up once
     _router = GoRouter.of(context);
-    _openedAt = _router!.routerDelegate.currentConfiguration.uri; // where the app was when this opened
+    _openedAt = _router!
+        .routerDelegate
+        .currentConfiguration
+        .uri; // where the app was when this opened
     _router!.routerDelegate.addListener(_onNavigate);
   }
 
@@ -810,24 +906,17 @@ class _CloseOnNavigationState extends State<_CloseOnNavigation> {
 }
 
 /// The first line of a details card (year, seasons, age rating, score...), on one line
-/// that scrolls sideways when it doesn't fit. In a popout it stops short of the
-/// close button, so nothing runs underneath it.
+/// that scrolls sideways when it doesn't fit.
 class _FactsRow extends StatelessWidget {
   const _FactsRow({required this.children});
 
   final List<Widget> children;
 
   @override
-  Widget build(BuildContext context) => Padding(
-    // The close button is about 36px wide and sits 8px from the card's edge.
-    padding: EdgeInsets.only(right: _PopoutScope.of(context) ? 24 : 0),
-    child: SingleChildScrollView(
-      scrollDirection: Axis.horizontal, // clips at its edge, so overflow is cut off there
-      child: Row(
-        spacing: 16,
-        children: children,
-      ),
-    ),
+  Widget build(BuildContext context) => SingleChildScrollView(
+    scrollDirection:
+        Axis.horizontal, // clips at its edge, so overflow is cut off there
+    child: Row(spacing: 16, children: children),
   );
 }
 
@@ -847,7 +936,9 @@ class _BackdropBanner extends StatelessWidget {
     final isPhone = MediaQuery.sizeOf(context).width < 600;
 
     final backdrops = item.raw['BackdropImageTags'] as List?;
-    final backdropTag = backdrops != null && backdrops.isNotEmpty ? backdrops.first as String : null;
+    final backdropTag = backdrops != null && backdrops.isNotEmpty
+        ? backdrops.first as String
+        : null;
     final logoTag = item.imageTags['Logo'];
 
     return _TapShield(
@@ -876,7 +967,8 @@ class _BackdropBanner extends StatelessWidget {
                       ),
                       fit: BoxFit.cover,
                       alignment: Alignment.topCenter, // crop from the bottom, keep the top of the image
-                      errorBuilder: (_, _, _) => ColoredBox(color: colors.muted),
+                      errorBuilder: (_, _, _) =>
+                          ColoredBox(color: colors.muted),
                     ),
                   )
                 else
@@ -904,27 +996,62 @@ class _BackdropBanner extends StatelessWidget {
                     ),
                     child: logoTag != null
                         ? Image.network(
-                      client.images.url(
-                        itemId: item.id,
-                        type: JellyfinImagesApi.typeLogo,
-                        tag: logoTag,
-                        fillWidth: 720,
-                      ),
-                      fit: BoxFit.contain,
-                      alignment: Alignment.bottomLeft,
-                    )
+                            client.images.url(
+                              itemId: item.id,
+                              type: JellyfinImagesApi.typeLogo,
+                              tag: logoTag,
+                              fillWidth: 720,
+                            ),
+                            fit: BoxFit.contain,
+                            alignment: Alignment.bottomLeft,
+                          )
                         : Text(
-                      // No logo: the name, in large white text.
-                      item.name,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: context.theme.typography.display.xl2.copyWith(
-                        color: const Color(0xFFFFFFFF),
-                        shadows: const [Shadow(blurRadius: 8, color: Color(0x99000000))],
+                            // No logo: the name, in large white text.
+                            item.name,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: context.theme.typography.display.xl2
+                                .copyWith(
+                                  color: const Color(0xFFFFFFFF),
+                                  shadows: const [
+                                    Shadow(
+                                      blurRadius: 8,
+                                      color: Color(0x99000000),
+                                    ),
+                                  ],
+                                ),
+                          ),
+                  ),
+                ),
+                // ── Close (popouts only) ──
+                if (_PopoutScope.of(context))
+                  Positioned(
+                    top: 10,
+                    left: 10,
+                    child: Focus(
+                      // Doesn't take focus itself: notices when the button gets it from the keyboard or remote,
+                      // and scrolls the popout back to the top so the whole banner is in view.
+                      canRequestFocus: false,
+                      skipTraversal: true,
+                      onFocusChange: (hasFocus) {
+                        if (!hasFocus || FocusManager.instance.highlightMode != FocusHighlightMode.traditional) return;
+                        Scrollable.maybeOf(context)?.position.animateTo(
+                          0,
+                          duration: const Duration(milliseconds: 300),
+                          curve: Curves.easeOutCubic,
+                        );
+                      },
+                      child: _FloatingIconButton(
+                        icon: appIcons.close,
+                        label: 'Close',
+                        filled: true,
+                        autofocus:
+                            FocusManager.instance.highlightMode ==
+                            FocusHighlightMode.traditional,
+                        onPress: () => Navigator.of(context).pop(),
                       ),
                     ),
                   ),
-                ),
               ],
             ),
           ),
@@ -953,9 +1080,13 @@ class _ParallaxBackdrop extends StatelessWidget {
         // Start only once the banner's top edge has scrolled out of view,
         // so no gap ever opens above the image.
         final scrolledPastTop = math.max(0.0, position.pixels - topPadding);
-        return Transform.translate(offset: Offset(0, scrolledPastTop * _speed), child: child);
+        return Transform.translate(
+          offset: Offset(0, scrolledPastTop * _speed),
+          child: child,
+        );
       },
-      child: child, // the image itself isn't rebuilt while scrolling, only moved
+      child:
+          child, // the image itself isn't rebuilt while scrolling, only moved
     );
   }
 }
@@ -971,7 +1102,17 @@ class _CollectionInfoCard extends StatelessWidget {
 
   /// US film and TV ratings, mildest to strictest, used to find the collection's range.
   static const _ratingOrder = [
-    'G', 'TV-Y', 'TV-Y7', 'TV-G', 'PG', 'TV-PG', 'PG-13', 'TV-14', 'R', 'TV-MA', 'NC-17',
+    'G',
+    'TV-Y',
+    'TV-Y7',
+    'TV-G',
+    'PG',
+    'TV-PG',
+    'PG-13',
+    'TV-14',
+    'R',
+    'TV-MA',
+    'NC-17',
   ];
 
   /// "2009–2022", or a single year if every movie shares it.
@@ -981,7 +1122,9 @@ class _CollectionInfoCard extends StatelessWidget {
         if (item.raw['ProductionYear'] case final int year) year,
     ]..sort();
     if (years.isEmpty) return null;
-    return years.first == years.last ? '${years.first}' : '${years.first}–${years.last}';
+    return years.first == years.last
+        ? '${years.first}'
+        : '${years.first}–${years.last}';
   }
 
   /// "PG-13" if every movie shares it, otherwise the mildest–strictest range, e.g. "PG–R".
@@ -993,36 +1136,47 @@ class _CollectionInfoCard extends StatelessWidget {
     if (ratings.isEmpty) return null;
 
     final known = ratings.where(_ratingOrder.contains).toList()
-      ..sort((a, b) => _ratingOrder.indexOf(a).compareTo(_ratingOrder.indexOf(b)));
-    if (known.isEmpty) return ratings.first; // a rating system outside the US list: show it as-is
-    return known.first == known.last ? known.first : '${known.first} – ${known.last}';
+      ..sort(
+        (a, b) => _ratingOrder.indexOf(a).compareTo(_ratingOrder.indexOf(b)),
+      );
+    if (known.isEmpty) return ratings .first; // a rating system outside the US list: show it as-is
+    return known.first == known.last
+        ? known.first
+        : '${known.first} – ${known.last}';
   }
 
   /// The collection's own genres, or else every genre its movies use, most common first.
   List<String> get _genres {
-    final own = (collection.raw['Genres'] as List?)?.cast<String>() ?? const <String>[];
+    final own =
+        (collection.raw['Genres'] as List?)?.cast<String>() ?? const <String>[];
     if (own.isNotEmpty) return own;
 
     final counts = <String, int>{};
     for (final item in items) {
-      for (final genre in (item.raw['Genres'] as List?)?.cast<String>() ?? const <String>[]) {
+      for (final genre
+          in (item.raw['Genres'] as List?)?.cast<String>() ??
+              const <String>[]) {
         counts[genre] = (counts[genre] ?? 0) + 1;
       }
     }
-    return counts.keys.toList()..sort((a, b) => counts[b]!.compareTo(counts[a]!));
+    return counts.keys.toList()
+      ..sort((a, b) => counts[b]!.compareTo(counts[a]!));
   }
 
   @override
   Widget build(BuildContext context) {
     final colors = context.theme.colors;
     final isPhone = MediaQuery.sizeOf(context).width < 600;
-    final muted = context.theme.typography.body.sm.copyWith(color: colors.mutedForeground);
+    final muted = context.theme.typography.body.sm.copyWith(
+      color: colors.mutedForeground,
+    );
     final description = (collection.raw['Overview'] as String?)?.trim();
     final years = _years;
     final rating = _rating;
     final genres = _genres;
 
     return _DetailCard(
+      showClose: false,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         spacing: 12,
@@ -1030,7 +1184,10 @@ class _CollectionInfoCard extends StatelessWidget {
           // ── Count, years, age rating ──
           _FactsRow(
             children: [
-              Text('${items.length} ${items.length == 1 ? 'title' : 'titles'}', style: muted),
+              Text(
+                '${items.length} ${items.length == 1 ? 'title' : 'titles'}',
+                style: muted,
+              ),
               if (years != null) Text(years, style: muted),
               if (rating != null) _RatingBadge(rating),
             ],
@@ -1038,7 +1195,11 @@ class _CollectionInfoCard extends StatelessWidget {
 
           // ── Description ──
           if (description != null && description.isNotEmpty)
-            ExpandableText(description, limit: isPhone ? 150 : 400, style: context.theme.typography.body.md),
+            ExpandableText(
+              description,
+              limit: isPhone ? 150 : 400,
+              style: context.theme.typography.body.md,
+            ),
 
           // ── Genres ──
           if (genres.isNotEmpty) _GenreButtons(genres),
@@ -1082,17 +1243,21 @@ class _MovieInfoCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.theme.colors;
     final isPhone = MediaQuery.sizeOf(context).width < 600;
-    final muted = context.theme.typography.body.sm.copyWith(color: colors.mutedForeground);
+    final muted = context.theme.typography.body.sm.copyWith(
+      color: colors.mutedForeground,
+    );
 
     final year = movie.raw['ProductionYear'];
     final runtime = _runtime;
     final rating = movie.raw['OfficialRating'] as String?;
     final score = movie.raw['CommunityRating'] as num?;
     final description = (movie.raw['Overview'] as String?)?.trim();
-    final genres = (movie.raw['Genres'] as List?)?.cast<String>() ?? const <String>[];
+    final genres =
+        (movie.raw['Genres'] as List?)?.cast<String>() ?? const <String>[];
     final cast = _cast;
 
     return _DetailCard(
+      showClose: false,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         spacing: 12,
@@ -1108,7 +1273,7 @@ class _MovieInfoCard extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   spacing: 4,
                   children: [
-                    Icon(FPhosphorIcons.star, size: 14, color: colors.primary),
+                    Icon(appIcons.star, size: 14, color: colors.primary, fill: 1),
                     Text(score.toStringAsFixed(1), style: muted),
                   ],
                 ),
@@ -1116,26 +1281,35 @@ class _MovieInfoCard extends StatelessWidget {
           ),
 
           // ── Play, Favorite ──
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              FButton(
-                mainAxisSize: .min,
-                onPress: () => context.push('/play/${movie.id}'),
-                child: const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  spacing: 8,
-                  children: [Icon(FPhosphorIcons.play, size: 18), Text('Play')],
+          ScrollIntoViewOnFocus(
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                FButton(
+                  mainAxisSize: .min,
+                  onPress: () => context.push('/play/${movie.id}'),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    spacing: 8,
+                    children: [
+                      Icon(appIcons.play, size: 18, fill: 1),
+                      const Text('Play'),
+                    ],
+                  ),
                 ),
-              ),
-              _FavoriteButton(item: movie),
-            ],
+                _FavoriteButton(item: movie),
+              ],
+            ),
           ),
 
           // ── Description ──
           if (description != null && description.isNotEmpty)
-            ExpandableText(description, limit: isPhone ? 150 : 400, style: context.theme.typography.body.md),
+            ExpandableText(
+              description,
+              limit: isPhone ? 150 : 400,
+              style: context.theme.typography.body.md,
+            ),
 
           // ── Genres ──
           if (genres.isNotEmpty) _GenreButtons(genres),
@@ -1144,13 +1318,17 @@ class _MovieInfoCard extends StatelessWidget {
           if (cast.isNotEmpty) ...[
             const _CardDivider(),
             Text('Cast', style: context.theme.typography.display.lg),
-            SizedBox(
-              height: 155,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                itemCount: cast.length,
-                separatorBuilder: (_, _) => const SizedBox(width: 8),
-                itemBuilder: (context, i) => _CastTile(person: cast[i]),
+            ScrollIntoViewOnFocus(
+              child: SizedBox(
+                height: 155,
+                child: FocusRow(
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: cast.length,
+                    separatorBuilder: (_, _) => const SizedBox(width: 8),
+                    itemBuilder: (context, i) => _CastTile(person: cast[i]),
+                  ),
+                ),
               ),
             ),
           ],
@@ -1176,7 +1354,8 @@ class _SeriesInfoCard extends StatefulWidget {
 
 class _SeriesInfoCardState extends State<_SeriesInfoCard> {
   late JellyfinItem? _season = widget.seasons.firstOrNull;
-  final _episodes = <String, List<JellyfinItem>>{}; // season id → its episodes, once loaded
+  final _episodes =
+      <String, List<JellyfinItem>>{}; // season id → its episodes, once loaded
   String? _loadingSeasonId;
   String? _error;
 
@@ -1191,7 +1370,10 @@ class _SeriesInfoCardState extends State<_SeriesInfoCard> {
 
     final cacheKey = 'episodes:${season.id}';
     if (appCache.isFresh(cacheKey)) {
-      setState(() => _episodes[season.id] = appCache.peek<List<JellyfinItem>>(cacheKey)!);
+      setState(
+        () =>
+            _episodes[season.id] = appCache.peek<List<JellyfinItem>>(cacheKey)!,
+      );
       return;
     }
 
@@ -1219,7 +1401,9 @@ class _SeriesInfoCardState extends State<_SeriesInfoCard> {
     final start = widget.series.raw['ProductionYear'];
     if (start is! int) return null;
     if (widget.series.raw['Status'] == 'Continuing') return '$start–present';
-    final end = DateTime.tryParse((widget.series.raw['EndDate'] as String?) ?? '')?.year;
+    final end = DateTime.tryParse(
+      (widget.series.raw['EndDate'] as String?) ?? '',
+    )?.year;
     return end == null || end == start ? '$start' : '$start–$end';
   }
 
@@ -1228,18 +1412,22 @@ class _SeriesInfoCardState extends State<_SeriesInfoCard> {
     final series = widget.series;
     final colors = context.theme.colors;
     final isPhone = MediaQuery.sizeOf(context).width < 600;
-    final muted = context.theme.typography.body.sm.copyWith(color: colors.mutedForeground);
+    final muted = context.theme.typography.body.sm.copyWith(
+      color: colors.mutedForeground,
+    );
 
     final years = _years;
     final seasonCount = widget.seasons.length;
     final rating = series.raw['OfficialRating'] as String?;
     final score = series.raw['CommunityRating'] as num?;
     final description = (series.raw['Overview'] as String?)?.trim();
-    final genres = (series.raw['Genres'] as List?)?.cast<String>() ?? const <String>[];
+    final genres =
+        (series.raw['Genres'] as List?)?.cast<String>() ?? const <String>[];
     final season = _season;
     final episodes = season == null ? null : _episodes[season.id];
 
     return _DetailCard(
+      showClose: false,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         spacing: 12,
@@ -1248,14 +1436,18 @@ class _SeriesInfoCardState extends State<_SeriesInfoCard> {
           _FactsRow(
             children: [
               if (years != null) Text(years, style: muted),
-              if (seasonCount > 0) Text('$seasonCount ${seasonCount == 1 ? 'season' : 'seasons'}', style: muted),
+              if (seasonCount > 0)
+                Text(
+                  '$seasonCount ${seasonCount == 1 ? 'season' : 'seasons'}',
+                  style: muted,
+                ),
               if (rating != null && rating.isNotEmpty) _RatingBadge(rating),
               if (score != null)
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   spacing: 4,
                   children: [
-                    Icon(FPhosphorIcons.star, size: 14, color: colors.primary),
+                    Icon(appIcons.star, size: 14, color: colors.primary, fill: 1),
                     Text(score.toStringAsFixed(1), style: muted),
                   ],
                 ),
@@ -1263,18 +1455,24 @@ class _SeriesInfoCardState extends State<_SeriesInfoCard> {
           ),
 
           // ── Play, Favorite ──
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              _SeriesPlayButton(series: series, seasons: widget.seasons),
-              _FavoriteButton(item: series),
-            ],
+          ScrollIntoViewOnFocus(
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _SeriesPlayButton(series: series, seasons: widget.seasons),
+                _FavoriteButton(item: series),
+              ],
+            ),
           ),
 
           // ── Description ──
           if (description != null && description.isNotEmpty)
-            ExpandableText(description, limit: isPhone ? 150 : 400, style: context.theme.typography.body.md),
+            ExpandableText(
+              description,
+              limit: isPhone ? 150 : 400,
+              style: context.theme.typography.body.md,
+            ),
 
           // ── Genres ──
           if (genres.isNotEmpty) _GenreButtons(genres),
@@ -1282,20 +1480,46 @@ class _SeriesInfoCardState extends State<_SeriesInfoCard> {
           // ── Seasons and episodes ──
           if (season != null) ...[
             const _CardDivider(),
-            SizedBox(
-              width: 240,
-              child: FSelect<JellyfinItem>(
-                items: {for (final s in widget.seasons) s.name: s},
-                control: FSelectControl.lifted(
-                  value: season,
-                  onChange: (picked) {
-                    if (picked == null) return;
-                    setState(() => _season = picked);
-                    _loadEpisodes(picked);
-                  },
+            // ── Seasons: a compact dropdown on phones (touch only); buttons elsewhere, which work
+            // with a remote (a dropdown traps the arrow keys) ──
+            if (isPhone)
+              SizedBox(
+                width: 240,
+                child: FSelect<JellyfinItem>(
+                  items: {for (final s in widget.seasons) s.name: s},
+                  control: FSelectControl.lifted(
+                    value: season,
+                    onChange: (picked) {
+                      if (picked == null || picked.id == season.id) return;
+                      setState(() => _season = picked);
+                      _loadEpisodes(picked);
+                    },
+                  ),
+                ),
+              )
+            else
+              ScrollIntoViewOnFocus(
+                child: Wrap(
+                  spacing: 8,
+                  runSpacing: 8, // many seasons flow onto more lines instead of scrolling sideways
+                  children: [
+                    for (final s in widget.seasons)
+                      FButton(
+                        variant: s.id == season.id
+                            ? .primary
+                            : .outline, // the current season stands out
+                        size: .sm,
+                        mainAxisSize: .min,
+                        onPress: () {
+                          if (s.id == season.id) return;
+                          setState(() => _season = s);
+                          _loadEpisodes(s);
+                        },
+                        child: Text(s.name),
+                      ),
+                  ],
                 ),
               ),
-            ),
             if (_loadingSeasonId == season.id && episodes == null)
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 24),
@@ -1304,12 +1528,15 @@ class _SeriesInfoCardState extends State<_SeriesInfoCard> {
             else if (_error != null && episodes == null)
               Text(_error!, style: muted)
             else if (episodes != null && episodes.isEmpty)
-                Text('No episodes in this season yet.', style: muted)
-              else if (episodes != null)
-                  Column(
-                    spacing: 8,
-                    children: [for (final episode in episodes) _EpisodeTile(episode: episode)],
-                  ),
+              Text('No episodes in this season yet.', style: muted)
+            else if (episodes != null)
+              Column(
+                spacing: 8,
+                children: [
+                  for (final episode in episodes)
+                    _EpisodeTile(episode: episode),
+                ],
+              ),
           ],
         ],
       ),
@@ -1324,7 +1551,20 @@ class _EpisodeTile extends StatelessWidget {
 
   final JellyfinItem episode;
 
-  static const _months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  static const _months = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
 
   String? get _runtime {
     final ticks = episode.raw['RunTimeTicks'];
@@ -1336,8 +1576,12 @@ class _EpisodeTile extends StatelessWidget {
 
   /// "Jan 20, 2008" from the episode's premiere date.
   String? get _airDate {
-    final date = DateTime.tryParse((episode.raw['PremiereDate'] as String?) ?? '');
-    return date == null ? null : '${_months[date.month - 1]} ${date.day}, ${date.year}';
+    final date = DateTime.tryParse(
+      (episode.raw['PremiereDate'] as String?) ?? '',
+    );
+    return date == null
+        ? null
+        : '${_months[date.month - 1]} ${date.day}, ${date.year}';
   }
 
   @override
@@ -1350,77 +1594,112 @@ class _EpisodeTile extends StatelessWidget {
     final details = [_runtime, _airDate].whereType<String>().join(' · ');
     final thumbWidth = isPhone ? 140.0 : 240.0;
 
-    return HoverLift(
-      builder: (context, active) => FTappable(
-        onPress: () => context.push('/play/${episode.id}'),
-        child: AnimatedScale(
-          scale: active ? 1.0 : 0.98, // a gentle lift: rows are wide, so a small scale is plenty
-          duration: const Duration(milliseconds: 150),
-          curve: Curves.easeOut,
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            spacing: 16,
-            children: [
-              // ── Thumbnail ──
-              ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: SizedBox(
-                  width: thumbWidth,
-                  child: AspectRatio(
-                    aspectRatio: 16 / 9,
-                    child: Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        tag == null
-                            ? ColoredBox(
-                          color: colors.muted,
-                          child: Icon(FPhosphorIcons.play, color: colors.mutedForeground),
-                        )
-                            : Image.network(
-                          jellyfin.client!.images.url(
-                            itemId: episode.id,
-                            type: JellyfinImagesApi.typePrimary,
-                            tag: tag,
-                            fillWidth: (thumbWidth * 2).round(),
-                            quality: 90,
-                          ),
-                          fit: BoxFit.cover,
+    return ScrollIntoViewOnFocus(
+      alignment: 0.4, // episodes are tall rows: settle a little lower so the previous one stays visible
+      child: HoverLift(
+        builder: (context, active) => FTappable(
+          onPress: () => context.push('/play/${episode.id}'),
+          child: AnimatedScale(
+            scale: active ? 1.0 : 0.98, // a gentle lift: rows are wide, so a small scale is plenty
+            duration: const Duration(milliseconds: 150),
+            curve: Curves.easeOut,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              spacing: 16,
+              children: [
+                // ── Thumbnail ──
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
+                  foregroundDecoration: BoxDecoration(
+                    border: Border.all(
+                      color: active ? colors.primary : const Color(0x00000000),
+                      width: 2.5,
+                    ),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: SizedBox(
+                      width: thumbWidth,
+                      child: AspectRatio(
+                        aspectRatio: 16 / 9,
+                        child: Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            tag == null
+                                ? ColoredBox(
+                                  color: colors.muted,
+                                  child: Icon(
+                                    appIcons.play,
+                                    color: colors.mutedForeground,
+                                    fill: 1,
+                                  ),
+                                )
+                                : Image.network(
+                                  jellyfin.client!.images.url(
+                                    itemId: episode.id,
+                                    type: JellyfinImagesApi.typePrimary,
+                                    tag: tag,
+                                    fillWidth: (thumbWidth * 2).round(),
+                                    quality: 90,
+                                  ),
+                                  fit: BoxFit.cover,
+                                ),
+                            if (watchProgress(episode) case final progress?)
+                              Positioned(
+                                left: 6,
+                                right: 6,
+                                bottom: 6,
+                                child: WatchProgressBar(progress),
+                              ),
+                            if (isWatched(episode))
+                              const Positioned(
+                                top: 6,
+                                right: 6,
+                                child: WatchedBadge(size: 20),
+                              ),
+                          ],
                         ),
-                        if (watchProgress(episode) case final progress?)
-                          Positioned(left: 6, right: 6, bottom: 6, child: WatchProgressBar(progress)),
-                        if (isWatched(episode))
-                          const Positioned(top: 6, right: 6, child: WatchedBadge(size: 20)),
-                      ],
+                      ),
                     ),
                   ),
                 ),
-              ),
 
-              // ── Text ──
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  spacing: 4,
-                  children: [
-                    Text(
-                      number != null ? '$number. ${episode.name}' : episode.name,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: context.theme.typography.body.md.copyWith(fontWeight: FontWeight.w600),
-                    ),
-                    if (details.isNotEmpty)
-                      Text(details, style: context.theme.typography.body.xs.copyWith(color: colors.mutedForeground)),
-                    if (overview != null && overview.isNotEmpty)
+                // ── Text ──
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    spacing: 4,
+                    children: [
                       Text(
-                        overview,
-                        maxLines: isPhone ? 2 : 3,
+                        number != null
+                            ? '$number. ${episode.name}'
+                            : episode.name,
+                        maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        style: context.theme.typography.body.sm,
+                        style: context.theme.typography.body.md.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
-                  ],
+                      if (details.isNotEmpty)
+                        Text(
+                          details,
+                          style: context.theme.typography.body.xs.copyWith(
+                            color: colors.mutedForeground,
+                          ),
+                        ),
+                      if (overview != null && overview.isNotEmpty)
+                        Text(
+                          overview,
+                          maxLines: isPhone ? 2 : 3,
+                          overflow: TextOverflow.ellipsis,
+                          style: context.theme.typography.body.sm,
+                        ),
+                    ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -1441,7 +1720,13 @@ class _CastTile extends StatelessWidget {
     final name = (person['Name'] as String?) ?? '';
     final role = person['Role'] as String?;
     final tag = person['PrimaryImageTag'] as String?;
-    final initials = name.trim().split(RegExp(r'\s+')).where((w) => w.isNotEmpty).take(2).map((w) => w[0]).join();
+    final initials = name
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((w) => w.isNotEmpty)
+        .take(2)
+        .map((w) => w[0])
+        .join();
 
     return HoverLift(
       builder: (context, active) => FTappable(
@@ -1460,19 +1745,24 @@ class _CastTile extends StatelessWidget {
                     dimension: 96,
                     child: tag == null
                         ? ColoredBox(
-                      color: colors.muted,
-                      child: Center(child: Text(initials, style: TextStyle(color: colors.mutedForeground))),
-                    )
+                            color: colors.muted,
+                            child: Center(
+                              child: Text(
+                                initials,
+                                style: TextStyle(color: colors.mutedForeground),
+                              ),
+                            ),
+                          )
                         : Image.network(
-                      jellyfin.client!.images.url(
-                        itemId: id,
-                        type: JellyfinImagesApi.typePrimary,
-                        tag: tag,
-                        fillWidth: 192,
-                        quality: 90,
-                      ),
-                      fit: BoxFit.cover,
-                    ),
+                            jellyfin.client!.images.url(
+                              itemId: id,
+                              type: JellyfinImagesApi.typePrimary,
+                              tag: tag,
+                              fillWidth: 192,
+                              quality: 90,
+                            ),
+                            fit: BoxFit.cover,
+                          ),
                   ),
                 ),
               ),
@@ -1489,7 +1779,9 @@ class _CastTile extends StatelessWidget {
                   textAlign: TextAlign.center,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: context.theme.typography.body.xs.copyWith(color: colors.mutedForeground),
+                  style: context.theme.typography.body.xs.copyWith(
+                    color: colors.mutedForeground,
+                  ),
                 ),
             ],
           ),
@@ -1509,12 +1801,14 @@ class _FloatingIconButton extends StatelessWidget {
     required this.filled,
     required this.onPress,
     this.size = 40,
+    this.autofocus = false,
   });
 
   final IconData icon;
   final String label;
   final bool filled;
   final VoidCallback onPress;
+  final bool autofocus;
 
   /// The circle's diameter. The icon scales with it.
   final double size;
@@ -1524,18 +1818,41 @@ class _FloatingIconButton extends StatelessWidget {
     button: true,
     label: label,
     child: FTappable(
+      autofocus: autofocus,
       onPress: onPress,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeOut,
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: filled ? const Color(0x73000000) : const Color(0x00000000),
-        ),
-        child: Icon(icon, size: size / 2, color: const Color(0xFFFFFFFF)),
-      ),
+      builder: (context, states, _) {
+        final active =
+            states.contains(FTappableVariant.hovered) ||
+            states.contains(FTappableVariant.focused);
+        return AnimatedScale(
+          scale: active
+              ? 1.1
+              : 1.0, // grows slightly under the pointer or remote
+          duration: const Duration(milliseconds: 150),
+          curve: Curves.easeOut,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeOut,
+            width: size,
+            height: size,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: active
+                  ? const Color(0x99000000) // a little darker
+                  : filled
+                  ? const Color(0x73000000)
+                  : const Color(0x00000000),
+              border: Border.all(
+                color: active
+                    ? const Color(0xFFFFFFFF)
+                    : const Color(0x00FFFFFF), // white ring
+                width: 2,
+              ),
+            ),
+            child: Icon(icon, size: size / 2, color: const Color(0xFFFFFFFF), fill: 1),
+          ),
+        );
+      },
     ),
   );
 }
@@ -1554,7 +1871,8 @@ class _FavoriteButton extends StatefulWidget {
 
 class _FavoriteButtonState extends State<_FavoriteButton> {
   // Jellyfin includes the user's own data (favorite, watched, ...) with each item.
-  late bool _favorite = ((widget.item.raw['UserData'] as Map?)?['IsFavorite'] as bool?) ?? false;
+  late bool _favorite =
+      ((widget.item.raw['UserData'] as Map?)?['IsFavorite'] as bool?) ?? false;
   bool _saving = false;
 
   Future<void> _toggle() async {
@@ -1568,7 +1886,9 @@ class _FavoriteButtonState extends State<_FavoriteButton> {
       await jellyfin.client!.userData.setFavorite(widget.item.id, next);
       favoritesChanged.value++; // tell the Favorites page to refresh
       // Cached pages for this item, and the Favorites list, now show the wrong heart.
-      appCache.invalidateWhere((key) => key.endsWith(':${widget.item.id}') || key == 'favorites');
+      appCache.invalidateWhere(
+        (key) => key.endsWith(':${widget.item.id}') || key == 'favorites',
+      );
     } on JellyfinException {
       if (mounted) setState(() => _favorite = !next); // the server refused: undo
     } finally {
@@ -1585,7 +1905,12 @@ class _FavoriteButtonState extends State<_FavoriteButton> {
       mainAxisSize: MainAxisSize.min,
       spacing: 8,
       children: [
-        Icon(FPhosphorIcons.heart, size: 18, color: _favorite ? context.theme.colors.primary : null),
+        Icon(
+          appIcons.favorite,
+          size: 18,
+          color: _favorite ? context.theme.colors.primary : null,
+          fill: _favorite ? 1 : 0,
+        ),
         Text(_favorite ? 'Favorited' : 'Favorite'),
       ],
     ),
@@ -1617,12 +1942,19 @@ class _SeriesPlayButtonState extends State<_SeriesPlayButton> {
     final client = jellyfin.client!;
     try {
       // Jellyfin's "Next Up": the next episode after the last one you watched.
-      final nextUp = await client.tvShows.nextUp(seriesId: widget.series.id, limit: 1, enableResumable: true);
+      final nextUp = await client.tvShows.nextUp(
+        seriesId: widget.series.id,
+        limit: 1,
+        enableResumable: true,
+      );
       var next = nextUp.items.firstOrNull;
 
       // Not started yet: fall back to the first episode of the first season.
       if (next == null && widget.seasons.isNotEmpty) {
-        final first = await client.tvShows.episodes(seriesId: widget.series.id, seasonId: widget.seasons.first.id);
+        final first = await client.tvShows.episodes(
+          seriesId: widget.series.id,
+          seasonId: widget.seasons.first.id,
+        );
         next = first.items.firstOrNull;
       }
       if (mounted) setState(() => _next = next);
@@ -1644,11 +1976,13 @@ class _SeriesPlayButtonState extends State<_SeriesPlayButton> {
 
     return FButton(
       mainAxisSize: .min,
-      onPress: next == null ? null : () => context.push('/play/${next.id}'), // disabled until found
+      onPress: next == null
+          ? null
+          : () => context.push('/play/${next.id}'), // disabled until found
       child: Row(
         mainAxisSize: MainAxisSize.min,
         spacing: 8,
-        children: [const Icon(FPhosphorIcons.play, size: 18), Text(label)],
+        children: [Icon(appIcons.play, size: 18, fill: 1), Text(label)],
       ),
     );
   }

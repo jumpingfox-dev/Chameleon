@@ -16,10 +16,12 @@ class AppCache {
     return entry != null && DateTime.now().difference(entry.storedAt) < ttl;
   }
 
-  void put(String key, Object? value) => _entries[key] = (value: value, storedAt: DateTime.now());
+  void put(String key, Object? value) =>
+      _entries[key] = (value: value, storedAt: DateTime.now());
 
   /// Forgets matching entries, e.g. every cached page that shows a particular item.
-  void invalidateWhere(bool Function(String key) test) => _entries.removeWhere((key, _) => test(key));
+  void invalidateWhere(bool Function(String key) test) =>
+      _entries.removeWhere((key, _) => test(key));
 
   void clear() => _entries.clear();
 }

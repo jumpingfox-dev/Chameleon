@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:chameleon/utils/home_layout.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:forui/forui.dart';
 import 'package:go_router/go_router.dart';
@@ -11,10 +10,13 @@ import 'screens/player.dart';
 import 'widgets/app_shell.dart';
 import 'widgets/ui_scaler.dart';
 import 'theme/theme.dart';
+import 'theme/app_icons.dart';
 import 'utils/theme_controller.dart';
 import 'utils/font_controller.dart';
 import 'utils/jellyfin_controller.dart';
 import 'utils/orientation.dart';
+import 'utils/focus_rows.dart';
+import 'utils/home_layout.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -25,6 +27,7 @@ Future<void> main() async {
     ..maximumSizeBytes = 200 << 20; // 200 MB (the default is 100 MB)
   themeController = await ThemeController.load();
   fontController = await FontController.load();
+  iconController = await IconController.load();
   homeLayout = await HomeLayoutController.load();
 
   jellyfin = JellyfinController();
@@ -49,14 +52,24 @@ final GoRouter _router = GoRouter(
   },
   routes: [
     GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
-    GoRoute(path: '/play/:id', builder: (context, state) => PlayerScreen(itemId: state.pathParameters['id']!),),
+    GoRoute(
+      path: '/play/:id',
+      builder: (context, state) =>
+          PlayerScreen(itemId: state.pathParameters['id']!),
+    ),
     StatefulShellRoute.indexedStack(
       builder: (context, state, navigationShell) =>
           AppShell(navigationShell: navigationShell, location: state.uri.path),
       branches: [
         for (final d in destinations)
           StatefulShellBranch(
-            routes: [GoRoute(path: d.path, builder: (context, state) => d.screen(), routes: d.routes)],
+            routes: [
+              GoRoute(
+                path: d.path,
+                builder: (context, state) => d.screen(),
+                routes: d.routes,
+              ),
+            ],
           ),
       ],
     ),
@@ -68,7 +81,7 @@ class Application extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
-    listenable: Listenable.merge([themeController, fontController]),
+    listenable: Listenable.merge([themeController, fontController, iconController]),
     builder: (context, _) {
       final theme = buildTheme(
         themeController.value.colors,
@@ -84,11 +97,11 @@ class Application extends StatelessWidget {
         ],
         localizationsDelegates: GlobalMaterialLocalizations.delegates,
         theme: theme.toApproximateMaterialTheme(),
-        builder: (context, child) => UiScaler(
-          child: FTheme(
-            data: theme,
-            child: FToaster(
-              child: FTooltipGroup(child: child!),
+        builder: (context, child) => RowFocusNavigation(
+          child: UiScaler(
+            child: FTheme(
+              data: theme,
+              child: FToaster(child: FTooltipGroup(child: child!)),
             ),
           ),
         ),

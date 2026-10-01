@@ -33,11 +33,12 @@ class ProfileScreen extends StatelessWidget {
                     Text(
                       jellyfin.lastServer!,
                       textAlign: TextAlign.center,
-                      style: context.theme.typography.body.sm.copyWith(color: context.theme.colors.mutedForeground),
+                      style: context.theme.typography.body.sm.copyWith(
+                        color: context.theme.colors.mutedForeground,
+                      ),
                     ),
 
                   const FDivider(), // separates the profile from the actions
-
                   // Actions
                   for (final action in profileActions(context))
                     FButton(
@@ -46,7 +47,10 @@ class ProfileScreen extends StatelessWidget {
                       onPress: action.onPress,
                       child: Row(
                         spacing: 12,
-                        children: [Icon(action.icon, size: 20), Text(action.label)],
+                        children: [
+                          Icon(action.icon, size: 20),
+                          Text(action.label),
+                        ],
                       ),
                     ),
                 ],

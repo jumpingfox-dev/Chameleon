@@ -22,7 +22,10 @@ class LibraryScreen extends StatefulWidget {
 class _LibraryScreenState extends State<LibraryScreen> {
   static const _pageSize = 60;
 
-  static final _letters = ['#', for (var c = 65; c <= 90; c++) String.fromCharCode(c)]; // #, A–Z
+  static final _letters = [
+    '#',
+    for (var c = 65; c <= 90; c++) String.fromCharCode(c),
+  ]; // #, A–Z
   static const _sectionHeaderHeight = 64.0;
 
   double _gridWidth = 0;
@@ -62,13 +65,20 @@ class _LibraryScreenState extends State<LibraryScreen> {
       groups.putIfAbsent(_letterFor(item), () => []).add(item);
     }
     final letters = groups.keys.toList()
-      ..sort((a, b) => a == '#' ? -1 : b == '#' ? 1 : a.compareTo(b));
+      ..sort(
+        (a, b) => a == '#'
+            ? -1
+            : b == '#'
+            ? 1
+            : a.compareTo(b),
+      );
     return [for (final letter in letters) (letter, groups[letter]!)];
   }
 
   /// Which item types to list, based on what kind of library this is.
   List<String> get _itemTypes {
-    if (widget.genre != null) return const [JellyfinItemKind.movie, JellyfinItemKind.series];
+    if (widget.genre != null)
+      return const [JellyfinItemKind.movie, JellyfinItemKind.series];
     return switch (_library?.collectionType) {
       'movies' => const [JellyfinItemKind.movie],
       'tvshows' => const [JellyfinItemKind.series],
@@ -90,7 +100,9 @@ class _LibraryScreenState extends State<LibraryScreen> {
   void initState() {
     super.initState();
     _cache = _entryFor(widget);
-    _scroll = ScrollController(initialScrollOffset: _cache.scrollOffset); // back where you left off
+    _scroll = ScrollController(
+      initialScrollOffset: _cache.scrollOffset,
+    ); // back where you left off
     _scroll.addListener(() {
       _cache.scrollOffset = _scroll.offset;
       if (_scroll.position.extentAfter < 600) _loadMore();
@@ -129,7 +141,9 @@ class _LibraryScreenState extends State<LibraryScreen> {
         includeItemTypes: _itemTypes,
         recursive: true,
         sortBy: const ['SortName'],
-        fields: const ['SortName'], // needed to group by letter the same way the server sorts
+        fields: const [
+          'SortName',
+        ], // needed to group by letter the same way the server sorts
         startIndex: _items.length,
         limit: _pageSize,
       );
@@ -176,10 +190,12 @@ class _LibraryScreenState extends State<LibraryScreen> {
     try {
       final results = await Future.wait(_letters.map(hasTitles));
       if (!mounted) return;
-      setState(() => _cache.letters = {
-        for (var i = 0; i < _letters.length; i++)
-          if (results[i]) _letters[i],
-      });
+      setState(
+        () => _cache.letters = {
+          for (var i = 0; i < _letters.length; i++)
+            if (results[i]) _letters[i],
+        },
+      );
     } on JellyfinException {
       // If counting fails, leave every letter enabled.
     }
@@ -206,7 +222,9 @@ class _LibraryScreenState extends State<LibraryScreen> {
     var offset = 0.0;
     for (final (sectionLetter, items) in _groupByLetter()) {
       if (sectionLetter == letter) break;
-      offset += _sectionHeaderHeight + libraryGridHeight(items.length, _gridWidth, view);
+      offset +=
+          _sectionHeaderHeight +
+          libraryGridHeight(items.length, _gridWidth, view);
     }
 
     await _scroll.animateTo(
@@ -238,7 +256,9 @@ class _LibraryScreenState extends State<LibraryScreen> {
                         variant: .ghost,
                         size: .xs,
                         mainAxisSize: .min,
-                        onPress: _availableLetters == null || _availableLetters!.contains(letter)
+                        onPress:
+                            _availableLetters == null ||
+                                _availableLetters!.contains(letter)
                             ? () => _jumpTo(letter)
                             : null,
                         child: Text(letter),
@@ -254,8 +274,10 @@ class _LibraryScreenState extends State<LibraryScreen> {
               icon: view == LibraryView.poster
                   ? const AspectIcon(width: 18, height: 10) // 16:9 → thumbnails
                   : const AspectIcon(width: 11, height: 16), // 2:3 → posters
-              onPress: () => libraryViewOverride.value =
-              view == LibraryView.poster ? LibraryView.thumbnail : LibraryView.poster,
+              onPress: () =>
+                  libraryViewOverride.value = view == LibraryView.poster
+                  ? LibraryView.thumbnail
+                  : LibraryView.poster,
             ),
           ],
         ),
@@ -275,18 +297,28 @@ class _LibraryScreenState extends State<LibraryScreen> {
           spacing: 12,
           children: [
             Text(_error!),
-            FButton(mainAxisSize: .min, onPress: _loadMore, child: const Text('Try again')),
+            FButton(
+              mainAxisSize: .min,
+              onPress: _loadMore,
+              child: const Text('Try again'),
+            ),
           ],
         ),
       );
     }
     if (_items.isEmpty) {
-      return Center(child: Text('Nothing here yet', style: context.theme.typography.body.md));
+      return Center(
+        child: Text(
+          'Nothing here yet',
+          style: context.theme.typography.body.md,
+        ),
+      );
     }
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        _gridWidth = constraints.maxWidth; // used by _jumpTo to calculate positions
+        _gridWidth =
+            constraints.maxWidth; // used by _jumpTo to calculate positions
         return CustomScrollView(
           controller: _scroll,
           slivers: [
@@ -298,7 +330,10 @@ class _LibraryScreenState extends State<LibraryScreen> {
                     alignment: Alignment.bottomLeft,
                     child: Padding(
                       padding: const EdgeInsets.only(bottom: 8),
-                      child: Text(letter, style: context.theme.typography.display.xl),
+                      child: Text(
+                        letter,
+                        style: context.theme.typography.display.xl,
+                      ),
                     ),
                   ),
                 ),
@@ -306,8 +341,11 @@ class _LibraryScreenState extends State<LibraryScreen> {
               SliverGrid.builder(
                 gridDelegate: libraryGridDelegate(view),
                 itemCount: items.length,
-                itemBuilder: (context, i) =>
-                    PosterCard(item: items[i], view: view, onPress: () => openItem(context, items[i])),
+                itemBuilder: (context, i) => PosterCard(
+                  item: items[i],
+                  view: view,
+                  onPress: () => openItem(context, items[i]),
+                ),
               ),
             ],
             if (_hasMore)

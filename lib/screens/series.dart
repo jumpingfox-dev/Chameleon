@@ -9,5 +9,6 @@ class SeriesScreen extends StatelessWidget {
   final String seriesId;
 
   @override
-  Widget build(BuildContext context) => DetailPage(load: seriesDetails(seriesId), layout: const SeriesLayout());
+  Widget build(BuildContext context) =>
+      DetailPage(load: seriesDetails(seriesId), layout: const SeriesLayout());
 }

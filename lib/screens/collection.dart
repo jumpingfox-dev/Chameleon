@@ -8,5 +8,8 @@ class CollectionScreen extends StatelessWidget {
   final String collectionId;
 
   @override
-  Widget build(BuildContext context) => DetailPage(load: collectionDetails(collectionId), layout: const CollectionLayout());
+  Widget build(BuildContext context) => DetailPage(
+    load: collectionDetails(collectionId),
+    layout: const CollectionLayout(),
+  );
 }

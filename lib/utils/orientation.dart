@@ -18,7 +18,9 @@ class AppOrientation {
   static Future<void> menus() async {
     await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     // An empty list means "any orientation" for tablets, TVs and desktop.
-    await SystemChrome.setPreferredOrientations(_isPhone ? [DeviceOrientation.portraitUp] : []);
+    await SystemChrome.setPreferredOrientations(
+      _isPhone ? [DeviceOrientation.portraitUp] : [],
+    );
   }
 
   /// Video: phones in landscape (either way round), full screen with the system bars hidden.
@@ -36,12 +38,14 @@ class AppOrientation {
     if (kIsWeb || !(Platform.isAndroid || Platform.isIOS)) return false;
 
     final view = WidgetsBinding.instance.platformDispatcher.views.first;
-    final shortestSide = (view.physicalSize / view.devicePixelRatio).shortestSide;
+    final shortestSide =
+        (view.physicalSize / view.devicePixelRatio).shortestSide;
     if (shortestSide == 0 || shortestSide >= 600) return false;
 
     if (Platform.isAndroid) {
       final info = await DeviceInfoPlugin().androidInfo;
-      if (info.systemFeatures.contains('android.software.leanback')) return false; // Android TV
+      if (info.systemFeatures.contains('android.software.leanback'))
+        return false; // Android TV
     }
     return true;
   }

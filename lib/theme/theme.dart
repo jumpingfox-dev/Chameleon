@@ -8,7 +8,11 @@ part 'typography.dart';
 part 'style.dart';
 part 'icons.dart';
 
-FThemeData buildTheme(FColors colors, {required String displayFont, required String bodyFont}) {
+FThemeData buildTheme(
+  FColors colors, {
+  required String displayFont,
+  required String bodyFont,
+}) {
   // Change this to false to use the desktop variant of this theme.
   const touch = false;
 

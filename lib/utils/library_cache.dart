@@ -9,7 +9,8 @@ class LibraryCacheEntry {
   final fetchedAt = DateTime.now();
 
   /// After this long, the next visit reloads, so new additions to the server show up.
-  bool get isFresh => DateTime.now().difference(fetchedAt) < const Duration(minutes: 10);
+  bool get isFresh =>
+      DateTime.now().difference(fetchedAt) < const Duration(minutes: 10);
 }
 
 /// Keyed by 'library:<id>' or 'genre:<name>'.

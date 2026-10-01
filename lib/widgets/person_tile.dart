@@ -7,7 +7,12 @@ import 'hover_lift.dart';
 
 /// A round photo with the person's name underneath. Lifts on hover or remote focus.
 class PersonTile extends StatelessWidget {
-  const PersonTile({super.key, required this.person, required this.onPress, this.size = 96});
+  const PersonTile({
+    super.key,
+    required this.person,
+    required this.onPress,
+    this.size = 96,
+  });
 
   final JellyfinItem person;
   final VoidCallback onPress;
@@ -56,26 +61,36 @@ class PersonPhoto extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.theme.colors;
     final tag = person.imageTags['Primary'];
-    final initials = person.name.trim().split(RegExp(r'\s+')).take(2).map((w) => w[0]).join();
+    final initials = person.name
+        .trim()
+        .split(RegExp(r'\s+'))
+        .take(2)
+        .map((w) => w[0])
+        .join();
 
     return SizedBox.square(
       dimension: size,
       child: ClipOval(
         child: tag == null
             ? ColoredBox(
-          color: colors.muted,
-          child: Center(child: Text(initials, style: TextStyle(color: colors.mutedForeground))),
-        )
+                color: colors.muted,
+                child: Center(
+                  child: Text(
+                    initials,
+                    style: TextStyle(color: colors.mutedForeground),
+                  ),
+                ),
+              )
             : Image.network(
-          jellyfin.client!.images.url(
-            itemId: person.id,
-            type: JellyfinImagesApi.typePrimary,
-            tag: tag,
-            fillWidth: (size * 2).round(),
-            quality: 90,
-          ),
-          fit: BoxFit.cover,
-        ),
+                jellyfin.client!.images.url(
+                  itemId: person.id,
+                  type: JellyfinImagesApi.typePrimary,
+                  tag: tag,
+                  fillWidth: (size * 2).round(),
+                  quality: 90,
+                ),
+                fit: BoxFit.cover,
+              ),
       ),
     );
   }

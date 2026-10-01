@@ -17,7 +17,10 @@ class _HoverLiftState extends State<HoverLift> {
 
   // Focus from a mouse click shouldn't leave the item enlarged, hence the highlight-mode check.
   bool get _active =>
-      _hovered || (_focused && FocusManager.instance.highlightMode == FocusHighlightMode.traditional);
+      _hovered ||
+      (_focused &&
+          FocusManager.instance.highlightMode ==
+              FocusHighlightMode.traditional);
 
   @override
   Widget build(BuildContext context) => MouseRegion(

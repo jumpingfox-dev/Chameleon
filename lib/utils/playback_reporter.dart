@@ -6,7 +6,11 @@ import 'package:media_kit/media_kit.dart';
 /// Tells Jellyfin what's playing and where, so progress, Continue Watching and Next Up
 /// stay current in this app and every other Jellyfin client.
 class PlaybackReporter {
-  PlaybackReporter({required this.client, required this.itemId, required this.player});
+  PlaybackReporter({
+    required this.client,
+    required this.itemId,
+    required this.player,
+  });
 
   final JellyfinClient client;
   final String itemId;
@@ -19,9 +23,14 @@ class PlaybackReporter {
 
   Future<void> start() async {
     await _post('/Sessions/Playing', _state());
-    _timer = Timer.periodic(_interval, (_) => _post('/Sessions/Playing/Progress', _state()));
+    _timer = Timer.periodic(
+      _interval,
+      (_) => _post('/Sessions/Playing/Progress', _state()),
+    );
     // Report pauses and resumes straight away rather than on the next tick.
-    _playing = player.stream.playing.listen((_) => _post('/Sessions/Playing/Progress', _state()));
+    _playing = player.stream.playing.listen(
+      (_) => _post('/Sessions/Playing/Progress', _state()),
+    );
   }
 
   /// Reports the final position. Reads it immediately, so it's safe to dispose the player right after.
@@ -34,7 +43,9 @@ class PlaybackReporter {
 
   Map<String, Object?> _state() => {
     'ItemId': itemId,
-    'PositionTicks': player.state.position.inMicroseconds * 10, // Jellyfin counts in 100 ns ticks
+    'PositionTicks':
+        player.state.position.inMicroseconds *
+        10, // Jellyfin counts in 100 ns ticks
     'IsPaused': !player.state.playing,
     'CanSeek': true,
     'PlayMethod': 'DirectPlay',

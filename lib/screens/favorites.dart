@@ -1,8 +1,8 @@
 import 'package:dart_jellyfin/dart_jellyfin.dart';
 import 'package:forui/forui.dart';
-import 'package:forui_phosphor/forui_phosphor.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../theme/app_icons.dart';
 import '../utils/app_cache.dart';
 import '../utils/jellyfin_controller.dart';
 import '../widgets/detail_page.dart';
@@ -27,9 +27,13 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
   @override
   void initState() {
     super.initState();
-    favoritesChanged.addListener(_load); // refresh when a favorite changes anywhere
+    favoritesChanged.addListener(
+      _load,
+    ); // refresh when a favorite changes anywhere
 
-    final cached = appCache.peek<(List<JellyfinItem>, List<JellyfinItem>)>(_cacheKey);
+    final cached = appCache.peek<(List<JellyfinItem>, List<JellyfinItem>)>(
+      _cacheKey,
+    );
     if (cached != null) {
       _movies = cached.$1; // a record's positional fields are $1, $2, ...
       _series = cached.$2;
@@ -50,14 +54,21 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
     try {
       final page = await client.items.list(
         filters: const ['IsFavorite'],
-        includeItemTypes: const [JellyfinItemKind.movie, JellyfinItemKind.series],
+        includeItemTypes: const [
+          JellyfinItemKind.movie,
+          JellyfinItemKind.series,
+        ],
         recursive: true,
         sortBy: const ['SortName'],
         limit: 500,
         fields: const ['RecursiveItemCount'],
       );
-      final movies = page.items.where((i) => i.type == JellyfinItemKind.movie).toList();
-      final series = page.items.where((i) => i.type == JellyfinItemKind.series).toList();
+      final movies = page.items
+          .where((i) => i.type == JellyfinItemKind.movie)
+          .toList();
+      final series = page.items
+          .where((i) => i.type == JellyfinItemKind.series)
+          .toList();
       appCache.put(_cacheKey, (movies, series));
       if (!mounted) return;
       setState(() {
@@ -66,7 +77,8 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
         _error = null;
       });
     } on JellyfinException catch (e) {
-      if (mounted && _movies.isEmpty && _series.isEmpty) setState(() => _error = describeJellyfinError(e));
+      if (mounted && _movies.isEmpty && _series.isEmpty)
+        setState(() => _error = describeJellyfinError(e));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -91,7 +103,11 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
           spacing: 12,
           children: [
             Text(_error!),
-            FButton(mainAxisSize: .min, onPress: _load, child: const Text('Try again')),
+            FButton(
+              mainAxisSize: .min,
+              onPress: _load,
+              child: const Text('Try again'),
+            ),
           ],
         ),
       );
@@ -102,11 +118,16 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
           mainAxisSize: MainAxisSize.min,
           spacing: 8,
           children: [
-            Icon(FPhosphorIcons.heart, size: 40, color: colors.mutedForeground),
-            Text('No favorites yet', style: context.theme.typography.display.lg),
+            Icon(appIcons.favorite, size: 40, color: colors.mutedForeground, fill: 1),
+            Text(
+              'No favorites yet',
+              style: context.theme.typography.display.lg,
+            ),
             Text(
               'Select Favorite on any movie or show to add it here.',
-              style: context.theme.typography.body.sm.copyWith(color: colors.mutedForeground),
+              style: context.theme.typography.body.sm.copyWith(
+                color: colors.mutedForeground,
+              ),
             ),
           ],
         ),

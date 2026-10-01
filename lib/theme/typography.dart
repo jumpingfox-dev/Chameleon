@@ -8,11 +8,18 @@ FTypography _typography({
   required bool touch,
   required String displayFont,
   required String bodyFont,
-}) =>
-    FTypography(
-      display: _display(colors: colors, touch: touch, fontFamily: _googleFamily(displayFont)),
-      body: _body(colors: colors, touch: touch, fontFamily: _googleFamily(bodyFont)),
-    );
+}) => FTypography(
+  display: _display(
+    colors: colors,
+    touch: touch,
+    fontFamily: _googleFamily(displayFont),
+  ),
+  body: _body(
+    colors: colors,
+    touch: touch,
+    fontFamily: _googleFamily(bodyFont),
+  ),
+);
 
 /// Registers the font with google_fonts (downloading it if needed) and returns
 /// the family name Flutter should use for it.

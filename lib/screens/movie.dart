@@ -9,5 +9,6 @@ class MovieScreen extends StatelessWidget {
   final String movieId;
 
   @override
-  Widget build(BuildContext context) => DetailPage(load: movieDetails(movieId), layout: const MovieLayout());
+  Widget build(BuildContext context) =>
+      DetailPage(load: movieDetails(movieId), layout: const MovieLayout());
 }

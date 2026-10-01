@@ -9,7 +9,13 @@ const customThemeId = 'custom';
 const defaultSeed = ThemeSeed(270, 280, 8, 1);
 
 class ThemeController extends ValueNotifier<ThemePreset> {
-  ThemeController._(super.value, this._custom, this._seed, this._customIni, this._advanced);
+  ThemeController._(
+    super.value,
+    this._custom,
+    this._seed,
+    this._customIni,
+    this._advanced,
+  );
 
   static const _key = 'selected_theme';
   static const _seedKey = 'custom_seed';
@@ -41,16 +47,17 @@ class ThemeController extends ValueNotifier<ThemePreset> {
   static Future<ThemeController> load() async {
     final prefs = await SharedPreferences.getInstance();
 
-    final seed = ThemeSeed.parse(prefs.getString(_seedKey) ?? '') ?? defaultSeed;
+    final seed =
+        ThemeSeed.parse(prefs.getString(_seedKey) ?? '') ?? defaultSeed;
     final ini = prefs.getString(_iniKey);
     final advanced = prefs.getBool(_advancedKey) ?? false;
     final custom = _preset(_resolve(seed, ini, advanced));
 
     final savedId = prefs.getString(_key);
-    final selected = [...themePresets, custom].firstWhere(
-          (p) => p.id == savedId,
-      orElse: () => themePresets.first,
-    );
+    final selected = [
+      ...themePresets,
+      custom,
+    ].firstWhere((p) => p.id == savedId, orElse: () => themePresets.first);
     return ThemeController._(selected, custom, seed, ini, advanced);
   }
 

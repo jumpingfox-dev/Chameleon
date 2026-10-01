@@ -110,7 +110,8 @@ class _SeedEditorState extends State<_SeedEditor> {
   @override
   Widget build(BuildContext context) {
     final s = widget.seed;
-    Color hueSwatch(int hue) => HSLColor.fromAHSL(1, hue.toDouble(), 0.8, 0.55).toColor();
+    Color hueSwatch(int hue) =>
+        HSLColor.fromAHSL(1, hue.toDouble(), 0.8, 0.55).toColor();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -132,14 +133,22 @@ class _SeedEditorState extends State<_SeedEditor> {
         _Stepper(
           label: 'Vibrance',
           value: '${s.vibrance}',
-          onPrev: s.vibrance > 0 ? () => _set(s.copyWith(vibrance: s.vibrance - 1)) : null,
-          onNext: s.vibrance < 9 ? () => _set(s.copyWith(vibrance: s.vibrance + 1)) : null,
+          onPrev: s.vibrance > 0
+              ? () => _set(s.copyWith(vibrance: s.vibrance - 1))
+              : null,
+          onNext: s.vibrance < 9
+              ? () => _set(s.copyWith(vibrance: s.vibrance + 1))
+              : null,
         ),
         _Stepper(
           label: 'Depth',
           value: '${s.depth}',
-          onPrev: s.depth > 0 ? () => _set(s.copyWith(depth: s.depth - 1)) : null,
-          onNext: s.depth < 9 ? () => _set(s.copyWith(depth: s.depth + 1)) : null,
+          onPrev: s.depth > 0
+              ? () => _set(s.copyWith(depth: s.depth - 1))
+              : null,
+          onNext: s.depth < 9
+              ? () => _set(s.copyWith(depth: s.depth + 1))
+              : null,
         ),
         const SizedBox(height: 16),
         Text.rich(
@@ -147,7 +156,8 @@ class _SeedEditorState extends State<_SeedEditor> {
             text: 'Theme Code: ',
             children: [
               TextSpan(
-                text: '${_pad3(s.baseHue)}-${_pad3(s.accentHue)}-${s.vibrance}-${s.depth}',
+                text:
+                    '${_pad3(s.baseHue)}-${_pad3(s.accentHue)}-${s.vibrance}-${s.depth}',
                 style: const TextStyle(fontWeight: FontWeight.bold),
               ),
             ],
@@ -190,7 +200,8 @@ class _Stepper extends StatelessWidget {
 
   final String label;
   final String value;
-  final VoidCallback? onPrev; // null disables the button at the ends of the range
+  final VoidCallback?
+  onPrev; // null disables the button at the ends of the range
   final VoidCallback? onNext;
   final Color? swatch;
 

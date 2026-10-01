@@ -9,5 +9,6 @@ class PersonScreen extends StatelessWidget {
   final String personId;
 
   @override
-  Widget build(BuildContext context) => DetailPage(load: personDetails(personId), layout: const PersonLayout());
+  Widget build(BuildContext context) =>
+      DetailPage(load: personDetails(personId), layout: const PersonLayout());
 }

@@ -1,3 +1,7 @@
+// The player always uses Flutter's built-in Material icons (not appIcons):
+// solid, evenly weighted and instantly recognizable for media controls,
+// whatever icon style is chosen in Settings.
+
 import 'dart:async';
 import 'dart:math' as math;
 
@@ -114,8 +118,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
       ..add(
         _player.stream.error.listen((message) {
           // Only treat it as fatal if nothing has loaded; mpv also reports minor stream hiccups.
-          if (mounted && _player.state.duration == Duration.zero)
-            setState(() => _error = message);
+          if (mounted && _player.state.duration == Duration.zero) setState(() => _error = message);
         }),
       )
       ..add(
@@ -134,8 +137,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
       );
     _skipNode.addListener(() {
       final focused = _skipNode.hasFocus;
-      if (focused != _skipFocused && mounted)
-        setState(() => _skipFocused = focused);
+      if (focused != _skipFocused && mounted) setState(() => _skipFocused = focused);
     });
     _start();
   }
@@ -231,8 +233,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
   void _scheduleHide() {
     _hideTimer?.cancel();
     _hideTimer = Timer(_hideAfter, () {
-      if (mounted && _player.state.playing && _scrub == null)
-        _setControlsVisible(false);
+      if (mounted && _player.state.playing && _scrub == null) _setControlsVisible(false);
     });
   }
 
@@ -387,12 +388,6 @@ class _PlayerScreenState extends State<PlayerScreen> {
     _seekTo(target);
   }
 
-  // void _cancelScrub() {
-  //   _scrubCommit?.cancel();
-  //   setState(() => _scrub = null);
-  //   _showControls();
-  // }
-
   /// Shows or hides the controls, sliding the subtitles up above them or back down.
   void _setControlsVisible(bool visible) {
     // Hiding: leave the control buttons. Back to the skip button if it's on screen,
@@ -427,8 +422,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
   }
 
   KeyEventResult _onKey(FocusNode node, KeyEvent event) {
-    if (event is! KeyDownEvent && event is! KeyRepeatEvent)
-      return KeyEventResult.ignored;
+    if (event is! KeyDownEvent && event is! KeyRepeatEvent) return KeyEventResult.ignored;
     final key = event.logicalKey;
     final isRepeat = event is KeyRepeatEvent;
 
@@ -489,8 +483,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
     if (key == LogicalKeyboardKey.space ||
         key == LogicalKeyboardKey.select ||
         key == LogicalKeyboardKey.enter) {
-      if (onButton || onSkip)
-        return KeyEventResult.ignored; // a focused button presses itself
+      if (onButton || onSkip) return KeyEventResult.ignored; // a focused button presses itself
       if (!isRepeat) {
         if (_scrub != null) {
           _commitScrub(); // confirms a scrub (from the seek bar or while watching)
@@ -509,6 +502,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
   @override
   Widget build(BuildContext context) {
     final rating = _item?.raw['OfficialRating'] as String?;
+    final compact = MediaQuery.sizeOf(context).shortestSide < 600;
 
     return PopScope(
       canPop: !_controlsVisible,
@@ -561,74 +555,76 @@ class _PlayerScreenState extends State<PlayerScreen> {
                       : const SizedBox.shrink(),
                 ),
 
-                // ── Age rating intro ──
-                if (rating != null && rating.isNotEmpty)
-                  AnimatedPositioned(
-                    duration: const Duration(
-                      milliseconds: 200,
-                    ), // the same speed as the controls' fade
-                    curve: Curves.easeOut,
-                    left: 32,
-                    // Below the logo while the controls show; up in the corner once they're hidden.
-                    top: _controlsVisible ? 140 : 24,
-                    child: SafeArea(
-                      child: _RatingIntro(
-                        rating: rating,
-                        visible: _ratingVisible,
-                      ),
-                    ),
-                  ),
-
-                // ── Controls ──
-                AnimatedOpacity(
-                  opacity: _controlsVisible ? 1 : 0,
-                  duration: const Duration(milliseconds: 200),
-                  child: IgnorePointer(
-                    ignoring: !_controlsVisible,
-                    child: _PlayerControls(
-                      player: _player,
-                      item: _item,
-                      trickplay: _trickplay,
-                      chapters: _namedChapters,
-                      preview: _scrub ?? _dragPreview,
-                      filled: _fit == BoxFit.cover,
-                      hasChapters: _chapters.isNotEmpty,
-                      backNode: _backNode,
-                      audioNode: _audioNode,
-                      subtitlesNode: _subtitlesNode,
-                      fitNode: _fitNode,
-                      previousNode: _previousNode,
-                      playNode: _playNode,
-                      nextNode: _nextNode,
-                      seekNode: _seekNode,
-                      onDragPreview: (position) =>
-                          setState(() => _dragPreview = position),
-                      onBack: () => context.pop(),
-                      onPlayOrPause: _playOrPause,
-                      onPreviousChapter: _previousChapter,
-                      onNextChapter: _nextChapter,
-                      onToggleFit: _toggleFit,
-                      onAudio: _openAudio,
-                      onSubtitles: _openSubtitles,
-                      onInteract: _showControls,
-                    ),
-                  ),
-                ),
-
-                // ── Skip intro / credits / ... ──
-                AnimatedPositioned(
-                  duration: const Duration(milliseconds: 200),
-                  curve: Curves.easeOut,
-                  right: 32,
-                  bottom: _controlsVisible
-                      ? 170
-                      : 24, // above the controls when they're showing
+// ── Everything drawn over the video: one safe area, sides only (for the camera cutout).
+//    The status and navigation bars are hidden while playing, so top and bottom need none.
+                Positioned.fill(
                   child: SafeArea(
-                    child: _SkipButton(
-                      segment: _activeSegment,
-                      onPress: _skipSegment,
-                      focusNode: _skipNode,
-                      selected: _skipFocused,
+                    top: false,
+                    bottom: false,
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        // ── Age rating intro ──
+                        if (rating != null && rating.isNotEmpty)
+                          AnimatedPositioned(
+                            duration: const Duration(milliseconds: 200), // the same speed as the controls' fade
+                            curve: Curves.easeOut,
+                            left: compact ? 16 : 32,
+                            // Below the logo while the controls show; up in the corner once they're hidden.
+                            top: _controlsVisible ? (compact ? 110 : 140) : (compact ? 12 : 24),
+                            child: _RatingIntro(rating: rating, visible: _ratingVisible),
+                          ),
+
+                        // ── Controls ──
+                        AnimatedOpacity(
+                          opacity: _controlsVisible ? 1 : 0,
+                          duration: const Duration(milliseconds: 200),
+                          child: IgnorePointer(
+                            ignoring: !_controlsVisible,
+                            child: _PlayerControls(
+                              player: _player,
+                              item: _item,
+                              trickplay: _trickplay,
+                              chapters: _namedChapters,
+                              preview: _scrub ?? _dragPreview,
+                              filled: _fit == BoxFit.cover,
+                              hasChapters: _chapters.isNotEmpty,
+                              backNode: _backNode,
+                              audioNode: _audioNode,
+                              subtitlesNode: _subtitlesNode,
+                              fitNode: _fitNode,
+                              previousNode: _previousNode,
+                              playNode: _playNode,
+                              nextNode: _nextNode,
+                              seekNode: _seekNode,
+                              onDragPreview: (position) => setState(() => _dragPreview = position),
+                              onBack: () => context.pop(),
+                              onPlayOrPause: _playOrPause,
+                              onPreviousChapter: _previousChapter,
+                              onNextChapter: _nextChapter,
+                              onToggleFit: _toggleFit,
+                              onAudio: _openAudio,
+                              onSubtitles: _openSubtitles,
+                              onInteract: _showControls,
+                            ),
+                          ),
+                        ),
+
+                        // ── Skip intro / credits / ... ──
+                        AnimatedPositioned(
+                          duration: const Duration(milliseconds: 200),
+                          curve: Curves.easeOut,
+                          right: compact ? 16 : 32,
+                          // Above the controls when they're showing; near the corner otherwise.
+                          bottom: _controlsVisible ? (compact ? 150 : 170) : (compact ? 12 : 24),
+                          child: _SkipButton(
+                            segment: _activeSegment,
+                            onPress: _skipSegment,
+                            focusNode: _skipNode,
+                            selected: _skipFocused,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
@@ -684,8 +680,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
 Duration _resumePosition(JellyfinItem item) {
   final userData = item.raw['UserData'] as Map?;
   final ticks = userData?['PlaybackPositionTicks'];
-  if (ticks is! int || ticks <= 0 || userData?['Played'] == true)
-    return Duration.zero;
+  if (ticks is! int || ticks <= 0 || userData?['Played'] == true) return Duration.zero;
   return Duration(microseconds: ticks ~/ 10);
 }
 
@@ -974,11 +969,8 @@ _SegmentKind? _kindFromChapterName(String name) {
   final n = name.toLowerCase();
   if (RegExp(r'\b(intro|opening|op)\b').hasMatch(n)) return _SegmentKind.intro;
   if (RegExp(r'\b(recap|previously)\b').hasMatch(n)) return _SegmentKind.recap;
-  if (RegExp(r'\b(credits|ending|outro|ed)\b').hasMatch(n))
-    return _SegmentKind.credits;
-  if (RegExp(r'\b(preview|next time|next episode)\b').hasMatch(n))
-    return _SegmentKind.preview;
-  return null;
+  if (RegExp(r'\b(credits|ending|outro|ed)\b').hasMatch(n)) return _SegmentKind.credits;
+  if (RegExp(r'\b(preview|next time|next episode)\b').hasMatch(n)) return _SegmentKind.preview; return null;
 }
 
 /// The item's skippable segments: Jellyfin's Media Segments (from TheIntroDB and similar plugins),
@@ -1024,8 +1016,7 @@ List<_Segment> _plausibleSegments(List<_Segment> segments, JellyfinItem item) {
 
   bool plausible(_Segment s) {
     // Nothing skippable covers most of the file: that's a broken segment, not content to skip.
-    if (runtime > Duration.zero && s.end - s.start > runtime * 0.5)
-      return false;
+    if (runtime > Duration.zero && s.end - s.start > runtime * 0.5) return false;
 
     switch (s.kind) {
       case _SegmentKind.credits:
@@ -1299,9 +1290,8 @@ class _PlayerControls extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final previewChapter = preview == null
-        ? null
-        : _chapterAt(chapters, preview!);
+    final previewChapter = preview == null ? null : _chapterAt(chapters, preview!);
+    final compact = MediaQuery.sizeOf(context).shortestSide < 600;
 
     return Stack(
       fit: StackFit.expand,
@@ -1323,122 +1313,118 @@ class _PlayerControls extends StatelessWidget {
           ),
         ),
 
-        // ── Top: back and logo ──
+// ── Top: back and logo ──
         Positioned(
-          top: 12,
-          left: 12,
-          right: 12,
-          child: SafeArea(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center, // the back arrow sits level with the middle of the title block
-              spacing: 8,
-              children: [
-                _ControlButton(
-                  focusNode: backNode,
-                  icon: Icons.arrow_back_ios_new_rounded,
-                  label: 'Back',
-                  onPress: onBack,
-                ),
-                if (item != null) Flexible(child: _PlayerTitle(item: item!)),
-              ],
-            ),
+          top: compact ? 8 : 12,
+          left: compact ? 8 : 12,
+          right: compact ? 8 : 12,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center, // the back arrow sits level with the middle of the title block
+            spacing: 8,
+            children: [
+              _ControlButton(
+                focusNode: backNode,
+                icon: Icons.arrow_back_ios_new_rounded,
+                label: 'Back',
+                onPress: onBack,
+              ),
+              if (item != null) Flexible(child: _PlayerTitle(item: item!)),
+            ],
           ),
         ),
 
         // ── Bottom: heading, seek bar, times, transport ──
         Positioned(
-          left: 32,
-          right: 32,
-          bottom: 12,
-          child: SafeArea(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                FocusRow(
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      _ControlButton(
-                        focusNode: audioNode,
-                        icon: Icons.graphic_eq_rounded,
-                        label: 'Audio',
-                        onPress: onAudio,
-                      ),
-                      _ControlButton(
-                        focusNode: subtitlesNode,
-                        icon: Icons.subtitles_rounded,
-                        label: 'Subtitles',
-                        onPress: onSubtitles,
-                      ),
-                      _ControlButton(
-                        focusNode: fitNode,
-                        icon: filled
-                            ? Icons.zoom_in_map_rounded
-                            : Icons.zoom_out_map_rounded,
-                        label: filled ? 'Fit to screen' : 'Fill screen',
-                        onPress: onToggleFit,
-                      ),
-                    ],
-                  ),
+          left: compact ? 16 : 32,
+          right: compact ? 16 : 32,
+          bottom: compact ? 4 : 12,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              FocusRow(
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    _ControlButton(
+                      focusNode: audioNode,
+                      icon: Icons.graphic_eq_rounded,
+                      label: 'Audio',
+                      onPress: onAudio,
+                    ),
+                    _ControlButton(
+                      focusNode: subtitlesNode,
+                      icon: Icons.subtitles_rounded,
+                      label: 'Subtitles',
+                      onPress: onSubtitles,
+                    ),
+                    _ControlButton(
+                      focusNode: fitNode,
+                      icon: filled
+                          ? Icons.zoom_in_map_rounded
+                          : Icons.zoom_out_map_rounded,
+                      label: filled ? 'Fit to screen' : 'Fill screen',
+                      onPress: onToggleFit,
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 8),
-                _SeekBar(
-                  player: player,
-                  trickplay: trickplay,
-                  chapters: chapters,
-                  preview: preview,
-                  onInteract: onInteract,
-                  onDragPreview: onDragPreview,
-                  focusNode: seekNode,
-                ),
-                _TimeRow(
-                  player: player,
-                  preview: preview,
-                  chapter: trickplay == null ? previewChapter : null,
-                ),
-                const SizedBox(height: 4),
-                FocusRow(
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    spacing: 24,
-                    children: [
-                      _ControlButton(
-                        focusNode: previousNode,
-                        icon: Icons.skip_previous_rounded,
-                        label: hasChapters
-                            ? 'Previous chapter'
-                            : 'Back 10 seconds',
-                        size: 28,
-                        onPress: onPreviousChapter,
+              ),
+              const SizedBox(height: 8),
+              _SeekBar(
+                player: player,
+                trickplay: trickplay,
+                chapters: chapters,
+                preview: preview,
+                onInteract: onInteract,
+                onDragPreview: onDragPreview,
+                focusNode: seekNode,
+              ),
+              _TimeRow(
+                player: player,
+                preview: preview,
+                chapter: trickplay == null ? previewChapter : null,
+              ),
+              const SizedBox(height: 4),
+              FocusRow(
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  spacing: 24,
+                  children: [
+                    _ControlButton(
+                      focusNode: previousNode,
+                      icon: Icons.skip_previous_rounded,
+                      label: hasChapters
+                          ? 'Previous chapter'
+                          : 'Back 10 seconds',
+                      size: 28,
+                      onPress: onPreviousChapter,
+                    ),
+                    StreamBuilder<bool>(
+                      stream: player.stream.playing,
+                      initialData: player.state.playing,
+                      builder: (context, snapshot) => _ControlButton(
+                        focusNode: playNode,
+                        icon: snapshot.data!
+                            ? Icons.pause_rounded
+                            : Icons.play_arrow_rounded,
+                        label: snapshot.data! ? 'Pause' : 'Play',
+                        size: 32,
+                        onPress: onPlayOrPause,
                       ),
-                      StreamBuilder<bool>(
-                        stream: player.stream.playing,
-                        initialData: player.state.playing,
-                        builder: (context, snapshot) => _ControlButton(
-                          focusNode: playNode,
-                          icon: snapshot.data!
-                              ? Icons.pause_rounded
-                              : Icons.play_arrow_rounded,
-                          label: snapshot.data! ? 'Pause' : 'Play',
-                          size: 32,
-                          onPress: onPlayOrPause,
-                        ),
-                      ),
-                      _ControlButton(
-                        focusNode: nextNode,
-                        icon: Icons.skip_next_rounded,
-                        label: hasChapters
-                            ? 'Next chapter'
-                            : 'Forward 10 seconds',
-                        size: 28,
-                        onPress: onNextChapter,
-                      ),
-                    ],
-                  ),
+                    ),
+                    _ControlButton(
+                      focusNode: nextNode,
+                      icon: Icons.skip_next_rounded,
+                      label: hasChapters
+                          ? 'Next chapter'
+                          : 'Forward 10 seconds',
+                      size: 28,
+                      onPress: onNextChapter,
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ],
@@ -1816,8 +1802,7 @@ String _trackLabel(
 /// on its own (picture-based subtitles like PGS).
 String? _externalSubtitleUrl(JellyfinItem? item, Map<String, dynamic> stream) {
   final client = jellyfin.client;
-  if (client == null || item == null || stream['IsTextSubtitleStream'] == false)
-    return null;
+  if (client == null || item == null || stream['IsTextSubtitleStream'] == false) return null;
   final ext = switch ((stream['Codec'] as String?)?.toLowerCase()) {
     'ass' || 'ssa' => 'ass',
     'webvtt' || 'vtt' => 'vtt',

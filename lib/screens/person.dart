@@ -1,4 +1,3 @@
-import 'package:dart_jellyfin/dart_jellyfin.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../widgets/detail_page.dart';

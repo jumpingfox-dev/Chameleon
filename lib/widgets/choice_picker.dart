@@ -5,6 +5,8 @@ import 'package:flutter/services.dart';
 import 'package:forui/forui.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../utils/focus_rows.dart';
+
 /// A form-style field showing the current choice; selecting it opens [showChoicePicker].
 /// Works with a remote, unlike a dropdown (which keeps the arrow keys to itself).
 class ChoiceField extends StatelessWidget {
@@ -153,8 +155,7 @@ class _ChoicePickerState<T> extends State<_ChoicePicker<T>> {
   Future<void> _load(String query) async {
     final generation = ++_generation;
     final options = await widget.search(query);
-    if (mounted && generation == _generation)
-      setState(() => _options = options);
+    if (mounted && generation == _generation) setState(() => _options = options);
   }
 
   void _close([T? value]) => Navigator.of(context).pop(value);
@@ -162,11 +163,36 @@ class _ChoicePickerState<T> extends State<_ChoicePicker<T>> {
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.sizeOf(context);
+    final maxHeight = math.min(560.0, size.height * 0.85);
     final options = _options;
     // Start on the current choice, or on the first option if it isn't in the list.
-    final focusIndex = options == null
-        ? -1
-        : math.max(0, options.indexOf(widget.selected as T));
+    final focusIndex = options == null ? -1 : math.max(0, options.indexOf(widget.selected as T));
+
+    // Loading and "Nothing found": a short centered message, not a full-height box.
+    Widget message(Widget child) => Padding(
+      padding: const EdgeInsets.symmetric(vertical: 24),
+      child: Center(heightFactor: 1, child: child),
+    );
+
+    final Widget list;
+    if (options == null) {
+      list = message(const FCircularProgress());
+    } else if (options.isEmpty) {
+      list = message(Text('Nothing found', style: TextStyle(color: context.theme.colors.mutedForeground)));
+    } else {
+      list = ListView.separated(
+        shrinkWrap: true, // only as tall as its options, up to the card's maximum
+        padding: EdgeInsets.zero,
+        itemCount: options.length,
+        separatorBuilder: (_, _) => const SizedBox(height: 4), // room between highlights
+        itemBuilder: (context, i) => _ChoiceOption(
+          selected: options[i] == widget.selected,
+          autofocus: i == focusIndex,
+          onPress: () => _close(options[i]),
+          child: widget.itemBuilder(context, options[i]),
+        ),
+      );
+    }
 
     return CallbackShortcuts(
       bindings: {
@@ -175,52 +201,32 @@ class _ChoicePickerState<T> extends State<_ChoicePicker<T>> {
       },
       child: SizedBox(
         width: math.min(440, size.width - 32),
-        height: math.min(560, size.height * 0.85),
-        child: FCard(
-          builder: (context, style, _) => Padding(
-            padding: style.padding,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              spacing: 12,
-              children: [
-                Text(widget.title, style: context.theme.typography.display.lg),
-                if (widget.searchable)
+        // Searchable pickers keep a steady height so the card doesn't jump as you type;
+        // the rest fit their contents.
+        height: widget.searchable ? maxHeight : null,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: maxHeight),
+          child: FCard(
+            builder: (context, style, _) => Padding(
+              padding: style.padding,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                spacing: 12,
+                children: [
+                  Text(widget.title, style: context.theme.typography.display.lg),
+                  if (widget.searchable)
                   // ↓ from the search box goes into the results (a text field would otherwise keep it).
-                  CallbackShortcuts(
-                    bindings: {
-                      const SingleActivator(LogicalKeyboardKey.arrowDown): () =>
-                          FocusScope.of(context)
-                              .focusInDirection(TraversalDirection.down),
-                    },
-                    child: FTextField(
-                      control: .managed(controller: _query),
-                      hint: widget.searchHint,
+                    CallbackShortcuts(
+                      bindings: {
+                        const SingleActivator(LogicalKeyboardKey.arrowDown): () =>
+                            moveFocus(TraversalDirection.down),
+                      },
+                      child: FTextField(control: .managed(controller: _query), hint: widget.searchHint),
                     ),
-                  ),
-                Expanded(
-                  child: options == null
-                      ? const Center(child: FCircularProgress())
-                      : options.isEmpty
-                      ? Center(
-                          child: Text(
-                            'Nothing found',
-                            style: TextStyle(
-                              color: context.theme.colors.mutedForeground,
-                            ),
-                          ),
-                        )
-                      : ListView.builder(
-                          padding: EdgeInsets.zero,
-                          itemCount: options.length,
-                          itemBuilder: (context, i) => _ChoiceOption(
-                            selected: options[i] == widget.selected,
-                            autofocus: i == focusIndex,
-                            onPress: () => _close(options[i]),
-                            child: widget.itemBuilder(context, options[i]),
-                          ),
-                        ),
-                ),
-              ],
+                  if (widget.searchable) Expanded(child: list) else Flexible(child: list),
+                ],
+              ),
             ),
           ),
         ),

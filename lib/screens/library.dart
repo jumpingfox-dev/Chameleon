@@ -1,6 +1,5 @@
 import 'package:dart_jellyfin/dart_jellyfin.dart';
 import 'package:forui/forui.dart';
-import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../utils/jellyfin_controller.dart';
@@ -77,8 +76,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
 
   /// Which item types to list, based on what kind of library this is.
   List<String> get _itemTypes {
-    if (widget.genre != null)
-      return const [JellyfinItemKind.movie, JellyfinItemKind.series];
+    if (widget.genre != null) return const [JellyfinItemKind.movie, JellyfinItemKind.series];
     return switch (_library?.collectionType) {
       'movies' => const [JellyfinItemKind.movie],
       'tvshows' => const [JellyfinItemKind.series],

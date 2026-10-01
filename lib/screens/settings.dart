@@ -203,15 +203,16 @@ class _AppearanceCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
-    listenable: Listenable.merge([themeController, fontController]),
+    listenable: Listenable.merge([themeController, fontController, iconController]),
     builder: (context, _) {
       final preset = themeController.value;
+      final isPhone = MediaQuery.sizeOf(context).width < 600;
 
       return _SettingsCard(
         title: 'Appearance',
-        subtitle: 'Choose fonts and a theme, or select "Custom" to build your own theme.',
+        subtitle: 'Choose fonts, a theme and an icon style, or select "Custom" to build your own theme.',
         children: [
-          /// START: Font Picker
+          // ── Fonts (each picks dropdown or choice field by itself) ──
           _FontSelect(
             label: 'Header Font',
             value: fontController.display,
@@ -223,12 +224,10 @@ class _AppearanceCard extends StatelessWidget {
             value: fontController.body,
             onChange: fontController.setBody,
           ),
-
-          /// END: Font Picker
           const SizedBox(height: 16),
 
-          /// START: Theme Select
-          if (MediaQuery.sizeOf(context).width < 600)
+          // ── Theme ──
+          if (isPhone)
             FSelect<ThemePreset>(
               label: const Text('Theme'),
               hint: 'Prism',
@@ -259,14 +258,22 @@ class _AppearanceCard extends StatelessWidget {
             const SizedBox(height: 16),
             const CustomThemeEditor(),
           ],
-
-          /// END: Theme Select
           const SizedBox(height: 16),
 
-          /// START: Icon Picker
-          ListenableBuilder(
-            listenable: iconController,
-            builder: (context, _) => ChoiceField(
+          // ── Icons ──
+          if (isPhone)
+            FSelect<IconStyle>(
+              label: const Text('Icons'),
+              items: {for (final s in IconStyle.values) s.label: s},
+              control: FSelectControl.lifted(
+                value: iconController.value,
+                onChange: (style) {
+                  if (style != null) iconController.select(style);
+                },
+              ),
+            )
+          else
+            ChoiceField(
               label: 'Icons',
               value: iconController.value.label,
               onPress: () async {
@@ -275,20 +282,22 @@ class _AppearanceCard extends StatelessWidget {
                   title: 'Icons',
                   selected: iconController.value,
                   search: (_) async => IconStyle.values,
-                  itemBuilder: (context, style) => Row(
-                    spacing: 12,
-                    children: [
-                      // A small preview of each style.
-                      Icon(style == IconStyle.phosphor ? phosphorIconSet.play : materialIconSet.play, size: 18),
-                      Icon(style == IconStyle.phosphor ? phosphorIconSet.favorite : materialIconSet.favorite, size: 18),
-                      Text(style.label),
-                    ],
-                  ),
+                  itemBuilder: (context, style) {
+                    // A small preview of each style.
+                    final set = style == IconStyle.phosphor ? phosphorIconSet : materialIconSet;
+                    return Row(
+                      spacing: 12,
+                      children: [
+                        Icon(set.play, size: 18, fill: 1),
+                        Icon(set.favorite, size: 18, fill: 1),
+                        Text(style.label),
+                      ],
+                    );
+                  },
                 );
                 if (picked != null) iconController.select(picked);
               },
             ),
-          ),
         ],
       );
     },

@@ -1740,29 +1740,40 @@ class _CastTile extends StatelessWidget {
                 scale: active ? 1.0 : 0.94,
                 duration: const Duration(milliseconds: 150),
                 curve: Curves.easeOut,
-                child: ClipOval(
-                  child: SizedBox.square(
-                    dimension: 96,
-                    child: tag == null
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
+                  // Hovered or focused: a ring drawn over the photo's edge (it takes up no space).
+                  foregroundDecoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: active ? colors.primary : const Color(0x00000000),
+                      width: 2.5,
+                    ),
+                  ),
+                  child: ClipOval(
+                    child: SizedBox.square(
+                      dimension: 96,
+                      child: tag == null
                         ? ColoredBox(
-                            color: colors.muted,
-                            child: Center(
-                              child: Text(
-                                initials,
-                                style: TextStyle(color: colors.mutedForeground),
-                              ),
+                          color: colors.muted,
+                          child: Center(
+                            child: Text(
+                              initials,
+                              style: TextStyle(color: colors.mutedForeground),
                             ),
-                          )
-                        : Image.network(
-                            jellyfin.client!.images.url(
-                              itemId: id,
-                              type: JellyfinImagesApi.typePrimary,
-                              tag: tag,
-                              fillWidth: 192,
-                              quality: 90,
-                            ),
-                            fit: BoxFit.cover,
                           ),
+                        )
+                        : Image.network(
+                          jellyfin.client!.images.url(
+                            itemId: id,
+                            type: JellyfinImagesApi.typePrimary,
+                            tag: tag,
+                            fillWidth: 192,
+                            quality: 90,
+                          ),
+                          fit: BoxFit.cover,
+                        ),
+                    ),
                   ),
                 ),
               ),
@@ -1800,7 +1811,6 @@ class _FloatingIconButton extends StatelessWidget {
     required this.label,
     required this.filled,
     required this.onPress,
-    this.size = 40,
     this.autofocus = false,
   });
 
@@ -1809,9 +1819,7 @@ class _FloatingIconButton extends StatelessWidget {
   final bool filled;
   final VoidCallback onPress;
   final bool autofocus;
-
-  /// The circle's diameter. The icon scales with it.
-  final double size;
+  static const size = 40.0;
 
   @override
   Widget build(BuildContext context) => Semantics(

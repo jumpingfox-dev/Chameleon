@@ -5,8 +5,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 /// Which family of icons the app uses.
 enum IconStyle {
-  phosphor('Phosphor'),
-  material('Material');
+  materialSymbols('Material Symbols'),
+  phosphor('Phosphor');
 
   const IconStyle(this.label);
   final String label;
@@ -144,7 +144,7 @@ const phosphorIconSet = AppIconSet(
   genres: FPhosphorIcons.tag,
   back: FPhosphorIcons.caretLeft,
   close: FPhosphorIcons.x,
-  play: FPhosphorIcons.play,
+  play: FPhosphorIcons.playCircle,
   pause: FPhosphorIcons.pause,
   previous: FPhosphorIcons.skipBack,
   next: FPhosphorIcons.skipForward,
@@ -198,7 +198,7 @@ const materialIconSet = AppIconSet(
   genres: Symbols.label_rounded,
   back: Symbols.arrow_back_ios_new_rounded,
   close: Symbols.close_rounded,
-  play: Symbols.play_arrow_rounded,
+  play: Symbols.play_circle_rounded,
   pause: Symbols.pause_rounded,
   previous: Symbols.skip_previous_rounded,
   next: Symbols.skip_next_rounded,
@@ -251,7 +251,7 @@ class IconController extends ValueNotifier<IconStyle> {
   static Future<IconController> load() async {
     final prefs = await SharedPreferences.getInstance();
     final saved = IconStyle.values.asNameMap()[prefs.getString(_key)];
-    return IconController._(saved ?? IconStyle.phosphor);
+    return IconController._(saved ?? IconStyle.materialSymbols);
   }
 
   Future<void> select(IconStyle style) async {
@@ -266,7 +266,7 @@ late final IconController iconController;
 /// The icons for the current style. Use these everywhere: `Icon(appIcons.play)`.
 AppIconSet get appIcons => switch (iconController.value) {
   IconStyle.phosphor => phosphorIconSet,
-  IconStyle.material => materialIconSet,
+  IconStyle.materialSymbols => materialIconSet,
 };
 
 // ─── Genre icons ─────────────────────────────────────────────────────────────

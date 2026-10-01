@@ -634,7 +634,7 @@ class AddHomeModules extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   spacing: 8,
                   children: [
-                    Icon(homeModuleSpecs[type]!.icon(appIcons), size: 18),
+                    Icon(homeModuleSpecs[type]!.icon(appIcons), size: 18, fill: 1),
                     Text(homeModuleSpecs[type]!.title),
                   ],
                 ),

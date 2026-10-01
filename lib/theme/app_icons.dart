@@ -188,8 +188,8 @@ const phosphorIconSet = AppIconSet(
   signOut: FPhosphorIcons.signOut,
 );
 
-/// Solid and familiar: Material Symbols, rounded. Drawn filled app-wide (see main.dart);
-/// add `fill: 0` to an Icon to show one as an outline.
+/// Solid and familiar: Material Symbols, rounded. Draw with `fill: 1` for the solid look;
+/// `fill: 0` shows an outline.
 const materialIconSet = AppIconSet(
   home: Symbols.home_rounded,
   search: Symbols.search_rounded,
@@ -256,9 +256,22 @@ class IconController extends ValueNotifier<IconStyle> {
 
   Future<void> select(IconStyle style) async {
     value = style;
+    _redrawEverything();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_key, style.name);
   }
+}
+
+/// Asks every widget in the app to rebuild once, keeping all their state
+/// (scroll positions, loaded content, where you are). Used when the icon style changes,
+/// since icons are read directly rather than through something widgets listen to.
+void _redrawEverything() {
+  void rebuild(Element element) {
+    element.markNeedsBuild();
+    element.visitChildren(rebuild);
+  }
+
+  WidgetsBinding.instance.rootElement?.visitChildren(rebuild);
 }
 
 late final IconController iconController;

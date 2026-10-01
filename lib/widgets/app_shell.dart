@@ -194,7 +194,7 @@ class _AppShellState extends State<AppShell> {
   @override
   Widget build(BuildContext context) => ListenableBuilder(
     // Rebuild when signing in or out, or when the icon style changes.
-    listenable: Listenable.merge([jellyfin, iconController]),
+    listenable: Listenable.merge([jellyfin]),
     builder: (context, _) {
       // Signed out: the router is about to show the login page. Draw nothing in the meantime,
       // since every page here needs a connected client.
@@ -223,7 +223,7 @@ class _AppShellState extends State<AppShell> {
             children: [
               for (final d in destinations)
                 FBottomNavigationBarItem(
-                  icon: Icon(d.icon(appIcons)),
+                  icon: Icon(d.icon(appIcons), fill: 1),
                   label: Text(
                     d.label,
                     style: context.theme.typography.body.xs2,
@@ -260,7 +260,7 @@ class _TopNavBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
-    listenable: Listenable.merge([jellyfin, iconController]),
+    listenable: Listenable.merge([jellyfin]),
     builder: (context, _) {
       final loc = location;
       return DecoratedBox(

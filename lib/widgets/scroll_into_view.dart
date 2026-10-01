@@ -86,8 +86,7 @@ class _KeyboardReadableState extends State<KeyboardReadable> {
   }
 
   KeyEventResult _onKey(FocusNode node, KeyEvent event) {
-    if (event is! KeyDownEvent && event is! KeyRepeatEvent)
-      return KeyEventResult.ignored;
+    if (event is! KeyDownEvent && event is! KeyRepeatEvent) return KeyEventResult.ignored;
     final down = event.logicalKey == LogicalKeyboardKey.arrowDown;
     final up = event.logicalKey == LogicalKeyboardKey.arrowUp;
     if (!down && !up) return KeyEventResult.ignored;
@@ -105,8 +104,7 @@ class _KeyboardReadableState extends State<KeyboardReadable> {
     final scrollable = Scrollable.maybeOf(context);
     final box = context.findRenderObject() as RenderBox?;
     final viewport = scrollable?.context.findRenderObject() as RenderBox?;
-    if (scrollable == null || box == null || viewport == null)
-      return KeyEventResult.ignored;
+    if (scrollable == null || box == null || viewport == null) return KeyEventResult.ignored;
 
     // Where this content sits within the visible area.
     final top = box.localToGlobal(Offset.zero, ancestor: viewport).dy;
@@ -161,22 +159,29 @@ class _KeyboardReadableState extends State<KeyboardReadable> {
         );
       }
     },
-    child: widget.enabled
-        ? AnimatedContainer(
+    // The reading bar sits in the margin just left of the content, so the content itself
+    // never moves, whether it's expanded, being read, or neither.
+    child: Stack(
+      clipBehavior: Clip.none, // the bar sits outside the content's edge
+      children: [
+        widget.child,
+        Positioned(
+          left: -12,
+          top: 0,
+          bottom: 0,
+          child: AnimatedOpacity(
+            opacity: widget.enabled && _reading && _keyboard ? 1 : 0,
             duration: const Duration(milliseconds: 150),
-            padding: const EdgeInsets.only(left: 12),
-            decoration: BoxDecoration(
-              border: Border(
-                left: BorderSide(
-                  color: _reading && _keyboard
-                      ? context.theme.colors.primary
-                      : const Color(0x00000000),
-                  width: 3,
-                ),
+            child: Container(
+              width: 3,
+              decoration: BoxDecoration(
+                color: context.theme.colors.primary,
+                borderRadius: BorderRadius.circular(2),
               ),
             ),
-            child: widget.child,
-          )
-        : widget.child,
+          ),
+        ),
+      ],
+    ),
   );
 }

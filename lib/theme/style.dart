@@ -56,7 +56,6 @@ extension FStyleExtensions on FStyle {
 /// Add your fields below, then implement [copyWith], [lerp], [==], and [hashCode].
 /// See https://api.flutter.dev/flutter/material/ThemeExtension-class.html.
 class AppStyle extends ThemeExtension<AppStyle> {
-  // TODO: add your style fields here:
   // final double cardRadius;
 
   const AppStyle();

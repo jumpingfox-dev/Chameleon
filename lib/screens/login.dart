@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../utils/jellyfin_controller.dart';
+import '../widgets/quick_connect_dialog.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -40,6 +41,12 @@ class _LoginScreenState extends State<LoginScreen> {
     _password.dispose();
     super.dispose();
   }
+
+  /// Whether there's somewhere to go back to: the signed-in user (adding an account)
+  /// or the other accounts saved on this device.
+  bool get _canGoBack => jellyfin.isConnected || jellyfin.accounts.isNotEmpty;
+
+  void _goBack() => context.go(jellyfin.isConnected ? '/home' : '/profiles');
 
   Future<void> _signIn() async {
     setState(() {
@@ -86,9 +93,14 @@ class _LoginScreenState extends State<LoginScreen> {
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       spacing: 12,
                       children: [
-                        Text('Connect to Server', style: style.titleTextStyle),
                         Text(
-                          'Enter your server address and account.',
+                          jellyfin.isConnected ? 'Add an Account' : 'Connect to Server',
+                          style: style.titleTextStyle,
+                        ),
+                        Text(
+                          jellyfin.isConnected
+                              ? 'Sign in another user. Everyone stays saved on this device.'
+                              : 'Enter your server address and account.',
                           style: style.subtitleTextStyle,
                         ),
                         Row(
@@ -137,6 +149,25 @@ class _LoginScreenState extends State<LoginScreen> {
                           onPress: _busy ? null : _signIn,
                           child: Text(_busy ? 'Connecting…' : 'Sign in'),
                         ),
+                        FButton(
+                          variant: .outline,
+                          onPress: _busy
+                              ? null
+                              : () async {
+                            final signedIn = await showQuickConnect(
+                              context,
+                              server: composeServerUrl(_host.text, _port.text),
+                            );
+                            if (signedIn && context.mounted) context.go('/home');
+                          },
+                          child: const Text('Use Quick Connect'),
+                        ),
+                        if (_canGoBack)
+                          FButton(
+                            variant: .outline,
+                            onPress: _busy ? null : _goBack,
+                            child: Text(jellyfin.isConnected ? 'Cancel' : "Back to Who's watching?"),
+                          ),
                       ],
                     ),
                   ),
@@ -188,7 +219,7 @@ Future<void> _showSignInError(BuildContext context, String message) =>
                       alignment: Alignment.centerRight,
                       child: FButton(
                         autofocus:
-                            true, // Select or Enter closes it straight away
+                        true, // Select or Enter closes it straight away
                         mainAxisSize: .min,
                         onPress: () => Navigator.of(context).pop(),
                         child: const Text('OK'),

@@ -42,6 +42,8 @@ dependencies:
   google_fonts: ^8.2.1
   forui: ^0.27.0
   forui_phosphor: ^0.27.0
+  forui_lucide: ^0.27.0
+  fluentui_system_icons: ^1.1.273
   shared_preferences: ^2.5.5
   path_provider: ^2.1.6
   visibility_detector: ^0.4.0+2
@@ -51,10 +53,16 @@ dependencies:
   media_kit_video: ^2.0.1
   media_kit_libs_video: ^1.0.7
   material_symbols_icons: ^4.2960.0
+  package_info_plus: ^10.2.1
+  flutter_chrome_cast: ^1.4.8
+  flutter_to_airplay: ^2.1.0
+  http: ^1.6.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
+
+  flutter_launcher_icons: ^0.14.4
 
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is
@@ -94,3 +102,19 @@ flutter:
 
   # For details regarding adding assets from package dependencies, see
   # https://flutter.dev/to/asset-from-package
+
+flutter_launcher_icons:
+  image_path: "assets/icon/icon.png"
+  android: true
+  ios: true
+  remove_alpha_ios: true
+  adaptive_icon_background: "#0e1316"
+  adaptive_icon_foreground: "assets/icon/icon_foreground.png"
+  web:
+    generate: true
+    background_color: "#0e1316"
+    theme_color: "#17addd"
+  windows:
+    generate: true
+  macos:
+    generate: true

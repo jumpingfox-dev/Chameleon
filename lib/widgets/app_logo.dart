@@ -46,7 +46,7 @@ class AppLogo extends StatelessWidget {
           switch (variant) {
             AppLogoVariant.color => true,
             AppLogoVariant.gradient => false,
-            AppLogoVariant.auto => preset.id == 'prism',
+            AppLogoVariant.auto => preset.id == 'default',
           };
 
       if (showColor) {

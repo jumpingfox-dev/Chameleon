@@ -10,7 +10,6 @@ import '../screens/favorites.dart';
 import '../screens/library.dart';
 import '../screens/movie.dart';
 import '../screens/person.dart';
-import '../screens/profile.dart';
 import '../screens/search.dart';
 import '../screens/series.dart';
 import '../screens/settings.dart';
@@ -32,77 +31,77 @@ List<RouteBase> routes, // sub-pages that keep this tab selected
 
 final destinations = <AppDestination>[
   (
-  label: 'Home',
-  icon: (i) => i.home,
-  path: '/home',
-  screen: () => const HomeScreen(),
-  routes: [
-    GoRoute(
-      path: 'favorites',
-      builder: (context, state) => const FavoritesScreen(),
-    ),
-    GoRoute(
-      path: 'genres',
-      builder: (context, state) => const GenresScreen(),
-    ),
-    GoRoute(
-      path: 'library/:id',
-      builder: (context, state) =>
-          LibraryScreen(libraryId: state.pathParameters['id']!),
-    ),
-    GoRoute(
-      path: 'genre/:name',
-      builder: (context, state) =>
-          LibraryScreen(genre: state.pathParameters['name']!),
-    ),
-    GoRoute(
-      path: 'collection/:id',
-      builder: (context, state) =>
-          CollectionScreen(collectionId: state.pathParameters['id']!),
-    ),
-    GoRoute(
-      path: 'movie/:id',
-      builder: (context, state) =>
-          MovieScreen(movieId: state.pathParameters['id']!),
-    ),
-    GoRoute(
-      path: 'series/:id',
-      builder: (context, state) =>
-          SeriesScreen(seriesId: state.pathParameters['id']!),
-    ),
-    GoRoute(
-      path: 'person/:id',
-      builder: (context, state) =>
-          PersonScreen(personId: state.pathParameters['id']!),
-    ),
-  ],
+    label: 'Home',
+    icon: (i) => i.home,
+    path: '/home',
+    screen: () => const HomeScreen(),
+    routes: [
+      GoRoute(
+        path: 'favorites',
+        builder: (context, state) => const FavoritesScreen(),
+      ),
+      GoRoute(
+        path: 'genres',
+        builder: (context, state) => const GenresScreen(),
+      ),
+      GoRoute(
+        path: 'library/:id',
+        builder: (context, state) =>
+            LibraryScreen(libraryId: state.pathParameters['id']!),
+      ),
+      GoRoute(
+        path: 'genre/:name',
+        builder: (context, state) =>
+            LibraryScreen(genre: state.pathParameters['name']!),
+      ),
+      GoRoute(
+        path: 'collection/:id',
+        builder: (context, state) =>
+            CollectionScreen(collectionId: state.pathParameters['id']!),
+      ),
+      GoRoute(
+        path: 'movie/:id',
+        builder: (context, state) =>
+            MovieScreen(movieId: state.pathParameters['id']!),
+      ),
+      GoRoute(
+        path: 'series/:id',
+        builder: (context, state) =>
+            SeriesScreen(seriesId: state.pathParameters['id']!),
+      ),
+      GoRoute(
+        path: 'person/:id',
+        builder: (context, state) =>
+            PersonScreen(personId: state.pathParameters['id']!),
+      ),
+    ],
   ),
   (
-  label: 'Search',
-  icon: (i) => i.search,
-  path: '/search',
-  screen: () => const SearchScreen(),
-  routes: [
-    GoRoute(
-      path: 'person/:id',
-      builder: (context, state) =>
-          PersonScreen(personId: state.pathParameters['id']!),
-    ),
-  ],
+    label: 'Search',
+    icon: (i) => i.search,
+    path: '/search',
+    screen: () => const SearchScreen(),
+    routes: [
+      GoRoute(
+        path: 'person/:id',
+        builder: (context, state) =>
+            PersonScreen(personId: state.pathParameters['id']!),
+      ),
+    ],
   ),
   (
-  label: 'Settings',
-  icon: (i) => i.settings,
-  path: '/settings',
-  screen: () => const SettingsScreen(),
-  routes: const [],
+    label: 'Settings',
+    icon: (i) => i.settings,
+    path: '/settings',
+    screen: () => const SettingsScreen(),
+    routes: const [],
   ),
   (
-  label: 'Profile',
-  icon: (i) => i.profile,
-  path: '/profile',
-  screen: () => const ProfileScreen(),
-  routes: const [],
+    label: 'Profile',
+    icon: (i) => i.profile,
+    path: '/profile',
+    screen: () => const SettingsScreen(initialTab: 'Account'),
+    routes: const [],
   ),
 ];
 
@@ -273,7 +272,7 @@ class _TopNavBar extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           child: Row(
             children: [
-              const AppLogo(height: 28, variant: AppLogoVariant.gradient),
+              const AppLogo(height: 28, variant: AppLogoVariant.auto),
               const SizedBox(width: 8),
 
               // Home + libraries + Genres, then search filling any leftover space

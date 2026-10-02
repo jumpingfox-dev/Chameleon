@@ -8,11 +8,13 @@ import 'package:media_kit/media_kit.dart';
 import 'screens/login.dart';
 import 'screens/player.dart';
 import 'widgets/app_shell.dart';
+import 'widgets/profile_picker.dart';
 import 'widgets/ui_scaler.dart';
 import 'theme/theme.dart';
 import 'theme/app_icons.dart';
 import 'utils/theme_controller.dart';
 import 'utils/font_controller.dart';
+import 'utils/cast_controller.dart';
 import 'utils/jellyfin_controller.dart';
 import 'utils/orientation.dart';
 import 'utils/focus_rows.dart';
@@ -33,6 +35,10 @@ Future<void> main() async {
   jellyfin = JellyfinController();
   await jellyfin.load();
 
+  // Chromecast: finds Chromecasts on the network so the player can offer a cast button.
+  // Does nothing where casting isn't available (desktop, or devices without Play services).
+  await castController.init();
+
   // Clean up in the background so it doesn't delay startup.
   unawaited(pruneFontCache([fontController.display, fontController.body]));
 
@@ -45,13 +51,27 @@ final GoRouter _router = GoRouter(
   initialLocation: '/home',
   refreshListenable: jellyfin, // re-checks the redirect when you sign in or out
   redirect: (context, state) {
-    final atLogin = state.matchedLocation == '/login';
-    if (!jellyfin.isConnected) return atLogin ? null : '/login';
-    if (atLogin) return '/home';
+    final loc = state.matchedLocation;
+    final atLogin = loc == '/login';
+    final atProfiles = loc == '/profiles';
+
+    // Changing user: wait on "Who's watching?" so no page shows the old user's things.
+    if (jellyfin.switching) return atProfiles ? null : '/profiles';
+
+    if (!jellyfin.isConnected) {
+      if (atLogin || atProfiles) return null;
+      // Others are saved on this device: let them pick. Nobody yet: sign in.
+      return jellyfin.accounts.isEmpty ? '/login' : '/profiles';
+    }
+
+    // Signed in. Login is still allowed when adding another account (/login?add=1).
+    if (atLogin && state.uri.queryParameters['add'] == '1') return null;
+    if (atLogin || atProfiles) return '/home';
     return null;
   },
   routes: [
     GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
+    GoRoute(path: '/profiles', builder: (context, state) => const ProfilePickerScreen()),
     GoRoute(
       path: '/play/:id',
       builder: (context, state) =>

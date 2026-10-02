@@ -82,6 +82,31 @@ class ThemePreset {
 }
 
 final themePresets = <ThemePreset>[
+  ThemePreset(
+    id: 'default',
+    label: 'Default',
+    colors: FColors(
+      brightness: .dark,
+      systemOverlayStyle: .light,
+      barrier: _hsl(200, 0.25, 0.03, 0.65),
+      background: _hsl(200, 0.22, 0.07), // Icon black (#0e1316)
+      foreground: _hsl(0, 0.0, 1.0), // Wordmark white
+      primary: _hsl(195, 0.81, 0.48), // Logo teal-blue (#17addd)
+      primaryForeground: _hsl(200, 0.22, 0.07), // Icon black, readable on teal
+      secondary: _hsl(190, 0.35, 0.16), // Deep teal
+      secondaryForeground: _hsl(185, 0.60, 0.88), // Pale aqua
+      muted: _hsl(195, 0.15, 0.13), // Teal-tinted shadow
+      mutedForeground: _hsl(195, 0.12, 0.65), // Soft grey-teal
+      destructive: _hsl(355, 0.80, 0.60),
+      destructiveForeground: _hsl(0, 0.0, 0.98),
+      error: _hsl(355, 0.80, 0.60),
+      errorForeground: _hsl(0, 0.0, 0.98),
+      card: _hsl(198, 0.18, 0.10), // Lifted surface
+      border: _hsl(172, 0.30, 0.24), // Logo sea-green (#48a598), darkened
+      extensions: const [AppColors()],
+    ),
+  ),
+
   // =============================================================================
   // 1. PRISM - White light split across the full spectrum.
   // Violet background, indigo cards, cyan secondary, jade muted, magenta edges,

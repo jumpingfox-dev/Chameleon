@@ -4,18 +4,19 @@ import 'package:material_ui/material_ui.dart';
 
 import '../theme/app_icons.dart';
 import '../utils/jellyfin_controller.dart';
+import 'profile_picker.dart';
 
 typedef ProfileAction = ({String label, IconData icon, VoidCallback onPress});
 
 /// The profile options, shared by the wide-screen popover and the phone Profile screen.
 List<ProfileAction> profileActions(
-  BuildContext context, {
-  bool includeProfileLink = true,
-}) => [
+    BuildContext context, {
+      bool includeProfileLink = true,
+    }) => [
   (
-  label: 'Add User',
+  label: 'Switch User',
   icon: appIcons.addUser,
-  onPress: () => context.go('/settings'),
+  onPress: () => showProfilePicker(context), // "Who's watching?", with Add account at the end
   ),
   if (jellyfin.isConnected)
     (
@@ -36,10 +37,10 @@ class UserAvatar extends StatelessWidget {
     listenable: jellyfin,
     builder: (context, _) => jellyfin.userImage != null
         ? FAvatar(
-            image: jellyfin.userImage!,
-            fallback: Text(jellyfin.initials),
-            size: size,
-          )
+      image: jellyfin.userImage!,
+      fallback: Text(jellyfin.initials),
+      size: size,
+    )
         : FAvatar.raw(size: size, child: Text(jellyfin.initials)),
   );
 }

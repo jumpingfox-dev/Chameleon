@@ -4,6 +4,7 @@
 
 import 'dart:async';
 import 'dart:math' as math;
+import 'dart:convert';
 
 import 'package:dart_jellyfin/dart_jellyfin.dart';
 import 'package:flutter/services.dart';
@@ -12,12 +13,15 @@ import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
+import 'package:http/http.dart' as http;
 
 import '../utils/app_cache.dart';
+import '../utils/cast_controller.dart';
 import '../utils/focus_rows.dart';
 import '../utils/jellyfin_controller.dart';
 import '../utils/orientation.dart';
 import '../utils/playback_reporter.dart';
+import '../widgets/cast_widgets.dart';
 import '../widgets/choice_picker.dart';
 import '../widgets/home_modules.dart';
 
@@ -73,6 +77,17 @@ class _PlayerScreenState extends State<PlayerScreen> {
   static const _subtitlesNormal = EdgeInsets.fromLTRB(48, 0, 48, 48);
   static const _subtitlesLifted = EdgeInsets.fromLTRB(48, 0, 48, 150);
 
+  /// Phones: the same idea, scaled down. Lifted, they sit just above the bottom controls
+  /// and below the play button (which sits a little above centre to leave them room).
+  static const _subtitlesNormalPhone = EdgeInsets.fromLTRB(32, 0, 32, 20);
+  static const _subtitlesLiftedPhone = EdgeInsets.fromLTRB(32, 0, 32, 146);
+
+  bool get _isPhone => MediaQuery.sizeOf(context).shortestSide < 600;
+
+  EdgeInsets _subtitlePadding({required bool lifted}) => _isPhone
+      ? (lifted ? _subtitlesLiftedPhone : _subtitlesNormalPhone)
+      : (lifted ? _subtitlesLifted : _subtitlesNormal);
+
   JellyfinItem? _item;
   String? _error;
   PlaybackReporter? _reporter;
@@ -110,6 +125,23 @@ class _PlayerScreenState extends State<PlayerScreen> {
   bool _ratingVisible = false;
   Timer? _ratingTimer;
 
+  /// Double-tap to seek (phones). Two quick taps on the left or right third jump 10 seconds;
+  /// each further tap on that side, in quick succession, adds another 10.
+  static const _doubleTapWindow = Duration(milliseconds: 300);
+  static const _tapSeekStep = 10; // seconds
+  Timer? _singleTapTimer; // a single tap waits this long in case a second one follows
+  DateTime? _lastTapAt;
+  int _lastTapSide = 0; // -1 left third, 0 middle, 1 right third
+  ({int side, int seconds})? _tapSeek; // what the on-screen indicator shows (kept while it fades)
+  bool _tapSeekVisible = false; // true during a run of taps
+  Duration _tapSeekFrom = Duration.zero; // where the current run of taps started
+  Timer? _tapSeekEnd;
+
+  /// Casting: the video plays on a Chromecast and this screen becomes its remote.
+  bool _casting = false;
+  bool _castLoaded = false; // the Chromecast has been sent the video
+  bool _localOpened = false; // the video has been opened on this device
+
   @override
   void initState() {
     super.initState();
@@ -129,7 +161,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
         }),
       )
       ..add(_player.stream.position.listen(_updateActiveSegment))
-      // Finished (including after skipping end credits): go back to where you were.
+    // Finished (including after skipping end credits): go back to where you were.
       ..add(
         _player.stream.completed.listen((completed) {
           if (completed && mounted) context.pop();
@@ -139,6 +171,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
       final focused = _skipNode.hasFocus;
       if (focused != _skipFocused && mounted) setState(() => _skipFocused = focused);
     });
+    castController.addListener(_onCastChanged);
     _start();
   }
 
@@ -156,31 +189,260 @@ class _PlayerScreenState extends State<PlayerScreen> {
         _trickplay = _Trickplay.of(item);
       });
 
-      // Start loading the skip segments now, so they're ready by the time the video is.
-      final segments = _loadSegments(client, item);
-
-      // Open directly at the saved position (or the beginning), so there's no seek afterwards.
       final resume = _resumePosition(item);
-      await _player.open(
-        Media(
-          jellyfin.streamUrl(item.id),
-          httpHeaders: jellyfin.authHeaders,
-          start: resume > Duration.zero ? resume : null,
-        ),
-      );
-
-      final loaded = await segments;
-      if (mounted) setState(() => _segments = loaded);
-
-      _reporter = PlaybackReporter(
-        client: client,
-        itemId: item.id,
-        player: _player,
-      )..start();
+      // Already connected to a Chromecast: play it there, not here.
+      if (castController.isConnected) return _castItem(item, start: resume);
+      await _openLocal(client, item, resume);
     } on JellyfinException catch (e) {
       if (mounted) setState(() => _error = describeJellyfinError(e));
     } on StateError {
       if (mounted) setState(() => _error = "This item couldn't be found.");
+    }
+  }
+
+  /// Plays [item] on this device from [start].
+  Future<void> _openLocal(JellyfinClient client, JellyfinItem item, Duration start) async {
+    _localOpened = true;
+    // Start loading the skip segments now, so they're ready by the time the video is.
+    final segments = _loadSegments(client, item);
+
+    // Open directly at the start position, so there's no seek afterwards.
+    await _player.open(
+      Media(
+        jellyfin.streamUrl(item.id),
+        httpHeaders: jellyfin.authHeaders,
+        start: start > Duration.zero ? start : null,
+      ),
+    );
+
+    unawaited(_applyDefaultTracks(item));
+
+    final loaded = await segments;
+    if (mounted) setState(() => _segments = loaded);
+
+    _startReporter(client, item);
+  }
+
+  /// Tells Jellyfin what's playing here. Not while casting: the Chromecast reports instead.
+  void _startReporter(JellyfinClient client, JellyfinItem item) {
+    if (_reporter != null) return;
+    _reporter = PlaybackReporter(client: client, itemId: item.id, player: _player)..start();
+  }
+
+  // ── Casting ──
+
+  /// Connecting to a Chromecast moves the video there; disconnecting brings it back.
+  void _onCastChanged() {
+    if (!mounted) return;
+    final item = _item;
+    if (item != null && castController.isConnected && !_casting) {
+      _castItem(item, start: _localOpened ? _player.state.position : _resumePosition(item));
+    } else if (_casting && !castController.isConnected) {
+      _returnFromCast();
+    } else if (_casting && _castLoaded && castController.nowPlaying == null) {
+      // Finished on the TV (or stopped from its remote): leave the player, as at the end here.
+      _casting = false;
+      context.pop();
+    } else {
+      setState(() {}); // play/pause and the like, for the remote's buttons
+    }
+  }
+
+  /// Sends [item] to the Chromecast with the audio and subtitles playing now
+  /// (or, if nothing's playing here yet, the ones from the user's preferences).
+  Future<void> _castItem(JellyfinItem item, {required Duration start}) async {
+    setState(() {
+      _casting = true;
+      _castLoaded = false;
+    });
+    _setControlsVisible(false); // the remote takes over the screen
+    // This device stops reporting, so the two don't overwrite each other's position.
+    final reporter = _reporter;
+    _reporter = null;
+    unawaited(reporter?.stop());
+
+    int? audio;
+    int? subtitle;
+    if (_localOpened) {
+      (audio, subtitle) = _currentStreamIndexes(item);
+      await _player.pause();
+    } else {
+      final prefs = await _fetchTrackPrefs();
+      if (prefs != null) {
+        final audioStreams = _streamsOf(item, 'Audio', external: false);
+        final a = _pickAudio(audioStreams, prefs);
+        audio = a == null ? null : audioStreams[a]['Index'] as int?;
+        final language = a == null ? null : audioStreams[a]['Language'] as String?;
+        final picked = _pickSubtitle(
+          [..._streamsOf(item, 'Subtitle', external: false), ..._streamsOf(item, 'Subtitle', external: true)],
+          prefs,
+          language,
+        );
+        subtitle = picked?['Index'] as int?;
+      }
+    }
+
+    try {
+      await castController.load(item, start: start, audioStreamIndex: audio, subtitleStreamIndex: subtitle);
+      if (mounted) setState(() => _castLoaded = true);
+    } catch (e) {
+      debugPrint('Casting failed: $e');
+      if (mounted) _returnFromCast();
+    }
+  }
+
+  /// Back from the Chromecast: carry on here from where it got to.
+  Future<void> _returnFromCast() async {
+    final item = _item;
+    final at = castController.lastPosition;
+    setState(() {
+      _casting = false;
+      _castLoaded = false;
+    });
+    if (item == null) return;
+    if (_localOpened) {
+      if (at > Duration.zero) await _player.seek(at);
+      await _player.play();
+      if (jellyfin.client case final client?) _startReporter(client, item);
+    } else if (jellyfin.client case final client?) {
+      await _openLocal(client, item, at > Duration.zero ? at : _resumePosition(item));
+    }
+    if (mounted) _showControls();
+  }
+
+  /// The Jellyfin stream indexes of the audio and subtitles playing here now.
+  (int?, int?) _currentStreamIndexes(JellyfinItem item) {
+    final tracks = _player.state.tracks;
+
+    final audioStreams = _streamsOf(item, 'Audio', external: false);
+    final audioTracks = tracks.audio.where((t) => _isRealTrack(t.id)).toList();
+    final a = audioTracks.indexWhere((t) => t.id == _player.state.track.audio.id);
+    final audio = a != -1 && a < audioStreams.length ? audioStreams[a]['Index'] as int? : null;
+
+    final id = _player.state.track.subtitle.id;
+    int? subtitle;
+    if (_isRealTrack(id)) {
+      if (id.startsWith('http')) {
+        subtitle = _streamsOf(item, 'Subtitle', external: true)
+            .where((s) => _externalSubtitleUrl(item, s) == id)
+            .firstOrNull?['Index'] as int?;
+      } else {
+        final embedded = _streamsOf(item, 'Subtitle', external: false);
+        final subtitleTracks = tracks.subtitle.where((t) => _isRealTrack(t.id)).toList();
+        final i = subtitleTracks.indexWhere((t) => t.id == id);
+        if (i != -1 && i < embedded.length) subtitle = embedded[i]['Index'] as int?;
+      }
+    }
+    return (audio, subtitle);
+  }
+
+  Future<void> _openCastAudio() async {
+    final item = _item;
+    if (item == null) return;
+    final streams = _streamsOf(item, 'Audio', external: false).where((s) => s['Index'] is int).toList();
+    final current = castController.nowPlaying?.audioStreamIndex ??
+        (streams.where((s) => s['IsDefault'] == true).firstOrNull ?? streams.firstOrNull)?['Index'];
+    await _pickTrack(
+      context,
+      title: 'Audio',
+      choices: [
+        for (final s in streams)
+          (
+          key: 'audio:${s['Index']}',
+          label: (s['DisplayTitle'] as String?) ?? 'Track ${s['Index']}',
+          select: () => castController.setAudio(item, s['Index'] as int),
+          ),
+      ],
+      current: 'audio:$current',
+    );
+  }
+
+  Future<void> _openCastSubtitles() async {
+    final item = _item;
+    if (item == null) return;
+    final streams = [
+      ..._streamsOf(item, 'Subtitle', external: false),
+      ..._streamsOf(item, 'Subtitle', external: true),
+    ].where((s) => s['Index'] is int).toList();
+    final current = castController.nowPlaying?.subtitleStreamIndex;
+    await _pickTrack(
+      context,
+      title: 'Subtitles',
+      choices: [
+        (key: 'off', label: 'Off', select: () => castController.setSubtitles(item, null, isText: true)),
+        for (final s in streams)
+          (
+          key: 'sub:${s['Index']}',
+          label: (s['DisplayTitle'] as String?) ?? 'Subtitles ${s['Index']}',
+          select: () => castController.setSubtitles(
+            item,
+            s['Index'] as int,
+            isText: s['IsTextSubtitleStream'] != false,
+          ),
+          ),
+      ],
+      current: current == null ? 'off' : 'sub:$current',
+    );
+  }
+
+  /// Chooses the starting audio and subtitle tracks the way Jellyfin's own apps do,
+  /// from the language and "When to show subtitles" settings in the user's account.
+  /// On its own, mpv only follows the file's default flags.
+  Future<void> _applyDefaultTracks(JellyfinItem item) async {
+    final prefs = await _fetchTrackPrefs();
+    if (prefs == null || !mounted) return;
+    final tracks = await _waitForTracks();
+    if (!mounted) return;
+
+    // ── Audio: the preferred language if the file has it ──
+    final audioStreams = _streamsOf(item, 'Audio', external: false);
+    final audioTracks = tracks.audio.where((t) => _isRealTrack(t.id)).toList();
+    final audioPick = _pickAudio(audioStreams, prefs);
+    if (audioPick != null && audioPick < audioTracks.length) {
+      await _player.setAudioTrack(audioTracks[audioPick]);
+    }
+    final playingAudio = audioPick ?? 0;
+    final audioLanguage = playingAudio < audioStreams.length
+        ? audioStreams[playingAudio]['Language'] as String?
+        : null;
+
+    // ── Subtitles: by the chosen mode ──
+    final embedded = _streamsOf(item, 'Subtitle', external: false);
+    final external = _streamsOf(item, 'Subtitle', external: true);
+    final pick = _pickSubtitle([...embedded, ...external], prefs, audioLanguage);
+    if (!mounted) return;
+
+    if (pick == null) {
+      await _player.setSubtitleTrack(SubtitleTrack.no());
+      return;
+    }
+    final embeddedIndex = embedded.indexOf(pick);
+    if (embeddedIndex != -1) {
+      // mpv lists the file's subtitles in the same order as Jellyfin does.
+      final subtitleTracks = tracks.subtitle.where((t) => _isRealTrack(t.id)).toList();
+      if (embeddedIndex < subtitleTracks.length) {
+        await _player.setSubtitleTrack(subtitleTracks[embeddedIndex]);
+      }
+    } else if (_externalSubtitleUrl(item, pick) case final url?) {
+      await _player.setSubtitleTrack(
+        SubtitleTrack.uri(
+          url,
+          title: pick['DisplayTitle'] as String?,
+          language: pick['Language'] as String?,
+        ),
+      );
+    }
+  }
+
+  /// mpv reports the file's tracks a moment after opening; waits for them (up to 10 s).
+  Future<Tracks> _waitForTracks() async {
+    bool ready(Tracks t) =>
+        t.video.any((v) => _isRealTrack(v.id)) || t.audio.any((a) => _isRealTrack(a.id));
+    if (ready(_player.state.tracks)) return _player.state.tracks;
+    try {
+      return await _player.stream.tracks.firstWhere(ready).timeout(const Duration(seconds: 10));
+    } catch (_) {
+      return _player.state.tracks;
     }
   }
 
@@ -189,6 +451,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
     _hideTimer?.cancel();
     _scrubCommit?.cancel();
     _ratingTimer?.cancel();
+    _singleTapTimer?.cancel();
+    _tapSeekEnd?.cancel();
+    castController.removeListener(_onCastChanged);
     for (final s in _subscriptions) {
       s.cancel();
     }
@@ -206,7 +471,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
         reporter.stop().then((_) {
           clearHomeCache();
           appCache.invalidateWhere(
-            (key) => ids.any((id) => key.endsWith(':$id')),
+                (key) => ids.any((id) => key.endsWith(':$id')),
           );
         }),
       );
@@ -239,6 +504,63 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
   void _toggleControls() =>
       _controlsVisible ? _setControlsVisible(false) : _showControls();
+
+  // ── Taps on the video ──
+
+  /// TV and desktop: a tap or click shows or hides the controls.
+  /// Phones: the same, plus double-tap on the left or right third to seek.
+  void _onVideoTapUp(TapUpDetails details, {required bool compact}) {
+    if (!compact) return _toggleControls();
+
+    final width = MediaQuery.sizeOf(context).width;
+    final x = details.localPosition.dx;
+    final side = x < width / 3 ? -1 : (x > width * 2 / 3 ? 1 : 0);
+    final now = DateTime.now();
+
+    final doubleTap = side != 0 &&
+        side == _lastTapSide &&
+        _lastTapAt != null &&
+        now.difference(_lastTapAt!) < _doubleTapWindow;
+    final continuingRun = side != 0 && _tapSeekVisible && _tapSeek?.side == side; // still within a run of taps
+    _lastTapAt = now;
+    _lastTapSide = side;
+
+    if (doubleTap || continuingRun) {
+      _singleTapTimer?.cancel(); // the first tap wasn't a "show controls" tap after all
+      _seekByTap(side);
+      return;
+    }
+
+    _singleTapTimer?.cancel();
+    if (side == 0) return _toggleControls(); // the middle has no double tap, so no need to wait
+    _singleTapTimer = Timer(_doubleTapWindow, () {
+      if (mounted) _toggleControls();
+    });
+  }
+
+  /// Jumps 10 seconds back (side -1) or forward (side 1), adding up across a run of taps.
+  void _seekByTap(int side) {
+    final run = _tapSeekVisible ? _tapSeek : null;
+    final seconds = run != null && run.side == side ? run.seconds + _tapSeekStep : _tapSeekStep;
+    // Count from where the run started: the player's position lags right after a seek.
+    if (run == null || run.side != side) _tapSeekFrom = _player.state.position;
+
+    var target = _tapSeekFrom + Duration(seconds: seconds * side);
+    final duration = _player.state.duration;
+    if (target < Duration.zero) target = Duration.zero;
+    if (duration > Duration.zero && target > duration) target = duration;
+    _player.seek(target);
+
+    setState(() {
+      _tapSeek = (side: side, seconds: seconds);
+      _tapSeekVisible = true;
+    });
+    _tapSeekEnd?.cancel();
+    _tapSeekEnd = Timer(const Duration(milliseconds: 800), () {
+      // Only fade out: the side and count stay, so it doesn't jump to the other side as it fades.
+      if (mounted) setState(() => _tapSeekVisible = false);
+    });
+  }
 
   // ── Rating intro ──
 
@@ -320,7 +642,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
   void _toggleFit() {
     setState(
-      () => _fit = _fit == BoxFit.contain ? BoxFit.cover : BoxFit.contain,
+          () => _fit = _fit == BoxFit.contain ? BoxFit.cover : BoxFit.contain,
     );
     _showControls();
   }
@@ -398,7 +720,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
     }
     if (visible != _controlsVisible) setState(() => _controlsVisible = visible);
     _videoKey.currentState?.setSubtitleViewPadding(
-      visible ? _subtitlesLifted : _subtitlesNormal,
+      _subtitlePadding(lifted: visible),
       duration: const Duration(
         milliseconds: 200,
       ), // the same speed as the controls' fade
@@ -411,8 +733,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
     _showControls(autoHide: _scrub == null);
     final onControl =
         _seekNode.hasPrimaryFocus ||
-        _skipNode.hasPrimaryFocus ||
-        _allButtons.any((n) => n.hasPrimaryFocus);
+            _skipNode.hasPrimaryFocus ||
+            _allButtons.any((n) => n.hasPrimaryFocus);
     if (!onControl) {
       if (direction == TraversalDirection.up) _audioNode.requestFocus();
       if (direction == TraversalDirection.down) _playNode.requestFocus();
@@ -525,23 +847,24 @@ class _PlayerScreenState extends State<PlayerScreen> {
               children: [
                 GestureDetector(
                   behavior: HitTestBehavior.opaque,
-                  onTap: _toggleControls,
+                  onTapUp: (details) => _onVideoTapUp(details, compact: compact),
                   child: Video(
                     key: _videoKey,
                     controller: _video,
                     controls: NoVideoControls,
                     fit: _fit,
                     fill: _black,
-                    subtitleViewConfiguration: const SubtitleViewConfiguration(
+                    subtitleViewConfiguration: SubtitleViewConfiguration(
                       style: TextStyle(
-                        fontSize: 36,
-                        height: 1.3,
+                        // The same share of the screen's height on a phone as on a TV.
+                        fontSize: compact ? 48 : 36,
+                        height: compact ? 1.2 : 1.3,
                         color: _white,
-                        shadows: [
+                        shadows: const [
                           Shadow(blurRadius: 6, color: Color(0xCC000000)),
                         ],
                       ),
-                      padding: _subtitlesNormal,
+                      padding: _subtitlePadding(lifted: _controlsVisible),
                     ),
                   ),
                 ),
@@ -550,17 +873,30 @@ class _PlayerScreenState extends State<PlayerScreen> {
                 StreamBuilder<bool>(
                   stream: _player.stream.buffering,
                   builder: (context, snapshot) =>
-                      (snapshot.data ?? true) && _error == null
+                  (snapshot.data ?? true) && _error == null
                       ? const Center(child: FCircularProgress())
                       : const SizedBox.shrink(),
                 ),
 
-// ── Everything drawn over the video: one safe area, sides only (for the camera cutout).
-//    The status and navigation bars are hidden while playing, so top and bottom need none.
+                // ── Shade behind the controls. Outside the safe area, so it reaches every edge
+                //    (including behind the camera cutout) instead of stopping short of it.
+                IgnorePointer(
+                  child: AnimatedOpacity(
+                    opacity: _controlsVisible ? 1 : 0,
+                    duration: const Duration(milliseconds: 200),
+                    child: _ControlsShade(compact: compact),
+                  ),
+                ),
+
+                // ── Double-tap seek: "« 10 seconds" on the side that was tapped ──
+                IgnorePointer(child: _TapSeekIndicator(seek: _tapSeek, visible: _tapSeekVisible)),
+
+                // ── Everything drawn over the video, kept clear of the screen's edges.
+                //    Both sides get the camera cutout's inset (not just the cutout side), so the
+                //    controls stay centred. Phones also keep clear of the rounded bottom corners.
                 Positioned.fill(
-                  child: SafeArea(
-                    top: false,
-                    bottom: false,
+                  child: Padding(
+                    padding: _overlayInsets(context, compact: compact),
                     child: Stack(
                       fit: StackFit.expand,
                       children: [
@@ -606,6 +942,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                               onAudio: _openAudio,
                               onSubtitles: _openSubtitles,
                               onInteract: _showControls,
+                              onCast: () => showCastPicker(context),
                             ),
                           ),
                         ),
@@ -616,7 +953,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                           curve: Curves.easeOut,
                           right: compact ? 16 : 32,
                           // Above the controls when they're showing; near the corner otherwise.
-                          bottom: _controlsVisible ? (compact ? 150 : 170) : (compact ? 12 : 24),
+                          bottom: _controlsVisible ? (compact ? 146 : 170) : (compact ? 12 : 24),
                           child: _SkipButton(
                             segment: _activeSegment,
                             onPress: _skipSegment,
@@ -628,6 +965,15 @@ class _PlayerScreenState extends State<PlayerScreen> {
                     ),
                   ),
                 ),
+
+                // ── Casting: this screen becomes the Chromecast's remote ──
+                if (_casting && _item != null)
+                  CastRemote(
+                    item: _item!,
+                    onBack: () => context.pop(), // casting carries on
+                    onAudio: _openCastAudio,
+                    onSubtitles: _openCastSubtitles,
+                  ),
 
                 // ── Errors ──
                 if (_error != null)
@@ -676,6 +1022,21 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
+/// How far the controls stay from the screen's edges. The status and navigation bars are
+/// hidden while playing, so this is mostly the camera cutout, mirrored on both sides so
+/// everything stays centred. Phones add a little more for their rounded corners.
+EdgeInsets _overlayInsets(BuildContext context, {required bool compact}) {
+  final system = MediaQuery.viewPaddingOf(context);
+  final sides = math.max(system.left, system.right);
+  if (!compact) return EdgeInsets.symmetric(horizontal: sides);
+  return EdgeInsets.fromLTRB(
+    math.max(sides, 12),
+    math.max(system.top, 4),
+    math.max(sides, 12),
+    math.max(system.bottom, 12),
+  );
+}
+
 /// Where to start: the saved position, unless the item was finished.
 Duration _resumePosition(JellyfinItem item) {
   final userData = item.raw['UserData'] as Map?;
@@ -699,23 +1060,23 @@ List<({String name, Duration start})> _namedChaptersOf(JellyfinItem item) {
     for (final c in (item.raw['Chapters'] as List?) ?? const [])
       if (c is Map && c['StartPositionTicks'] is int)
         (
-          name: switch (c['Name']) {
-            final String n when n.trim().isNotEmpty && !generic.hasMatch(n) =>
+        name: switch (c['Name']) {
+          final String n when n.trim().isNotEmpty && !generic.hasMatch(n) =>
               n.trim(),
-            _ => '',
-          },
-          start: Duration(microseconds: (c['StartPositionTicks'] as int) ~/ 10),
+          _ => '',
+        },
+        start: Duration(microseconds: (c['StartPositionTicks'] as int) ~/ 10),
         ),
   ]..sort((a, b) => a.start.compareTo(b.start));
 }
 
 /// The name of the chapter playing at [position], or null if it has no meaningful name.
 String? _chapterAt(
-  List<({String name, Duration start})> chapters,
-  Duration position,
-) {
+    List<({String name, Duration start})> chapters,
+    Duration position,
+    ) {
   final current = chapters.lastWhere(
-    (c) => c.start <= position,
+        (c) => c.start <= position,
     orElse: () => (name: '', start: Duration.zero),
   );
   return current.name.isEmpty ? null : current.name;
@@ -770,7 +1131,7 @@ class _Trickplay {
     final infos = sizes.values.whereType<Map>().toList()
       ..sort((a, b) => (a['Width'] as int).compareTo(b['Width'] as int));
     final info = infos.lastWhere(
-      (i) => (i['Width'] as int) <= 480,
+          (i) => (i['Width'] as int) <= 480,
       orElse: () => infos.first,
     );
 
@@ -789,8 +1150,8 @@ class _Trickplay {
   /// Which sheet shows [position], where on it, and how many columns and rows that sheet has
   /// (the last sheet is usually smaller).
   ({String url, int col, int row, int cols, int rows})? frameAt(
-    Duration position,
-  ) {
+      Duration position,
+      ) {
     if (interval <= 0 || count <= 0) return null;
     final perSheet = tileWidth * tileHeight;
     final index = (position.inMilliseconds ~/ interval).clamp(0, count - 1);
@@ -799,12 +1160,12 @@ class _Trickplay {
     final onThisSheet = math.min(perSheet, count - sheet * perSheet);
 
     return (
-      url:
-          '${jellyfin.client!.baseUrl}/Videos/$itemId/Trickplay/$width/$sheet.jpg?MediaSourceId=$mediaSourceId',
-      col: inSheet % tileWidth,
-      row: inSheet ~/ tileWidth,
-      cols: math.min(tileWidth, onThisSheet),
-      rows: (onThisSheet / tileWidth).ceil(),
+    url:
+    '${jellyfin.client!.baseUrl}/Videos/$itemId/Trickplay/$width/$sheet.jpg?MediaSourceId=$mediaSourceId',
+    col: inSheet % tileWidth,
+    row: inSheet ~/ tileWidth,
+    cols: math.min(tileWidth, onThisSheet),
+    rows: (onThisSheet / tileWidth).ceil(),
     );
   }
 }
@@ -976,15 +1337,15 @@ _SegmentKind? _kindFromChapterName(String name) {
 /// The item's skippable segments: Jellyfin's Media Segments (from TheIntroDB and similar plugins),
 /// or failing that, chapters whose names say what they are.
 Future<List<_Segment>> _loadSegments(
-  JellyfinClient client,
-  JellyfinItem item,
-) async {
+    JellyfinClient client,
+    JellyfinItem item,
+    ) async {
   try {
     final result = await client.mediaSegments.forItem(itemId: item.id);
     final segments = <_Segment>[
       for (final s in result.items)
         if ((_kindFromServer(s.type), s.start, s.end)
-            case (final kind?, final start?, final end?) when end > start)
+        case (final kind?, final start?, final end?) when end > start)
           _Segment(kind, start, end),
     ]..sort((a, b) => a.start.compareTo(b.start));
 
@@ -1020,10 +1381,10 @@ List<_Segment> _plausibleSegments(List<_Segment> segments, JellyfinItem item) {
 
     switch (s.kind) {
       case _SegmentKind.credits:
-        // Credits belong near the end: starting in the last 30% of the runtime.
+      // Credits belong near the end: starting in the last 30% of the runtime.
         return runtime == Duration.zero || s.start >= runtime * 0.7;
       case _SegmentKind.preview || _SegmentKind.recap when isMovie:
-        return false; // movies don't have previews or recaps
+      return false; // movies don't have previews or recaps
       default:
         return s.end - s.start <= maxLength;
     }
@@ -1037,8 +1398,8 @@ List<_Segment> _segmentsFromChapterNames(JellyfinItem item) {
     for (final c in (item.raw['Chapters'] as List?) ?? const [])
       if (c is Map && c['StartPositionTicks'] is int)
         (
-          name: (c['Name'] as String?) ?? '',
-          start: _fromTicks(c['StartPositionTicks']),
+        name: (c['Name'] as String?) ?? '',
+        start: _fromTicks(c['StartPositionTicks']),
         ),
   ]..sort((a, b) => a.start.compareTo(b.start));
   final runtime = _fromTicks(item.raw['RunTimeTicks']);
@@ -1047,7 +1408,7 @@ List<_Segment> _segmentsFromChapterNames(JellyfinItem item) {
     for (var i = 0; i < chapters.length; i++)
       if (_kindFromChapterName(chapters[i].name) case final kind?)
         if ((i + 1 < chapters.length ? chapters[i + 1].start : runtime)
-            case final end when end > chapters[i].start)
+        case final end when end > chapters[i].start)
           _Segment(kind, chapters[i].start, end),
   ];
 }
@@ -1188,47 +1549,47 @@ class _SkipButton extends StatelessWidget {
       child: segment == null
           ? const SizedBox.shrink(key: ValueKey('none'))
           : FilledButton(
-              key: ValueKey(segment!.kind),
-              focusNode: focusNode,
-              onPressed: onPress,
-              style: ButtonStyle(
-                padding: const WidgetStatePropertyAll(
-                  EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                ),
-                shape: WidgetStatePropertyAll(
-                  RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                ),
-                textStyle: const WidgetStatePropertyAll(
-                  TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 0.2,
-                  ),
-                ),
-                elevation: const WidgetStatePropertyAll(0),
-                animationDuration: const Duration(milliseconds: 150),
-                // At rest: dark and translucent with a thin white outline.
-                // Selected or hovered: solid white with black text. The flip itself is the indicator.
-                backgroundColor: WidgetStateProperty.resolveWith(
-                  (s) => isActive(s) ? _white : const Color(0x99141414),
-                ),
-                foregroundColor: WidgetStateProperty.resolveWith(
-                  (s) => isActive(s) ? _black : _white,
-                ),
-                side: WidgetStateProperty.resolveWith(
-                  (s) => BorderSide(
-                    color: isActive(s) ? _white : const Color(0xB3FFFFFF),
-                    width: 1.5,
-                  ),
-                ),
-                overlayColor: const WidgetStatePropertyAll(
-                  Color(0x00000000),
-                ), // no extra tint: the white fill says it all
-              ),
-              child: Text(segment!.label),
+        key: ValueKey(segment!.kind),
+        focusNode: focusNode,
+        onPressed: onPress,
+        style: ButtonStyle(
+          padding: const WidgetStatePropertyAll(
+            EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+          ),
+          shape: WidgetStatePropertyAll(
+            RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(4),
             ),
+          ),
+          textStyle: const WidgetStatePropertyAll(
+            TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.2,
+            ),
+          ),
+          elevation: const WidgetStatePropertyAll(0),
+          animationDuration: const Duration(milliseconds: 150),
+          // At rest: dark and translucent with a thin white outline.
+          // Selected or hovered: solid white with black text. The flip itself is the indicator.
+          backgroundColor: WidgetStateProperty.resolveWith(
+                (s) => isActive(s) ? _white : const Color(0x99141414),
+          ),
+          foregroundColor: WidgetStateProperty.resolveWith(
+                (s) => isActive(s) ? _black : _white,
+          ),
+          side: WidgetStateProperty.resolveWith(
+                (s) => BorderSide(
+              color: isActive(s) ? _white : const Color(0xB3FFFFFF),
+              width: 1.5,
+            ),
+          ),
+          overlayColor: const WidgetStatePropertyAll(
+            Color(0x00000000),
+          ), // no extra tint: the white fill says it all
+        ),
+        child: Text(segment!.label),
+      ),
     );
   }
 }
@@ -1261,6 +1622,7 @@ class _PlayerControls extends StatelessWidget {
     required this.onToggleFit,
     required this.onInteract,
     required this.onDragPreview,
+    required this.onCast,
   });
 
   final Player player;
@@ -1287,57 +1649,103 @@ class _PlayerControls extends StatelessWidget {
   final VoidCallback onToggleFit;
   final VoidCallback onInteract;
   final ValueChanged<Duration?> onDragPreview;
+  final VoidCallback onCast;
 
   @override
   Widget build(BuildContext context) {
     final previewChapter = preview == null ? null : _chapterAt(chapters, preview!);
     final compact = MediaQuery.sizeOf(context).shortestSide < 600;
 
+    // Previous, play/pause, next. Big and in the middle on phones (easy to reach with a thumb);
+    // under the seek bar elsewhere.
+    Widget transport({required double skipSize, required double playSize, required double spacing}) =>
+        FocusRow(
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            spacing: spacing,
+            children: [
+              _ControlButton(
+                focusNode: previousNode,
+                icon: Icons.skip_previous_rounded,
+                label: hasChapters ? 'Previous chapter' : 'Back 10 seconds',
+                size: skipSize,
+                onPress: onPreviousChapter,
+              ),
+              StreamBuilder<bool>(
+                stream: player.stream.playing,
+                initialData: player.state.playing,
+                builder: (context, snapshot) => _ControlButton(
+                  focusNode: playNode,
+                  icon: snapshot.data! ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                  label: snapshot.data! ? 'Pause' : 'Play',
+                  size: playSize,
+                  onPress: onPlayOrPause,
+                ),
+              ),
+              _ControlButton(
+                focusNode: nextNode,
+                icon: Icons.skip_next_rounded,
+                label: hasChapters ? 'Next chapter' : 'Forward 10 seconds',
+                size: skipSize,
+                onPress: onNextChapter,
+              ),
+            ],
+          ),
+        );
+
     return Stack(
       fit: StackFit.expand,
       children: [
-        // Darkens the top and bottom so the controls read on any frame.
-        const DecoratedBox(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              stops: [0.0, 0.2, 0.5, 1.0],
-              colors: [
-                Color(0xB3000000),
-                Color(0x00000000),
-                Color(0x00000000),
-                Color(0xE6000000),
-              ],
-            ),
-          ),
-        ),
+        // (The shade behind these lives in the player screen, outside the safe area.)
 
-// ── Top: back and logo ──
+        // ── Phones: transport in the middle of the screen ──
+        if (compact)
+          Align(
+            alignment: Alignment.center,
+            child: transport(skipSize: 48, playSize: 60, spacing: 48),
+          ),
+
+        // ── Top: back and logo ──
         Positioned(
           top: compact ? 8 : 12,
-          left: compact ? 8 : 12,
-          right: compact ? 8 : 12,
+          left: 12,
+          right: 12,
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.center, // the back arrow sits level with the middle of the title block
             spacing: 8,
             children: [
               _ControlButton(
                 focusNode: backNode,
-                icon: Icons.arrow_back_ios_new_rounded,
+                icon: Icons.arrow_back_rounded,
                 label: 'Back',
+                size: compact ? 32 : 24,
                 onPress: onBack,
               ),
               if (item != null) Flexible(child: _PlayerTitle(item: item!)),
+              const Spacer(),
+              // AirPlay (iPhone/iPad) and Chromecast (only when one is on the network).
+              if (AirPlayButton.available) AirPlayButton(size: compact ? 48 : 40),
+              ListenableBuilder(
+                listenable: castController,
+                builder: (context, _) => showCastButton
+                    ? _ControlButton(
+                  icon: castIcon,
+                  label: 'Cast',
+                  size: compact ? 28 : 22,
+                  onPress: onCast,
+                )
+                    : const SizedBox.shrink(),
+              ),
             ],
           ),
         ),
 
         // ── Bottom: heading, seek bar, times, transport ──
         Positioned(
-          left: compact ? 16 : 32,
-          right: compact ? 16 : 32,
-          bottom: compact ? 4 : 12,
+          left: compact ? 24 : 32,
+          right: compact ? 24 : 32,
+          bottom: compact ? 8 : 12,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1350,12 +1758,14 @@ class _PlayerControls extends StatelessWidget {
                       focusNode: audioNode,
                       icon: Icons.graphic_eq_rounded,
                       label: 'Audio',
+                      size: compact ? 32 : 24,
                       onPress: onAudio,
                     ),
                     _ControlButton(
                       focusNode: subtitlesNode,
                       icon: Icons.subtitles_rounded,
                       label: 'Subtitles',
+                      size: compact ? 32 : 24,
                       onPress: onSubtitles,
                     ),
                     _ControlButton(
@@ -1364,6 +1774,7 @@ class _PlayerControls extends StatelessWidget {
                           ? Icons.zoom_in_map_rounded
                           : Icons.zoom_out_map_rounded,
                       label: filled ? 'Fit to screen' : 'Fill screen',
+                      size: compact ? 32 : 24,
                       onPress: onToggleFit,
                     ),
                   ],
@@ -1384,50 +1795,97 @@ class _PlayerControls extends StatelessWidget {
                 preview: preview,
                 chapter: trickplay == null ? previewChapter : null,
               ),
-              const SizedBox(height: 4),
-              FocusRow(
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  spacing: 24,
-                  children: [
-                    _ControlButton(
-                      focusNode: previousNode,
-                      icon: Icons.skip_previous_rounded,
-                      label: hasChapters
-                          ? 'Previous chapter'
-                          : 'Back 10 seconds',
-                      size: 28,
-                      onPress: onPreviousChapter,
-                    ),
-                    StreamBuilder<bool>(
-                      stream: player.stream.playing,
-                      initialData: player.state.playing,
-                      builder: (context, snapshot) => _ControlButton(
-                        focusNode: playNode,
-                        icon: snapshot.data!
-                            ? Icons.pause_rounded
-                            : Icons.play_arrow_rounded,
-                        label: snapshot.data! ? 'Pause' : 'Play',
-                        size: 32,
-                        onPress: onPlayOrPause,
-                      ),
-                    ),
-                    _ControlButton(
-                      focusNode: nextNode,
-                      icon: Icons.skip_next_rounded,
-                      label: hasChapters
-                          ? 'Next chapter'
-                          : 'Forward 10 seconds',
-                      size: 28,
-                      onPress: onNextChapter,
-                    ),
-                  ],
-                ),
-              ),
+              if (!compact) ...[
+                const SizedBox(height: 4),
+                transport(skipSize: 26, playSize: 32, spacing: 24),
+              ],
             ],
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Darkens the top and bottom so the controls read on any frame. Phones also dim the middle
+/// a little, where the play button now sits.
+class _ControlsShade extends StatelessWidget {
+  const _ControlsShade({required this.compact});
+
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) => DecoratedBox(
+    decoration: BoxDecoration(
+      gradient: LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        stops: const [0.0, 0.25, 0.6, 1.0],
+        colors: [
+          const Color(0xB3000000),
+          compact ? const Color(0x40000000) : const Color(0x00000000),
+          compact ? const Color(0x40000000) : const Color(0x00000000),
+          const Color(0xE6000000),
+        ],
+      ),
+    ),
+    child: const SizedBox.expand(),
+  );
+}
+
+/// The double-tap seek feedback: a soft half-circle on the tapped side with
+/// "« 10 seconds" (or "30 seconds" after several taps), fading out shortly after.
+class _TapSeekIndicator extends StatelessWidget {
+  const _TapSeekIndicator({required this.seek, required this.visible});
+
+  final ({int side, int seconds})? seek; // the last run of taps, still set while fading out
+  final bool visible;
+
+  @override
+  Widget build(BuildContext context) {
+    final seek = this.seek;
+    final side = seek?.side ?? 1;
+    final forward = side > 0;
+
+    return AnimatedOpacity(
+      opacity: visible && seek != null ? 1 : 0,
+      duration: const Duration(milliseconds: 150),
+      child: Align(
+        alignment: forward ? Alignment.centerRight : Alignment.centerLeft,
+        child: FractionallySizedBox(
+          widthFactor: 0.38,
+          heightFactor: 1,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: const Color(0x26FFFFFF),
+              // Rounded on the inner side only, like a ripple coming from the edge.
+              borderRadius: forward
+                  ? const BorderRadius.horizontal(left: Radius.elliptical(400, 600))
+                  : const BorderRadius.horizontal(right: Radius.elliptical(400, 600)),
+            ),
+            child: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                spacing: 6,
+                children: [
+                  Icon(
+                    forward ? Icons.fast_forward_rounded : Icons.fast_rewind_rounded,
+                    size: 36,
+                    color: _white,
+                  ),
+                  Text(
+                    '${seek?.seconds ?? 10} seconds',
+                    style: context.theme.typography.body.sm.copyWith(
+                      color: _white,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -1459,9 +1917,10 @@ class _ControlButton extends StatelessWidget {
       builder: (context, states, _) {
         final focused = states.contains(FTappableVariant.focused);
         final hovered = states.contains(FTappableVariant.hovered);
+        final compact = MediaQuery.sizeOf(context).shortestSide < 600;
         return AnimatedContainer(
           duration: const Duration(milliseconds: 120),
-          padding: const EdgeInsets.all(7),
+          padding: EdgeInsets.all(compact ? 10 : 7), // phones: 48 px targets for thumbs
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             // Focused (remote or keyboard) or hovered: the same soft translucent circle.
@@ -1492,9 +1951,9 @@ class _PlayerTitle extends StatelessWidget {
     final isEpisode = item.type == JellyfinItemKind.episode;
     final (logoItemId, logoTag) = isEpisode
         ? (
-            item.raw['ParentLogoItemId'] as String?,
-            item.raw['ParentLogoImageTag'] as String?,
-          )
+    item.raw['ParentLogoItemId'] as String?,
+    item.raw['ParentLogoImageTag'] as String?,
+    )
         : (item.id, item.imageTags['Logo']);
     final name = isEpisode
         ? (item.raw['SeriesName'] as String?) ?? item.name
@@ -1537,7 +1996,7 @@ class _PlayerTitle extends StatelessWidget {
               fit: BoxFit.contain,
               alignment: Alignment.centerLeft,
               errorBuilder: (_, _, _) =>
-                  nameText, // the logo failed to load: fall back to the name
+              nameText, // the logo failed to load: fall back to the name
             ),
           )
         else
@@ -1584,9 +2043,9 @@ class _TimeRow extends StatelessWidget {
             // While scrubbing, this is where you'll land: bold, in the theme's color.
             style: preview != null
                 ? style.copyWith(
-                    color: style.color,
-                    fontWeight: FontWeight.w700,
-                  )
+              color: style.color,
+              fontWeight: FontWeight.w700,
+            )
                 : style,
           ),
           const Spacer(),
@@ -1651,7 +2110,12 @@ class _SeekBarState extends State<_SeekBar> {
       final played = fractionOf(preview ?? state.position);
       final buffered = fractionOf(state.buffer);
       final primary = context.theme.colors.primary;
-      final handle = preview != null || _focused ? 18.0 : 14.0;
+      // Phones: a thicker bar, a bigger handle and a taller touch area, for thumbs.
+      final compact = MediaQuery.sizeOf(context).shortestSide < 600;
+      final thickness = compact ? 6.0 : 4.0;
+      final handle = compact
+          ? (preview != null ? 26.0 : 20.0)
+          : (preview != null || _focused ? 18.0 : 14.0);
 
       return LayoutBuilder(
         builder: (context, constraints) {
@@ -1671,14 +2135,14 @@ class _SeekBarState extends State<_SeekBar> {
               onHorizontalDragStart: (details) {
                 widget.onInteract();
                 setState(
-                  () => _dragFraction = fractionAt(details.localPosition.dx),
+                      () => _dragFraction = fractionAt(details.localPosition.dx),
                 );
                 widget.onDragPreview?.call(state.duration * _dragFraction!);
               },
               onHorizontalDragUpdate: (details) {
                 widget.onInteract();
                 setState(
-                  () => _dragFraction = fractionAt(details.localPosition.dx),
+                      () => _dragFraction = fractionAt(details.localPosition.dx),
                 );
                 widget.onDragPreview?.call(state.duration * _dragFraction!);
               },
@@ -1688,14 +2152,14 @@ class _SeekBarState extends State<_SeekBar> {
                 widget.onDragPreview?.call(null);
               },
               child: SizedBox(
-                height: 28,
+                height: compact ? 44 : 28,
                 child: Stack(
                   clipBehavior: Clip.none, // the preview rises above the bar
                   alignment: Alignment.centerLeft,
                   children: [
-                    _bar(width, const Color(0x40FFFFFF)),
-                    _bar(width * buffered, const Color(0x66FFFFFF)),
-                    _bar(x, _white),
+                    _bar(width, const Color(0x40FFFFFF), thickness),
+                    _bar(width * buffered, const Color(0x66FFFFFF), thickness),
+                    _bar(x, _white, thickness),
                     Positioned(
                       left: math.max(0, x - handle / 2),
                       child: AnimatedContainer(
@@ -1711,7 +2175,7 @@ class _SeekBarState extends State<_SeekBar> {
                     if (preview != null)
                       if (widget.trickplay?.frameAt(preview) case final frame?)
                         Positioned(
-                          bottom: 36,
+                          bottom: compact ? 44 : 36,
                           left: (x - _ScrubPreview.width / 2).clamp(
                             0.0,
                             math.max(0.0, width - _ScrubPreview.width),
@@ -1733,12 +2197,12 @@ class _SeekBarState extends State<_SeekBar> {
     },
   );
 
-  Widget _bar(double width, Color color) => Container(
+  Widget _bar(double width, Color color, double thickness) => Container(
     width: width,
-    height: 4,
+    height: thickness,
     decoration: BoxDecoration(
       color: color,
-      borderRadius: BorderRadius.circular(2),
+      borderRadius: BorderRadius.circular(thickness / 2),
     ),
   );
 }
@@ -1747,9 +2211,9 @@ class _SeekBarState extends State<_SeekBar> {
 
 /// One audio or subtitle option: a stable key, what it's called, and how to switch to it.
 typedef _TrackChoice = ({
-  String key,
-  String label,
-  Future<void> Function() select,
+String key,
+String label,
+Future<void> Function() select,
 });
 
 /// mpv's built-in "auto" and "no" choices aren't real tracks.
@@ -1757,16 +2221,16 @@ bool _isRealTrack(String id) => id != 'auto' && id != 'no';
 
 /// The file's streams of one type, as Jellyfin describes them, in file order.
 List<Map<String, dynamic>> _streamsOf(
-  JellyfinItem? item,
-  String type, {
-  required bool external,
-}) {
+    JellyfinItem? item,
+    String type, {
+      required bool external,
+    }) {
   final raw = item?.raw;
   final source = (raw?['MediaSources'] as List?)?.firstOrNull as Map?;
   final streams =
       (source?['MediaStreams'] as List?) ??
-      (raw?['MediaStreams'] as List?) ??
-      const [];
+          (raw?['MediaStreams'] as List?) ??
+          const [];
   return [
     for (final s in streams)
       if (s is Map<String, dynamic> &&
@@ -1774,19 +2238,19 @@ List<Map<String, dynamic>> _streamsOf(
           (s['IsExternal'] == true) == external)
         s,
   ]..sort(
-    (a, b) => ((a['Index'] as int?) ?? 0).compareTo((b['Index'] as int?) ?? 0),
+        (a, b) => ((a['Index'] as int?) ?? 0).compareTo((b['Index'] as int?) ?? 0),
   );
 }
 
 /// Jellyfin's description of the n-th track of a kind ("English - AAC - Stereo - Default"),
 /// or mpv's own title and language if Jellyfin has none.
 String _trackLabel(
-  List<Map<String, dynamic>> streams,
-  int index,
-  String id,
-  String? title,
-  String? language,
-) {
+    List<Map<String, dynamic>> streams,
+    int index,
+    String id,
+    String? title,
+    String? language,
+    ) {
   if (index < streams.length) {
     final display = streams[index]['DisplayTitle'] as String?;
     if (display != null && display.isNotEmpty) return display;
@@ -1822,9 +2286,9 @@ List<_TrackChoice> _audioChoices(Player player, JellyfinItem? item) {
   return [
     for (final (i, t) in tracks.indexed)
       (
-        key: 'audio:${t.id}',
-        label: _trackLabel(streams, i, t.id, t.title, t.language),
-        select: () => player.setAudioTrack(t),
+      key: 'audio:${t.id}',
+      label: _trackLabel(streams, i, t.id, t.title, t.language),
+      select: () => player.setAudioTrack(t),
       ),
   ];
 }
@@ -1843,28 +2307,28 @@ List<_TrackChoice> _subtitleChoices(Player player, JellyfinItem? item) {
 
   return [
     (
-      key: 'off',
-      label: 'Off',
-      select: () => player.setSubtitleTrack(SubtitleTrack.no()),
+    key: 'off',
+    label: 'Off',
+    select: () => player.setSubtitleTrack(SubtitleTrack.no()),
     ),
     for (final (i, t) in embedded.indexed)
       (
-        key: 'sub:${t.id}',
-        label: _trackLabel(streams, i, t.id, t.title, t.language),
-        select: () => player.setSubtitleTrack(t),
+      key: 'sub:${t.id}',
+      label: _trackLabel(streams, i, t.id, t.title, t.language),
+      select: () => player.setSubtitleTrack(t),
       ),
     for (final s in external)
       if (_externalSubtitleUrl(item, s) case final url?)
         (
-          key: url, // an external track's id is its address
-          label: (s['DisplayTitle'] as String?) ?? 'External subtitles',
-          select: () => player.setSubtitleTrack(
-            SubtitleTrack.uri(
-              url,
-              title: s['DisplayTitle'] as String?,
-              language: s['Language'] as String?,
-            ),
+        key: url, // an external track's id is its address
+        label: (s['DisplayTitle'] as String?) ?? 'External subtitles',
+        select: () => player.setSubtitleTrack(
+          SubtitleTrack.uri(
+            url,
+            title: s['DisplayTitle'] as String?,
+            language: s['Language'] as String?,
           ),
+        ),
         ),
   ];
 }
@@ -1881,11 +2345,11 @@ String _currentSubtitleKey(Player player) {
 
 /// Shows [choices] in the app's standard choice picker and applies the one picked.
 Future<void> _pickTrack(
-  BuildContext context, {
-  required String title,
-  required List<_TrackChoice> choices,
-  required String current,
-}) async {
+    BuildContext context, {
+      required String title,
+      required List<_TrackChoice> choices,
+      required String current,
+    }) async {
   if (choices.isEmpty) return;
   final key = await showChoicePicker<String>(
     context: context,
@@ -1899,4 +2363,103 @@ Future<void> _pickTrack(
     ),
   );
   if (key != null) await choices.firstWhere((c) => c.key == key).select();
+}
+
+/// The user's playback preferences from their Jellyfin account.
+typedef _TrackPrefs = ({
+String? audioLanguage, // e.g. 'eng', or null for no preference
+String? subtitleLanguage,
+String subtitleMode, // Default, Smart, OnlyForced, Always or None
+bool playDefaultAudio, // prefer the file's default audio over the preferred language
+});
+
+/// Fetched fresh each time, so a change in Settings applies to the very next video.
+Future<_TrackPrefs?> _fetchTrackPrefs() async {
+  final baseUrl = jellyfin.client?.baseUrl;
+  if (baseUrl == null) return null;
+  try {
+    final res = await http
+        .get(Uri.parse('$baseUrl/Users/Me'), headers: jellyfin.authHeaders)
+        .timeout(const Duration(seconds: 5));
+    if (res.statusCode != 200) return null;
+    final config = (jsonDecode(res.body) as Map<String, dynamic>)['Configuration'] as Map? ?? {};
+    String? lang(Object? v) => v is String && v.isNotEmpty ? v : null;
+    return (
+    audioLanguage: lang(config['AudioLanguagePreference']),
+    subtitleLanguage: lang(config['SubtitleLanguagePreference']),
+    subtitleMode: config['SubtitleMode'] as String? ?? 'Default',
+    playDefaultAudio: config['PlayDefaultAudioTrack'] as bool? ?? true,
+    );
+  } catch (_) {
+    return null; // offline or old server: leave mpv's choice alone
+  }
+}
+
+/// Some languages have two three-letter codes (German is both "ger" and "deu").
+const _languageAliases = {
+  'ger': 'deu', 'fre': 'fra', 'chi': 'zho', 'dut': 'nld', 'cze': 'ces', 'gre': 'ell',
+  'per': 'fas', 'rum': 'ron', 'slo': 'slk', 'alb': 'sqi', 'arm': 'hye', 'baq': 'eus',
+  'bur': 'mya', 'geo': 'kat', 'ice': 'isl', 'mac': 'mkd', 'mao': 'mri', 'may': 'msa',
+  'tib': 'bod', 'wel': 'cym',
+};
+
+bool _sameLanguage(Object? a, String? b) {
+  if (a is! String || b == null) return false;
+  String norm(String s) => _languageAliases[s.toLowerCase()] ?? s.toLowerCase();
+  return norm(a) == norm(b);
+}
+
+/// Position of the audio stream to start with, or null to keep mpv's choice.
+int? _pickAudio(List<Map<String, dynamic>> streams, _TrackPrefs prefs) {
+  if (streams.isEmpty) return null;
+  final preferred = streams.indexWhere((s) => _sameLanguage(s['Language'], prefs.audioLanguage));
+  final flagged = streams.indexWhere((s) => s['IsDefault'] == true);
+  if (prefs.playDefaultAudio && flagged != -1) return flagged;
+  if (preferred != -1) return preferred;
+  return null;
+}
+
+/// The subtitle stream to start with, or null for off. Follows Jellyfin's modes:
+/// * Default: whatever the file flags as default or forced (preferred language first).
+/// * Smart: the preferred language when the audio is in another one; otherwise only forced.
+/// * OnlyForced: only forced subtitles (signs and foreign dialogue).
+/// * Always: the preferred language, or else the default or first subtitles.
+/// * None: off.
+Map<String, dynamic>? _pickSubtitle(
+    List<Map<String, dynamic>> streams,
+    _TrackPrefs prefs,
+    String? audioLanguage,
+    ) {
+  if (streams.isEmpty) return null;
+  bool inLanguage(Map<String, dynamic> s) => _sameLanguage(s['Language'], prefs.subtitleLanguage);
+  bool forced(Map<String, dynamic> s) => s['IsForced'] == true;
+  bool flagged(Map<String, dynamic> s) => s['IsDefault'] == true;
+
+  /// The first stream passing [test], preferring the user's language.
+  Map<String, dynamic>? first(bool Function(Map<String, dynamic>) test) =>
+      streams.where((s) => test(s) && inLanguage(s)).firstOrNull ?? streams.where(test).firstOrNull;
+
+  final forcedOnly = first(forced);
+  switch (prefs.subtitleMode) {
+    case 'None':
+      return null;
+    case 'OnlyForced':
+      return forcedOnly;
+    case 'Always':
+      return streams.where((s) => inLanguage(s) && !forced(s)).firstOrNull ??
+          streams.where(inLanguage).firstOrNull ??
+          first(flagged) ??
+          streams.first;
+    case 'Smart':
+      final foreignAudio =
+          prefs.subtitleLanguage != null && !_sameLanguage(audioLanguage, prefs.subtitleLanguage);
+      if (foreignAudio) {
+        return streams.where((s) => inLanguage(s) && !forced(s)).firstOrNull ??
+            streams.where(inLanguage).firstOrNull ??
+            forcedOnly;
+      }
+      return forcedOnly;
+    default: // 'Default'
+      return first((s) => flagged(s) || forced(s));
+  }
 }

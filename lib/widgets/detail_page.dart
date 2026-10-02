@@ -1914,7 +1914,7 @@ class _FavoriteButtonState extends State<_FavoriteButton> {
       spacing: 8,
       children: [
         Icon(
-          appIcons.favorite,
+          _favorite ? appIcons.favorite : appIcons.favoriteOutline,
           size: 18,
           color: _favorite ? context.theme.colors.primary : null,
           fill: _favorite ? 1 : 0,

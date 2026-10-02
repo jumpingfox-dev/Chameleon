@@ -3,6 +3,7 @@ import 'package:material_ui/material_ui.dart';
 
 import '../utils/theme_controller.dart';
 import '../utils/theme_presets.dart';
+import '../theme/app_icons.dart';
 
 String _pad3(int n) => n.toString().padLeft(3, '0');
 
@@ -206,34 +207,42 @@ class _Stepper extends StatelessWidget {
   final Color? swatch;
 
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 2),
-    child: Row(
-      children: [
-        Expanded(child: Text(label)),
-        if (swatch != null)
-          Container(
-            width: 14,
-            height: 14,
-            margin: const EdgeInsets.only(right: 8),
-            decoration: BoxDecoration(color: swatch, shape: BoxShape.circle),
+  Widget build(BuildContext context) {
+    final isPhone = MediaQuery
+        .sizeOf(context)
+        .width < 600;
+    final buttonSize = isPhone ? FButtonSizeVariant.lg : FButtonSizeVariant.sm;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Expanded(child: Text(label)),
+          if (swatch != null)
+            Container(
+              width: 16,
+              height: 16,
+              margin: const EdgeInsets.only(right: 8),
+              decoration: BoxDecoration(color: swatch, shape: BoxShape.circle),
+            ),
+          FButton.icon(
+            variant: .ghost,
+            size: buttonSize,
+            onPress: onPrev,
+            child: Icon(appIcons.stepBack, fill: 1),
           ),
-        FButton.icon(
-          variant: .ghost,
-          size: .xs,
-          onPress: onPrev,
-          child: context.theme.icons.chevronLeft(context),
-        ),
-        SizedBox(width: 40, child: Text(value, textAlign: TextAlign.center)),
-        FButton.icon(
-          variant: .ghost,
-          size: .xs,
-          onPress: onNext,
-          child: context.theme.icons.chevronRight(context),
-        ),
-      ],
-    ),
-  );
+          SizedBox(width: isPhone ? 48 : 40,
+              child: Text(value, textAlign: TextAlign.center)),
+          FButton.icon(
+            variant: .ghost,
+            size: buttonSize,
+            onPress: onNext,
+            child: Icon(appIcons.stepForward, fill: 1),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 // ─── Advanced mode ───────────────────────────────────────────────────────────

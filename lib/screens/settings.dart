@@ -255,7 +255,7 @@ class _AppearanceCard extends StatelessWidget {
           // ── Theme ──
           const _SectionTitle('Theme', description: 'Pick a preset, or "Custom" to build your own.'),
           _PickerSetting<ThemePreset>(
-            label: 'Theme',
+            title: 'Theme',
             value: preset,
             options: themeController.allPresets.toList(),
             format: (p) => p.label,
@@ -269,7 +269,7 @@ class _AppearanceCard extends StatelessWidget {
           // ── Icons ──
           const _SectionTitle('Icons', description: 'The icon style used across the app.'),
           _PickerSetting<IconStyle>(
-            label: 'Icons',
+            title: 'Icons',
             value: iconController.value,
             options: IconStyle.values,
             format: (s) => s.label,
@@ -497,7 +497,8 @@ class _SectionTitle extends StatelessWidget {
 /// Same split as the Appearance tab.
 class _PickerSetting<T> extends StatelessWidget {
   const _PickerSetting({
-    required this.label,
+    this.label,
+    this.title,
     required this.value,
     required this.options,
     required this.format,
@@ -506,7 +507,8 @@ class _PickerSetting<T> extends StatelessWidget {
     this.itemBuilder,
   });
 
-  final String label;
+  final String? label;
+  final String? title;
   final T value;
   final List<T> options;
   final String Function(T) format;
@@ -534,7 +536,7 @@ class _PickerSetting<T> extends StatelessWidget {
       );
       if (searchable) {
         return FSelect<T>.searchBuilder(
-          label: Text(label),
+          label: label == null ? null : Text(label!),
           contentOverlayLocation: _dropdownLayer,
           format: format,
           filter: _filter,
@@ -545,20 +547,19 @@ class _PickerSetting<T> extends StatelessWidget {
         );
       }
       return FSelect<T>(
-        label: Text(label),
+        label: label == null ? null : Text(label!),
         contentOverlayLocation: _dropdownLayer,
         items: {for (final o in options) format(o): o},
         control: control,
       );
     }
-
     return ChoiceField(
       label: label,
       value: format(value),
       onPress: () async {
         final picked = await showChoicePicker<T>(
           context: context,
-          title: label,
+          title: title ?? label ?? '',
           searchable: searchable,
           searchHint: 'Search',
           selected: value,
@@ -704,6 +705,14 @@ class _PlaybackCard extends StatelessWidget {
             onChange: (v) => update((s) => s.subtitleSize = v),
           ),
           _gap,
+          _PickerSetting<SubtitlePosition>(
+            label: 'Height',
+            value: s.subtitlePosition,
+            options: SubtitlePosition.values,
+            format: (p) => p.label,
+            onChange: (p) => update((s) => s.subtitlePosition = p),
+          ),
+          _gap,
           _PickerSetting<SubtitleColor>(
             label: 'Color',
             value: s.subtitleColor,
@@ -811,7 +820,7 @@ class _SubtitlePreview extends StatelessWidget {
     child: Container(
       height: 120,
       alignment: Alignment.bottomCenter,
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+      padding: EdgeInsets.fromLTRB(16, 0, 16, 6 + 120 * playbackSettings.subtitlePosition.raise),
       decoration: const BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,

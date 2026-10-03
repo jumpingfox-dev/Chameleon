@@ -32,10 +32,16 @@ abstract final class AppOrientation {
     );
   }
 
-  /// The player: full screen, and free to turn either way.
-  /// An empty list means "whatever the device allows", so the phone's rotation lock is respected.
-  static Future<void> player() async {
+  /// Sideways, either way round.
+  static const landscape = [DeviceOrientation.landscapeLeft, DeviceOrientation.landscapeRight];
+
+  /// Upright.
+  static const portrait = [DeviceOrientation.portraitUp];
+
+  /// The player: full screen, held to [only] (e.g. [landscape]). Left empty, it's free to turn
+  /// with the phone, following the phone's own rotation lock. Tablets and TVs always turn freely.
+  static Future<void> player({List<DeviceOrientation> only = const []}) async {
     await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
-    await SystemChrome.setPreferredOrientations(const []);
+    await SystemChrome.setPreferredOrientations(_isPhone ? only : const []);
   }
 }

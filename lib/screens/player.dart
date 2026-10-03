@@ -13,6 +13,7 @@ import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
+import 'package:sensors_plus/sensors_plus.dart';
 import 'package:http/http.dart' as http;
 
 import '../utils/app_cache.dart';
@@ -78,23 +79,24 @@ class _PlayerScreenState extends State<PlayerScreen> {
     ..._transportRow,
   ];
 
-  /// Where subtitles sit: just above the bottom edge normally, and lifted above the
-  /// seek bar and buttons while the controls are showing.
-  static const _subtitlesNormal = EdgeInsets.fromLTRB(48, 0, 48, 48);
-  static const _subtitlesLifted = EdgeInsets.fromLTRB(48, 0, 48, 150);
+  /// How far the subtitles stretch and when to wrap the text: [_subtitleSides]
+  /// of the width in from each side.
+  static const _subtitleSides = 0.06;
 
-  /// Phones: the same idea, scaled down. Lifted, they sit just above the bottom controls
-  /// and below the play button (which sits a little above centre to leave them room).
-  static const _subtitlesNormalPhone = EdgeInsets.fromLTRB(32, 0, 32, 20);
-  static const _subtitlesLiftedPhone = EdgeInsets.fromLTRB(32, 0, 32, 146);
+  /// While the controls show, subtitles move up above the seek bar and buttons. Those are a
+  /// fixed size, so this is in pixels: at least this far from the bottom.
+  static const _controlsClearance = 150.0;
+  static const _controlsClearancePhone = 146.0;
 
   bool get _isPhone => MediaQuery.sizeOf(context).shortestSide < 600;
 
   EdgeInsets _subtitlePadding({required bool lifted}) {
     lifted = lifted && playbackSettings.liftSubtitles; // "Move up when controls show" in Settings
-    return _isPhone
-        ? (lifted ? _subtitlesLiftedPhone : _subtitlesNormalPhone)
-        : (lifted ? _subtitlesLifted : _subtitlesNormal);
+    final size = MediaQuery.sizeOf(context);
+    final raise = size.height * playbackSettings.subtitlePosition.raise;
+    final clearance = _isPhone ? _controlsClearancePhone : _controlsClearance;
+    final sides = size.width * _subtitleSides;
+    return EdgeInsets.fromLTRB(sides, 0, sides, lifted ? math.max(raise, clearance) : raise);
   }
 
   JellyfinItem? _item;
@@ -173,7 +175,10 @@ class _PlayerScreenState extends State<PlayerScreen> {
   @override
   void initState() {
     super.initState();
-    AppOrientation.player(); // full screen, and free to turn either way
+    // Full screen, sideways: most things played are movies and episodes. Other videos
+    // (home videos and the like) are let free to turn once the item has loaded.
+    _holdTo(AppOrientation.landscape);
+    _followTilt();
     _subscriptions
       ..add(
         _player.stream.error.listen((message) {
@@ -238,6 +243,10 @@ class _PlayerScreenState extends State<PlayerScreen> {
         _namedChapters = _namedChaptersOf(item);
         _trickplay = playbackSettings.trickplay ? _Trickplay.of(item) : null;
       });
+      // Movies and episodes stay sideways until the phone has been turned sideways once.
+      // Anything else follows the phone straight away.
+      final isFilmOrShow = item.type == JellyfinItemKind.movie || item.type == JellyfinItemKind.episode;
+      if (!isFilmOrShow) _turnedSideways = true;
 
       // The episode after this one, for Up Next. Loads alongside the video.
       unawaited(
@@ -843,6 +852,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
     _skipNode.dispose();
     _upNextNode.dispose();
     _upNextScope.dispose();
+    _stopFollowingTilt();
     AppOrientation.menus();
     super.dispose();
   }
@@ -941,6 +951,56 @@ class _PlayerScreenState extends State<PlayerScreen> {
   }
 
   // ── Actions ──
+
+  // ── Turning the phone ──
+
+  /// Phones: the player starts sideways and stays that way, even while the phone is still held
+  /// upright. Once the phone has actually been turned sideways, the picture follows it: held
+  /// upright for a moment, it turns upright; sideways again, it turns back.
+  ///
+  /// Flutter can't tell how the phone is held, so this reads the motion sensor (which way
+  /// gravity pulls). On TVs and other devices without one, the stream just ends.
+  StreamSubscription<AccelerometerEvent>? _tilt;
+  bool _turnedSideways = false; // the phone has been held sideways since the player opened
+  DateTime? _uprightSince; // when the phone was last tipped upright, while it stays upright
+  List<DeviceOrientation>? _heldTo;
+
+  void _followTilt() {
+    _tilt = accelerometerEventStream(samplingPeriod: SensorInterval.uiInterval).listen(
+          (e) {
+        // Gravity is about 9.8 along whichever edge points down. Lying flat, it's on z
+        // instead, and neither of these is true, so nothing changes.
+        final sideways = e.x.abs() > 6 && e.x.abs() > e.y.abs() * 1.5;
+        final upright = e.y > 6 && e.y > e.x.abs() * 1.5; // the right way up, not upside down
+        if (sideways) {
+          _turnedSideways = true;
+          _uprightSince = null;
+          _holdTo(AppOrientation.landscape);
+        } else if (upright && _turnedSideways) {
+          // Wait a moment, so a wobble while getting comfortable doesn't flip the picture.
+          final since = _uprightSince ??= DateTime.now();
+          if (DateTime.now().difference(since) > const Duration(milliseconds: 600)) {
+            _holdTo(AppOrientation.portrait);
+          }
+        } else {
+          _uprightSince = null;
+        }
+      },
+      onError: (_) {}, // no motion sensor: stays as it started
+      cancelOnError: true,
+    );
+  }
+
+  void _holdTo(List<DeviceOrientation> orientations) {
+    if (identical(_heldTo, orientations)) return;
+    _heldTo = orientations;
+    AppOrientation.player(only: orientations);
+  }
+
+  void _stopFollowingTilt() {
+    _tilt?.cancel();
+    _tilt = null;
+  }
 
   void _playOrPause() {
     _player.playOrPause();
@@ -1280,11 +1340,14 @@ class _PlayerScreenState extends State<PlayerScreen> {
     final compact = MediaQuery.sizeOf(context).shortestSide < 600;
 
     return PopScope(
-      canPop: !_controlsVisible,
+      // Phones: Back (or the back swipe) leaves straight away. TV remotes: the first Back
+      // hides the controls, the next one leaves.
+      canPop: _isPhone || !_controlsVisible,
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop) return _hideControlsNow();
         // Leaving: turn the phone back upright now, while the page slides away,
         // rather than after, so the page underneath never shows sideways.
+        _stopFollowingTilt();
         AppOrientation.menus();
       },
       child: Focus(
@@ -1587,6 +1650,51 @@ String _formatTime(Duration d) {
 }
 
 /// "4:52 am".
+/// The time of day, kept current. Shown at the top right on TVs and tablets.
+class _Clock extends StatefulWidget {
+  const _Clock();
+
+  @override
+  State<_Clock> createState() => _ClockState();
+}
+
+class _ClockState extends State<_Clock> {
+  Timer? _timer;
+  DateTime _now = DateTime.now();
+
+  @override
+  void initState() {
+    super.initState();
+    _scheduleTick();
+  }
+
+  /// Ticks right as each minute turns over, rather than checking every second.
+  void _scheduleTick() {
+    final now = DateTime.now();
+    final nextMinute = DateTime(now.year, now.month, now.day, now.hour, now.minute + 1);
+    _timer = Timer(nextMinute.difference(now), () {
+      if (!mounted) return;
+      setState(() => _now = DateTime.now());
+      _scheduleTick();
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(left: 8, right: 4),
+    child: Text(
+      _formatClock(_now),
+      style: context.theme.typography.display.lg.copyWith(color: _white, fontWeight: FontWeight.w500),
+    ),
+  );
+}
+
 String _formatClock(DateTime t) {
   final hour = t.hour % 12 == 0 ? 12 : t.hour % 12;
   return '$hour:${t.minute.toString().padLeft(2, '0')} ${t.hour < 12 ? 'am' : 'pm'}';
@@ -2218,15 +2326,25 @@ class _PlayerControls extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.center, // the back arrow sits level with the middle of the title block
             spacing: 8,
             children: [
-              _ControlButton(
-                focusNode: backNode,
-                icon: Icons.arrow_back_rounded,
-                label: 'Back',
-                size: compact ? 28 : 22,
-                onPress: onBack,
-              ),
-              if (item != null) Flexible(child: _PlayerTitle(item: item!)),
-              const Spacer(),
+              // Phones only: TV remotes and keyboards have their own Back button.
+              if (compact)
+                _ControlButton(
+                  focusNode: backNode,
+                  icon: Icons.arrow_back_rounded,
+                  label: 'Back',
+                  size: 28,
+                  onPress: onBack,
+                ),
+              // The title takes all the free space, so everything after it sits at the far right.
+              if (item != null)
+                Expanded(
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: _PlayerTitle(item: item!),
+                  ),
+                )
+              else
+                const Spacer(),
               // AirPlay (iPhone/iPad) and Chromecast (only when one is on the network).
               if (AirPlayButton.available) AirPlayButton(size: compact ? 48 : 40),
               ListenableBuilder(
@@ -2240,6 +2358,8 @@ class _PlayerControls extends StatelessWidget {
                 )
                     : const SizedBox.shrink(),
               ),
+              // TVs and tablets: the time of day, in the corner.
+              if (!compact) const _Clock(),
             ],
           ),
         ),
@@ -2283,7 +2403,6 @@ class _PlayerControls extends StatelessWidget {
                   ],
                 ),
               ),
-              const SizedBox(height: 8),
               _SeekBar(
                 player: player,
                 trickplay: trickplay,

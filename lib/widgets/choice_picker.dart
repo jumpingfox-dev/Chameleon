@@ -12,12 +12,12 @@ import '../utils/focus_rows.dart';
 class ChoiceField extends StatelessWidget {
   const ChoiceField({
     super.key,
-    required this.label,
+    this.label,
     required this.value,
     required this.onPress,
   });
 
-  final String label;
+  final String? label;
   final String value;
   final VoidCallback onPress;
 
@@ -28,12 +28,13 @@ class ChoiceField extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       spacing: 6,
       children: [
-        Text(
-          label,
-          style: context.theme.typography.body.sm.copyWith(
-            fontWeight: FontWeight.w500,
+        if (label != null)
+          Text(
+            label!,
+            style: context.theme.typography.body.sm.copyWith(
+              fontWeight: FontWeight.w500,
+            ),
           ),
-        ),
         FTappable(
           onPress: onPress,
           builder: (context, states, _) {

@@ -58,6 +58,19 @@ enum SubtitleSize {
   final double scale;
 }
 
+/// How far up from the bottom of the screen subtitles sit, as a share of its height.
+enum SubtitlePosition {
+  lowest('2%', 0.02),
+  low('4%', 0.04),
+  middle('8%', 0.08),
+  high('12%', 0.12),
+  highest('16%', 0.16);
+
+  const SubtitlePosition(this.label, this.raise);
+  final String label;
+  final double raise;
+}
+
 enum SubtitleColor {
   white('White', Color(0xFFFFFFFF)),
   yellow('Yellow', Color(0xFFFFE14D)),
@@ -156,6 +169,7 @@ class PlaybackSettings extends ChangeNotifier {
   // Subtitles
   String subtitleFont = defaultSubtitleFont; // any Google Font
   SubtitleSize subtitleSize = SubtitleSize.medium;
+  SubtitlePosition subtitlePosition = SubtitlePosition.low; // 4%, what you have now
   SubtitleColor subtitleColor = SubtitleColor.white;
   SubtitleBackground subtitleBackground = SubtitleBackground.shadow;
   bool liftSubtitles = true; // move up while the controls show
@@ -263,6 +277,7 @@ class PlaybackSettings extends ChangeNotifier {
     'resume': resume.name,
     'subtitleFont': subtitleFont,
     'subtitleSize': subtitleSize.name,
+    'subtitlePosition': subtitlePosition.name,
     'subtitleColor': subtitleColor.name,
     'subtitleBackground': subtitleBackground.name,
     'liftSubtitles': liftSubtitles,
@@ -297,6 +312,7 @@ class PlaybackSettings extends ChangeNotifier {
     resume = pick(ResumeMode.values, j['resume'], resume);
     if (j['subtitleFont'] case final String f when f.isNotEmpty) subtitleFont = f;
     subtitleSize = pick(SubtitleSize.values, j['subtitleSize'], subtitleSize);
+    subtitlePosition = pick(SubtitlePosition.values, j['subtitlePosition'], subtitlePosition);
     subtitleColor = pick(SubtitleColor.values, j['subtitleColor'], subtitleColor);
     subtitleBackground = pick(SubtitleBackground.values, j['subtitleBackground'], subtitleBackground);
     liftSubtitles = flag('liftSubtitles', liftSubtitles);

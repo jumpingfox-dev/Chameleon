@@ -161,7 +161,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 mainAxisSize: MainAxisSize.min,
                 spacing: 8,
                 children: [
-                  Icon(appIcons.done, size: 18, fill: 1),
+                  Icon(appIcons.check, size: 18, fill: 1),
                   Text('Done'),
                 ],
               ),

@@ -176,13 +176,6 @@ class AppIconSet {
       CupertinoIcons.star_fill,
       FluentIcons.star_24_filled
   );
-  IconData get watched => _pick(
-      Symbols.check_rounded,
-      FPhosphorFillIcons.check,
-      FLucideIcons.check,
-      CupertinoIcons.checkmark,
-      FluentIcons.checkmark_24_filled
-  );
 
   // ── Home editing ──
   IconData get edit => _pick(
@@ -191,13 +184,6 @@ class AppIconSet {
       FLucideIcons.pencil,
       CupertinoIcons.pencil,
       FluentIcons.edit_24_filled
-  );
-  IconData get done => _pick(
-      Symbols.check_rounded,
-      FPhosphorFillIcons.check,
-      FLucideIcons.check,
-      CupertinoIcons.checkmark,
-      FluentIcons.checkmark_24_filled
   );
   IconData get moveUp => _pick(
       Symbols.arrow_upward_rounded,
@@ -231,7 +217,7 @@ class AppIconSet {
   // ── General ──
   IconData get check => _pick(
       Symbols.check_rounded,
-      FPhosphorFillIcons.check,
+      FPhosphorIcons.check,
       FLucideIcons.check,
       CupertinoIcons.checkmark,
       FluentIcons.checkmark_24_filled
@@ -464,13 +450,13 @@ const _genres = <(String, IconData, IconData, IconData, IconData, IconData)>[
   ('music', Symbols.music_note_rounded, FPhosphorFillIcons.musicNotes, FLucideIcons.music, CupertinoIcons.music_note, FluentIcons.music_note_2_24_filled),
   ('mystery', Symbols.search_rounded, FPhosphorFillIcons.magnifyingGlass, FLucideIcons.search, CupertinoIcons.search, FluentIcons.search_24_filled),
   ('romance', Symbols.favorite_rounded, FPhosphorFillIcons.heart, FLucideIcons.heart, CupertinoIcons.heart_fill, FluentIcons.heart_24_filled),
-  ('suspense', Symbols.hourglass_bottom_rounded, FPhosphorFillIcons.hourglassMedium, FLucideIcons.hourglass, CupertinoIcons.hourglass_bottomhalf_fill, FluentIcons.hourglass_half_24_filled),
+  ('suspense', Symbols.hourglass_bottom_rounded, FPhosphorFillIcons.hourglassMedium, FLucideIcons.hourglass, CupertinoIcons.hourglass_bottomhalf_fill, FluentIcons.hourglass_24_filled),
   ('talk', Symbols.mic_rounded, FPhosphorFillIcons.microphone, FLucideIcons.mic, CupertinoIcons.mic_fill, FluentIcons.mic_24_filled),
   ('thriller', Symbols.blood_pressure_rounded, FPhosphorFillIcons.knife, FLucideIcons.siren, CupertinoIcons.eye_fill, FluentIcons.eye_24_filled),
   ('tv', Symbols.tv_rounded, FPhosphorFillIcons.television, FLucideIcons.tv, CupertinoIcons.tv_fill, FluentIcons.tv_24_filled),
   ('war', Symbols.swords_rounded, FPhosphorFillIcons.sword, FLucideIcons.swords, CupertinoIcons.burst_fill, FluentIcons.shield_24_filled),
   ('western', Symbols.terrain_rounded, FPhosphorFillIcons.horse, FLucideIcons.mountain, CupertinoIcons.sun_haze_fill, FluentIcons.mountain_trail_24_filled),
-  ('sport', Symbols.sports_football_rounded, FPhosphorFillIcons.football, FLucideIcons.trophy, CupertinoIcons.sportscourt_fill, FluentIcons.sport_24_filled),
+  ('sport', Symbols.sports_football_rounded, FPhosphorFillIcons.football, FLucideIcons.trophy, CupertinoIcons.sportscourt_fill, FluentIcons.sport_american_football_24_filled),
   ('reality', Symbols.live_tv_rounded, FPhosphorFillIcons.television, FLucideIcons.tv, CupertinoIcons.tv_fill, FluentIcons.live_24_filled),
 ];
 

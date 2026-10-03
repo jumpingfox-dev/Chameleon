@@ -58,6 +58,7 @@ dependencies:
   flutter_to_airplay: ^2.1.0
   http: ^1.6.0
   connectivity_plus: ^6.0.0
+  sensors_plus: ^7.1.1
 
 dev_dependencies:
   flutter_test:
@@ -105,12 +106,12 @@ flutter:
   # https://flutter.dev/to/asset-from-package
 
 flutter_launcher_icons:
-  image_path: "assets/icon/icon.png"
+  image_path: "assets/icon/icon_light.png"
   android: true
   ios: true
   remove_alpha_ios: true
-  adaptive_icon_background: "#121214"
-  adaptive_icon_foreground: "assets/icon/icon_foreground.png"
+#  adaptive_icon_background: "#121214"
+#  adaptive_icon_foreground: "assets/icon/icon_foreground.png"
   web:
     generate: true
     background_color: "#121214"

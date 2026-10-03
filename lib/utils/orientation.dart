@@ -1,52 +1,41 @@
-import 'dart:io' show Platform;
-
-import 'package:device_info_plus/device_info_plus.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
-class AppOrientation {
-  static bool _isPhone = false;
+/// Phones get the phone layout in any orientation. Decided by the screen's shorter side, so
+/// turning a phone sideways (or the moment of landscape while leaving the player) never
+/// switches to the TV and tablet layout.
+bool isPhoneLayout(BuildContext context) => MediaQuery.sizeOf(context).shortestSide < 600;
 
-  /// Works out whether this is a phone, then applies the menu orientation.
-  static Future<void> init() async {
-    _isPhone = await _detectPhone();
-    await menus();
+/// Which ways the screen may turn.
+///
+/// * Phones: the app stays upright, except the player, which turns with the phone
+///   (following the phone's own rotation lock).
+/// * Tablets, TVs and desktops: anything goes, everywhere.
+abstract final class AppOrientation {
+  /// Whether this device is a phone, by its screen's shorter side.
+  static bool get _isPhone {
+    final views = WidgetsBinding.instance.platformDispatcher.views;
+    if (views.isEmpty) return false;
+    final view = views.first;
+    final size = view.physicalSize / view.devicePixelRatio;
+    return size.shortestSide < 600;
   }
 
-  /// Menus: phones in portrait, with the status bar and system buttons visible.
+  /// Call once at startup.
+  static Future<void> init() => menus();
+
+  /// Everything outside the player: upright on phones, with the status and navigation bars.
   static Future<void> menus() async {
     await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
-    // An empty list means "any orientation" for tablets, TVs and desktop.
     await SystemChrome.setPreferredOrientations(
-      _isPhone ? [DeviceOrientation.portraitUp] : [],
+      _isPhone ? const [DeviceOrientation.portraitUp] : const [],
     );
   }
 
-  /// Video: phones in landscape (either way round), full screen with the system bars hidden.
+  /// The player: full screen, and free to turn either way.
+  /// An empty list means "whatever the device allows", so the phone's rotation lock is respected.
   static Future<void> player() async {
     await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
-    if (_isPhone) {
-      await SystemChrome.setPreferredOrientations([
-        DeviceOrientation.landscapeLeft,
-        DeviceOrientation.landscapeRight,
-      ]);
-    }
-  }
-
-  static Future<bool> _detectPhone() async {
-    if (kIsWeb || !(Platform.isAndroid || Platform.isIOS)) return false;
-
-    final view = WidgetsBinding.instance.platformDispatcher.views.first;
-    final shortestSide =
-        (view.physicalSize / view.devicePixelRatio).shortestSide;
-    if (shortestSide == 0 || shortestSide >= 600) return false;
-
-    if (Platform.isAndroid) {
-      final info = await DeviceInfoPlugin().androidInfo;
-      if (info.systemFeatures.contains('android.software.leanback'))
-        return false; // Android TV
-    }
-    return true;
+    await SystemChrome.setPreferredOrientations(const []);
   }
 }

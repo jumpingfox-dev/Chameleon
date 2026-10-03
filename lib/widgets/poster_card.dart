@@ -4,6 +4,7 @@ import 'package:material_ui/material_ui.dart';
 
 import '../theme/app_icons.dart';
 import '../utils/jellyfin_controller.dart';
+import '../utils/orientation.dart';
 import 'hover_lift.dart';
 
 enum LibraryView { poster, thumbnail }
@@ -14,7 +15,7 @@ final libraryViewOverride = ValueNotifier<LibraryView?>(null);
 
 LibraryView libraryViewFor(BuildContext context) =>
     libraryViewOverride.value ??
-    (MediaQuery.sizeOf(context).width < 600
+    (isPhoneLayout(context)
         ? LibraryView.poster
         : LibraryView.thumbnail);
 

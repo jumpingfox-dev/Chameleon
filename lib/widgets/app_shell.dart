@@ -16,6 +16,7 @@ import '../screens/settings.dart';
 import '../theme/app_icons.dart';
 import '../utils/focus_rows.dart';
 import '../utils/jellyfin_controller.dart';
+import '../utils/orientation.dart';
 import 'app_logo.dart';
 import 'nav_button.dart';
 import 'profile_actions.dart';
@@ -104,8 +105,6 @@ final destinations = <AppDestination>[
     routes: const [],
   ),
 ];
-
-const _phoneBreakpoint = 600.0;
 
 class AppShell extends StatefulWidget {
   const AppShell({
@@ -199,7 +198,7 @@ class _AppShellState extends State<AppShell> {
       // since every page here needs a connected client.
       if (!jellyfin.isConnected) return const SizedBox.shrink();
 
-      final isPhone = MediaQuery.sizeOf(context).width < _phoneBreakpoint;
+      final isPhone = isPhoneLayout(context);
 
       return FScaffold(
         childPad: false,
@@ -222,28 +221,48 @@ class _AppShellState extends State<AppShell> {
             children: [
               for (final d in destinations)
                 FBottomNavigationBarItem(
-                  icon: Icon(d.icon(appIcons), fill: 1),
-                  label: Text(
-                    d.label,
-                    style: context.theme.typography.body.xs2,
+                  icon: Icon(
+                    d.icon(appIcons),
+                    fill: 1,
+                    size: 26,
+                    semanticLabel: d.label,
                   ),
                 ),
             ],
           ),
         )
             : null,
-        child: MediaQuery.removeViewInsets(
-          context: context,
-          removeBottom: true, // the shell already made room for the keyboard; pages shouldn't do it again
-          child: SafeArea(
-            top: isPhone,
-            bottom: !isPhone,
-            child: FocusScope(
-              node: _pageScope,
-              onKeyEvent: _onPageKey, // ↑ to the nav bar when nothing's above
-              child: widget.navigationShell,
-            ),
-          ),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            Widget page = MediaQuery.removeViewInsets(
+              context: context,
+              removeBottom: true, // the shell already made room for the keyboard; pages shouldn't do it again
+              child: SafeArea(
+                top: isPhone,
+                bottom: !isPhone,
+                left: false,
+                right: false,
+                child: FocusScope(
+                  node: _pageScope,
+                  onKeyEvent: _onPageKey, // ↑ to the nav bar when nothing's above
+                  child: widget.navigationShell,
+                ),
+              ),
+            );
+
+            // Phones: dropdowns and menus decide whether to open up or down by measuring the
+            // screen. Tell pages the screen ends where the bottom nav bar starts, so nothing
+            // opens behind the bar: it flips upwards (or slides) instead.
+            if (isPhone) {
+              page = MediaQuery(
+                data: MediaQuery.of(context).copyWith(
+                  size: Size(constraints.maxWidth, constraints.maxHeight),
+                ),
+                child: page,
+              );
+            }
+            return page;
+          },
         ),
       );
     },
@@ -342,4 +361,12 @@ class _TopNavBar extends StatelessWidget {
       );
     },
   );
+}
+
+/// Room for the camera cutout or rounded corners on each side (0 on most screens).
+/// Add it to a page's side padding so things *start* clear of the cutout but can
+/// still *scroll* to the edge.
+EdgeInsets sideInsets(BuildContext context, {double extra = 0}) {
+  final p = MediaQuery.paddingOf(context);
+  return EdgeInsets.only(left: p.left + extra, right: p.right + extra);
 }

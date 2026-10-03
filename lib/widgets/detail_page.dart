@@ -9,6 +9,7 @@ import '../theme/app_icons.dart';
 import '../utils/app_cache.dart';
 import '../utils/focus_rows.dart';
 import '../utils/jellyfin_controller.dart';
+import '../utils/orientation.dart';
 import 'expandable_text.dart';
 import 'hover_lift.dart';
 import 'person_tile.dart';
@@ -87,7 +88,7 @@ Future<JellyfinItem?> nextEpisodeFor(String seriesId) async {
       seasons
           .where((s) => ((s.raw['IndexNumber'] as int?) ?? 0) > 0)
           .firstOrNull ??
-      seasons.firstOrNull;
+          seasons.firstOrNull;
   if (firstSeason == null) return null;
 
   final episodes = await client.tvShows.episodes(
@@ -100,11 +101,11 @@ Future<JellyfinItem?> nextEpisodeFor(String seriesId) async {
 /// Shows a detail layout in a large card floating over the current screen's content,
 /// leaving the nav bars visible and usable. Any popout already open is closed first.
 Future<void> showDetailPopout(
-  BuildContext context, {
-  required DetailLoader load,
-  required DetailLayout layout,
-  String? cacheKey,
-}) {
+    BuildContext context, {
+      required DetailLoader load,
+      required DetailLayout layout,
+      String? cacheKey,
+    }) {
   // The tab's navigator covers only the area between the nav bars, so the popout does too.
   // Read everything needed from `context` now: if it belongs to a popout, it's about to close.
   final navigator = Navigator.of(context);
@@ -120,21 +121,29 @@ Future<void> showDetailPopout(
     barrierColor: barrierColor,
     transitionDuration: const Duration(milliseconds: 200),
     pageBuilder: (context, _, _) {
-      final isPhone = MediaQuery.sizeOf(context).width < 600;
+      final isPhone = isPhoneLayout(context);
       // Size to the space the tab actually has, not the whole screen.
       return _CloseOnNavigation(
-        child: LayoutBuilder(
-          builder: (context, constraints) => Center(
-            child: SizedBox(
-              width: math.min(constraints.maxWidth - (isPhone ? 16 : 48), 1100),
-              height: constraints.maxHeight * (isPhone ? 0.96 : 0.92),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          // Phones in landscape: keep the card clear of the camera cutout and rounded corners.
+          padding: EdgeInsets.only(
+            left: MediaQuery.paddingOf(context).left,
+            right: MediaQuery.paddingOf(context).right,
+          ),
+          child: LayoutBuilder(
+            builder: (context, constraints) => Center(
+              // Full height, so content scrolls right off the top and bottom of the screen
+              // instead of being sliced off at an invisible edge. The gap it used to have
+              // above and below is now space inside the scroll.
+              child: SizedBox(
+                width: math.min(constraints.maxWidth - (isPhone ? 16 : 48), 1100),
+                height: constraints.maxHeight,
                 child: DetailPage(
                   load: load,
                   layout: layout,
                   popout: true,
                   cacheKey: cacheKey,
+                  popoutGap: constraints.maxHeight * (isPhone ? 0.02 : 0.04),
                 ),
               ),
             ),
@@ -180,39 +189,39 @@ class DetailData {
 typedef DetailLoader = Future<DetailData> Function(JellyfinClient client);
 
 DetailLoader movieDetails(String id) =>
-    (client) async => DetailData(item: (await client.items.byId(id))!);
+        (client) async => DetailData(item: (await client.items.byId(id))!);
 
 DetailLoader collectionDetails(String id) => (client) async {
   final (collection, page) = await (
-    client.items.byId(id),
-    client.items.list(
-      parentId: id,
-      sortBy: const ['ProductionYear', 'SortName'],
-      limit: 200,
-      fields: const ['Genres', 'OfficialRating', 'ProductionYear'],
-    ),
+  client.items.byId(id),
+  client.items.list(
+    parentId: id,
+    sortBy: const ['ProductionYear', 'SortName'],
+    limit: 200,
+    fields: const ['Genres', 'OfficialRating', 'ProductionYear'],
+  ),
   ).wait;
   return DetailData(item: collection!, children: page.items);
 };
 
 DetailLoader personDetails(String id) => (client) async {
   final (person, page) = await (
-    client.items.byId(id),
-    client.items.list(
-      personIds: [id],
-      includeItemTypes: const [JellyfinItemKind.movie, JellyfinItemKind.series],
-      recursive: true,
-      sortBy: const ['ProductionYear', 'SortName'],
-      descending: true,
-    ),
+  client.items.byId(id),
+  client.items.list(
+    personIds: [id],
+    includeItemTypes: const [JellyfinItemKind.movie, JellyfinItemKind.series],
+    recursive: true,
+    sortBy: const ['ProductionYear', 'SortName'],
+    descending: true,
+  ),
   ).wait;
   return DetailData(item: person!, children: page.items);
 };
 
 DetailLoader seriesDetails(String id) => (client) async {
   final (series, seasons) = await (
-    client.items.byId(id),
-    client.tvShows.seasons(seriesId: id),
+  client.items.byId(id),
+  client.tvShows.seasons(seriesId: id),
   ).wait;
   // Regular seasons in order, with "Specials" (season 0) at the end.
   final ordered = [...seasons.items]
@@ -391,6 +400,7 @@ class DetailPage extends StatefulWidget {
     required this.layout,
     this.popout = false,
     this.cacheKey,
+    this.popoutGap = 0,
   });
 
   /// Fetches the page's data. Called on open and on "Try again".
@@ -403,6 +413,10 @@ class DetailPage extends StatefulWidget {
 
   /// When set, the page's data is cached under this key and reused for 10 minutes.
   final String? cacheKey;
+
+  /// Popouts: empty space above the first card and below the last, inside the scroll,
+  /// so the page starts a little way down but can scroll right to the screen's edges.
+  final double popoutGap;
 
   @override
   State<DetailPage> createState() => _DetailPageState();
@@ -486,9 +500,9 @@ class _DetailPageState extends State<DetailPage> {
       body = CustomScrollView(
         controller: _scroll,
         slivers: [
-          SliverToBoxAdapter(child: SizedBox(height: topPadding)),
+          SliverToBoxAdapter(child: SizedBox(height: topPadding + widget.popoutGap)),
           ...widget.layout.buildSlivers(context, _data!),
-          const SliverToBoxAdapter(child: SizedBox(height: 8)),
+          SliverToBoxAdapter(child: SizedBox(height: 8 + widget.popoutGap)),
         ],
       );
     }
@@ -496,11 +510,12 @@ class _DetailPageState extends State<DetailPage> {
     // Popout: tapping any empty space closes it (cards absorb their own taps), and each
     // info card shows its own close button.
     if (widget.popout) {
-      final isPhone = MediaQuery.sizeOf(context).width < 600;
+      final isPhone = isPhoneLayout(context);
       return GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: () => Navigator.of(context).pop(),
         child: _PopoutScope(
+          gap: widget.popoutGap,
           child: ScrollConfiguration(
             behavior: ScrollConfiguration.of(context)
                 .copyWith(scrollbars: false),
@@ -568,7 +583,7 @@ class SliverDetailCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isPhone = MediaQuery.sizeOf(context).width < 600;
+    final isPhone = isPhoneLayout(context);
     final text = description?.trim();
 
     final details = [
@@ -646,15 +661,15 @@ class DetailPoster extends StatelessWidget {
         child: tag == null
             ? ColoredBox(color: context.theme.colors.muted)
             : Image.network(
-                jellyfin.client!.images.url(
-                  itemId: item.id,
-                  type: JellyfinImagesApi.typePrimary,
-                  tag: tag,
-                  fillWidth: (width * 2).round(),
-                  quality: 90,
-                ),
-                fit: BoxFit.cover,
-              ),
+          jellyfin.client!.images.url(
+            itemId: item.id,
+            type: JellyfinImagesApi.typePrimary,
+            tag: tag,
+            fillWidth: (width * 2).round(),
+            quality: 90,
+          ),
+          fit: BoxFit.cover,
+        ),
       ),
     );
   }
@@ -758,13 +773,19 @@ class _InlineItemGrid extends StatelessWidget {
 
 /// Marks everything below it as inside a popout, so cards can show a close button.
 class _PopoutScope extends InheritedWidget {
-  const _PopoutScope({required super.child});
+  const _PopoutScope({required super.child, this.gap = 0});
+
+  /// The empty space above the popout's first card (see [DetailPage.popoutGap]).
+  final double gap;
 
   static bool of(BuildContext context) =>
       context.dependOnInheritedWidgetOfExactType<_PopoutScope>() != null;
 
+  static double gapOf(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<_PopoutScope>()?.gap ?? 0;
+
   @override
-  bool updateShouldNotify(_PopoutScope oldWidget) => false;
+  bool updateShouldNotify(_PopoutScope oldWidget) => oldWidget.gap != gap;
 }
 
 /// Catches taps that land on its child, so they don't count as "clicking outside" a popout.
@@ -785,36 +806,107 @@ class _TapShield extends StatelessWidget {
 /// The card used by every detail layout. It absorbs taps, and in a popout shows a
 /// close button in its top-right corner.
 class _DetailCard extends StatelessWidget {
-  const _DetailCard({required this.child, this.showClose = true});
+  const _DetailCard({required this.child, this.showClose = true, this.edgeToEdge = false});
 
   final Widget child;
 
   /// False for cards under a backdrop banner, which carries the close button instead.
   final bool showClose;
 
+  /// True when [child] is a [_CardColumn]: the card then leaves out its side padding and
+  /// the column adds it to each piece, so sideways rows can scroll to the card's edges.
+  final bool edgeToEdge;
+
   @override
   Widget build(BuildContext context) => _TapShield(
     child: FCard(
-      builder: (context, style, _) => Stack(
-        children: [
-          Padding(padding: style.padding, child: child),
-          if (showClose && _PopoutScope.of(context))
-            Positioned(
-              top: 8,
-              right: 8,
-              child: FButton.icon(
-                variant: .ghost,
-                autofocus:
-                    FocusManager.instance.highlightMode ==
-                    FocusHighlightMode.traditional,
-                onPress: () => Navigator.of(context).pop(),
-                child: Icon(appIcons.close, fill: 1),
+      builder: (context, style, _) {
+        final padding = style.padding.resolve(Directionality.of(context));
+        return Stack(
+          children: [
+            if (edgeToEdge)
+              Padding(
+                padding: EdgeInsets.only(top: padding.top, bottom: padding.bottom),
+                child: _CardSides(left: padding.left, right: padding.right, child: child),
+              )
+            else
+              Padding(padding: padding, child: child),
+            if (showClose && _PopoutScope.of(context))
+              Positioned(
+                top: 8,
+                right: 8,
+                child: FButton.icon(
+                  variant: .ghost,
+                  autofocus:
+                  FocusManager.instance.highlightMode ==
+                      FocusHighlightMode.traditional,
+                  onPress: () => Navigator.of(context).pop(),
+                  child: Icon(appIcons.close, fill: 1),
+                ),
               ),
-            ),
-        ],
-      ),
+          ],
+        );
+      },
     ),
   );
+}
+
+/// The card's side padding, passed down to its [_CardColumn].
+class _CardSides extends InheritedWidget {
+  const _CardSides({required this.left, required this.right, required super.child});
+
+  final double left;
+  final double right;
+
+  static _CardSides? of(BuildContext context) => context.dependOnInheritedWidgetOfExactType<_CardSides>();
+
+  @override
+  bool updateShouldNotify(_CardSides old) => old.left != left || old.right != right;
+}
+
+/// A card's contents, one piece under another. Each piece gets the card's side padding,
+/// except [_EdgeToEdge] ones, which run to the card's edges (and put the padding inside).
+class _CardColumn extends StatelessWidget {
+  const _CardColumn({required this.children});
+
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    final sides = _CardSides.of(context);
+    final inset = EdgeInsets.only(left: sides?.left ?? 0, right: sides?.right ?? 0);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      spacing: 12,
+      children: [
+        for (final child in children)
+          child is _RunsToCardEdges
+              ? child
+              : Padding(
+            padding: inset,
+            child: Align(alignment: AlignmentDirectional.centerStart, child: child),
+          ),
+      ],
+    );
+  }
+}
+
+/// Marks a [_CardColumn] piece that runs to the card's edges instead of getting its side padding.
+mixin _RunsToCardEdges on Widget {}
+
+/// A sideways-scrolling row inside a [_CardColumn] that runs to the card's edges.
+/// [builder] gets the padding to put inside the scroll view, so its first item still
+/// lines up with the rest of the card.
+class _EdgeToEdge extends StatelessWidget with _RunsToCardEdges {
+  const _EdgeToEdge({required this.builder});
+
+  final Widget Function(EdgeInsets padding) builder;
+
+  @override
+  Widget build(BuildContext context) {
+    final sides = _CardSides.of(context);
+    return builder(EdgeInsets.only(left: sides?.left ?? 0, right: sides?.right ?? 0));
+  }
 }
 
 /// A section heading, e.g. "Movies & Shows".
@@ -907,16 +999,19 @@ class _CloseOnNavigationState extends State<_CloseOnNavigation> {
 
 /// The first line of a details card (year, seasons, age rating, score...), on one line
 /// that scrolls sideways when it doesn't fit.
-class _FactsRow extends StatelessWidget {
+class _FactsRow extends StatelessWidget with _RunsToCardEdges {
   const _FactsRow({required this.children});
 
   final List<Widget> children;
 
   @override
-  Widget build(BuildContext context) => SingleChildScrollView(
-    scrollDirection:
-        Axis.horizontal, // clips at its edge, so overflow is cut off there
-    child: Row(spacing: 16, children: children),
+  Widget build(BuildContext context) => _EdgeToEdge(
+    // Runs to the card's edges, so anything past the end scrolls in from there.
+    builder: (padding) => SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: padding,
+      child: Row(spacing: 16, children: children),
+    ),
   );
 }
 
@@ -933,7 +1028,7 @@ class _BackdropBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     final client = jellyfin.client!;
     final colors = context.theme.colors;
-    final isPhone = MediaQuery.sizeOf(context).width < 600;
+    final isPhone = isPhoneLayout(context);
 
     final backdrops = item.raw['BackdropImageTags'] as List?;
     final backdropTag = backdrops != null && backdrops.isNotEmpty
@@ -996,31 +1091,31 @@ class _BackdropBanner extends StatelessWidget {
                     ),
                     child: logoTag != null
                         ? Image.network(
-                            client.images.url(
-                              itemId: item.id,
-                              type: JellyfinImagesApi.typeLogo,
-                              tag: logoTag,
-                              fillWidth: 720,
-                            ),
-                            fit: BoxFit.contain,
-                            alignment: Alignment.bottomLeft,
-                          )
+                      client.images.url(
+                        itemId: item.id,
+                        type: JellyfinImagesApi.typeLogo,
+                        tag: logoTag,
+                        fillWidth: 720,
+                      ),
+                      fit: BoxFit.contain,
+                      alignment: Alignment.bottomLeft,
+                    )
                         : Text(
-                            // No logo: the name, in large white text.
-                            item.name,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: context.theme.typography.display.xl2
-                                .copyWith(
-                                  color: const Color(0xFFFFFFFF),
-                                  shadows: const [
-                                    Shadow(
-                                      blurRadius: 8,
-                                      color: Color(0x99000000),
-                                    ),
-                                  ],
-                                ),
+                      // No logo: the name, in large white text.
+                      item.name,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: context.theme.typography.display.xl2
+                          .copyWith(
+                        color: const Color(0xFFFFFFFF),
+                        shadows: const [
+                          Shadow(
+                            blurRadius: 8,
+                            color: Color(0x99000000),
                           ),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
                 // ── Close (popouts only) ──
@@ -1046,7 +1141,7 @@ class _BackdropBanner extends StatelessWidget {
                         label: 'Close',
                         filled: true,
                         autofocus:
-                            FocusManager.instance.highlightMode ==
+                        FocusManager.instance.highlightMode ==
                             FocusHighlightMode.traditional,
                         onPress: () => Navigator.of(context).pop(),
                       ),
@@ -1074,19 +1169,20 @@ class _ParallaxBackdrop extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final position = Scrollable.of(context).position;
+    final start = topPadding + _PopoutScope.gapOf(context); // where the banner sits before scrolling
     return AnimatedBuilder(
       animation: position,
       builder: (context, child) {
         // Start only once the banner's top edge has scrolled out of view,
         // so no gap ever opens above the image.
-        final scrolledPastTop = math.max(0.0, position.pixels - topPadding);
+        final scrolledPastTop = math.max(0.0, position.pixels - start);
         return Transform.translate(
           offset: Offset(0, scrolledPastTop * _speed),
           child: child,
         );
       },
       child:
-          child, // the image itself isn't rebuilt while scrolling, only moved
+      child, // the image itself isn't rebuilt while scrolling, only moved
     );
   }
 }
@@ -1137,7 +1233,7 @@ class _CollectionInfoCard extends StatelessWidget {
 
     final known = ratings.where(_ratingOrder.contains).toList()
       ..sort(
-        (a, b) => _ratingOrder.indexOf(a).compareTo(_ratingOrder.indexOf(b)),
+            (a, b) => _ratingOrder.indexOf(a).compareTo(_ratingOrder.indexOf(b)),
       );
     if (known.isEmpty) return ratings .first; // a rating system outside the US list: show it as-is
     return known.first == known.last
@@ -1154,8 +1250,8 @@ class _CollectionInfoCard extends StatelessWidget {
     final counts = <String, int>{};
     for (final item in items) {
       for (final genre
-          in (item.raw['Genres'] as List?)?.cast<String>() ??
-              const <String>[]) {
+      in (item.raw['Genres'] as List?)?.cast<String>() ??
+          const <String>[]) {
         counts[genre] = (counts[genre] ?? 0) + 1;
       }
     }
@@ -1166,7 +1262,7 @@ class _CollectionInfoCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.theme.colors;
-    final isPhone = MediaQuery.sizeOf(context).width < 600;
+    final isPhone = isPhoneLayout(context);
     final muted = context.theme.typography.body.sm.copyWith(
       color: colors.mutedForeground,
     );
@@ -1177,9 +1273,8 @@ class _CollectionInfoCard extends StatelessWidget {
 
     return _DetailCard(
       showClose: false,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        spacing: 12,
+      edgeToEdge: true,
+      child: _CardColumn(
         children: [
           // ── Count, years, age rating ──
           _FactsRow(
@@ -1242,7 +1337,7 @@ class _MovieInfoCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.theme.colors;
-    final isPhone = MediaQuery.sizeOf(context).width < 600;
+    final isPhone = isPhoneLayout(context);
     final muted = context.theme.typography.body.sm.copyWith(
       color: colors.mutedForeground,
     );
@@ -1258,9 +1353,8 @@ class _MovieInfoCard extends StatelessWidget {
 
     return _DetailCard(
       showClose: false,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        spacing: 12,
+      edgeToEdge: true,
+      child: _CardColumn(
         children: [
           // ── Year, runtime, age rating, score ──
           _FactsRow(
@@ -1318,15 +1412,19 @@ class _MovieInfoCard extends StatelessWidget {
           if (cast.isNotEmpty) ...[
             const _CardDivider(),
             Text('Cast', style: context.theme.typography.display.lg),
-            ScrollIntoViewOnFocus(
-              child: SizedBox(
-                height: 155,
-                child: FocusRow(
-                  child: ListView.separated(
-                    scrollDirection: Axis.horizontal,
-                    itemCount: cast.length,
-                    separatorBuilder: (_, _) => const SizedBox(width: 8),
-                    itemBuilder: (context, i) => _CastTile(person: cast[i]),
+            _EdgeToEdge(
+              // Runs to the card's edges, so the cast scrolls all the way across.
+              builder: (padding) => ScrollIntoViewOnFocus(
+                child: SizedBox(
+                  height: 155,
+                  child: FocusRow(
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      padding: padding,
+                      itemCount: cast.length,
+                      separatorBuilder: (_, _) => const SizedBox(width: 8),
+                      itemBuilder: (context, i) => _CastTile(person: cast[i]),
+                    ),
                   ),
                 ),
               ),
@@ -1355,7 +1453,7 @@ class _SeriesInfoCard extends StatefulWidget {
 class _SeriesInfoCardState extends State<_SeriesInfoCard> {
   late JellyfinItem? _season = widget.seasons.firstOrNull;
   final _episodes =
-      <String, List<JellyfinItem>>{}; // season id → its episodes, once loaded
+  <String, List<JellyfinItem>>{}; // season id → its episodes, once loaded
   String? _loadingSeasonId;
   String? _error;
 
@@ -1371,8 +1469,8 @@ class _SeriesInfoCardState extends State<_SeriesInfoCard> {
     final cacheKey = 'episodes:${season.id}';
     if (appCache.isFresh(cacheKey)) {
       setState(
-        () =>
-            _episodes[season.id] = appCache.peek<List<JellyfinItem>>(cacheKey)!,
+            () =>
+        _episodes[season.id] = appCache.peek<List<JellyfinItem>>(cacheKey)!,
       );
       return;
     }
@@ -1411,7 +1509,7 @@ class _SeriesInfoCardState extends State<_SeriesInfoCard> {
   Widget build(BuildContext context) {
     final series = widget.series;
     final colors = context.theme.colors;
-    final isPhone = MediaQuery.sizeOf(context).width < 600;
+    final isPhone = isPhoneLayout(context);
     final muted = context.theme.typography.body.sm.copyWith(
       color: colors.mutedForeground,
     );
@@ -1428,9 +1526,8 @@ class _SeriesInfoCardState extends State<_SeriesInfoCard> {
 
     return _DetailCard(
       showClose: false,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        spacing: 12,
+      edgeToEdge: true,
+      child: _CardColumn(
         children: [
           // ── Years, seasons, age rating, score ──
           _FactsRow(
@@ -1528,15 +1625,15 @@ class _SeriesInfoCardState extends State<_SeriesInfoCard> {
             else if (_error != null && episodes == null)
               Text(_error!, style: muted)
             else if (episodes != null && episodes.isEmpty)
-              Text('No episodes in this season yet.', style: muted)
-            else if (episodes != null)
-              Column(
-                spacing: 8,
-                children: [
-                  for (final episode in episodes)
-                    _EpisodeTile(episode: episode),
-                ],
-              ),
+                Text('No episodes in this season yet.', style: muted)
+              else if (episodes != null)
+                  Column(
+                    spacing: 8,
+                    children: [
+                      for (final episode in episodes)
+                        _EpisodeTile(episode: episode),
+                    ],
+                  ),
           ],
         ],
       ),
@@ -1587,7 +1684,7 @@ class _EpisodeTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.theme.colors;
-    final isPhone = MediaQuery.sizeOf(context).width < 600;
+    final isPhone = isPhoneLayout(context);
     final number = episode.raw['IndexNumber'];
     final tag = episode.imageTags['Primary']; // an episode's Primary image is its 16:9 thumbnail
     final overview = (episode.raw['Overview'] as String?)?.trim();
@@ -1628,23 +1725,23 @@ class _EpisodeTile extends StatelessWidget {
                           children: [
                             tag == null
                                 ? ColoredBox(
-                                  color: colors.muted,
-                                  child: Icon(
-                                    appIcons.play,
-                                    color: colors.mutedForeground,
-                                    fill: 1,
-                                  ),
-                                )
+                              color: colors.muted,
+                              child: Icon(
+                                appIcons.play,
+                                color: colors.mutedForeground,
+                                fill: 1,
+                              ),
+                            )
                                 : Image.network(
-                                  jellyfin.client!.images.url(
-                                    itemId: episode.id,
-                                    type: JellyfinImagesApi.typePrimary,
-                                    tag: tag,
-                                    fillWidth: (thumbWidth * 2).round(),
-                                    quality: 90,
-                                  ),
-                                  fit: BoxFit.cover,
-                                ),
+                              jellyfin.client!.images.url(
+                                itemId: episode.id,
+                                type: JellyfinImagesApi.typePrimary,
+                                tag: tag,
+                                fillWidth: (thumbWidth * 2).round(),
+                                quality: 90,
+                              ),
+                              fit: BoxFit.cover,
+                            ),
                             if (watchProgress(episode) case final progress?)
                               Positioned(
                                 left: 6,
@@ -1754,25 +1851,25 @@ class _CastTile extends StatelessWidget {
                     child: SizedBox.square(
                       dimension: 96,
                       child: tag == null
-                        ? ColoredBox(
-                          color: colors.muted,
-                          child: Center(
-                            child: Text(
-                              initials,
-                              style: TextStyle(color: colors.mutedForeground),
-                            ),
+                          ? ColoredBox(
+                        color: colors.muted,
+                        child: Center(
+                          child: Text(
+                            initials,
+                            style: TextStyle(color: colors.mutedForeground),
                           ),
-                        )
-                        : Image.network(
-                          jellyfin.client!.images.url(
-                            itemId: id,
-                            type: JellyfinImagesApi.typePrimary,
-                            tag: tag,
-                            fillWidth: 192,
-                            quality: 90,
-                          ),
-                          fit: BoxFit.cover,
                         ),
+                      )
+                          : Image.network(
+                        jellyfin.client!.images.url(
+                          itemId: id,
+                          type: JellyfinImagesApi.typePrimary,
+                          tag: tag,
+                          fillWidth: 192,
+                          quality: 90,
+                        ),
+                        fit: BoxFit.cover,
+                      ),
                     ),
                   ),
                 ),
@@ -1831,7 +1928,7 @@ class _FloatingIconButton extends StatelessWidget {
       builder: (context, states, _) {
         final active =
             states.contains(FTappableVariant.hovered) ||
-            states.contains(FTappableVariant.focused);
+                states.contains(FTappableVariant.focused);
         return AnimatedScale(
           scale: active
               ? 1.1
@@ -1895,7 +1992,7 @@ class _FavoriteButtonState extends State<_FavoriteButton> {
       favoritesChanged.value++; // tell the Favorites page to refresh
       // Cached pages for this item, and the Favorites list, now show the wrong heart.
       appCache.invalidateWhere(
-        (key) => key.endsWith(':${widget.item.id}') || key == 'favorites',
+            (key) => key.endsWith(':${widget.item.id}') || key == 'favorites',
       );
     } on JellyfinException {
       if (mounted) setState(() => _favorite = !next); // the server refused: undo

@@ -4,6 +4,7 @@ import 'package:material_ui/material_ui.dart';
 import '../utils/theme_controller.dart';
 import '../utils/theme_presets.dart';
 import '../theme/app_icons.dart';
+import '../widgets/switch_setting.dart';
 
 String _pad3(int n) => n.toString().padLeft(3, '0');
 
@@ -46,27 +47,21 @@ class _CustomThemeEditorState extends State<CustomThemeEditor> {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (advanced)
-            _AdvancedEditor(controller: _ini, errors: _errors)
-          else
+          if (advanced) ...[
+            _AdvancedEditor(controller: _ini, errors: _errors),
+            const SizedBox(height: 12),
+            FButton(
+              onPress: _apply,
+              child: const Text('Apply'),
+            ),
+          ] else
             _SeedEditor(seed: themeController.seed),
           const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: FSwitch(
-                  value: advanced,
-                  onChange: _setAdvanced,
-                  label: const Text('Advanced'),
-                ),
-              ),
-              if (advanced)
-                FButton(
-                  mainAxisSize: .min,
-                  onPress: _apply,
-                  child: const Text('Apply'),
-                ),
-            ],
+          SwitchSetting(
+            label: 'Advanced',
+            description: 'Edit every color directly instead of picking hues.',
+            value: advanced,
+            onChange: _setAdvanced,
           ),
         ],
       );

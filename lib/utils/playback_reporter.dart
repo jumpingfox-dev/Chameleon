@@ -10,11 +10,24 @@ class PlaybackReporter {
     required this.client,
     required this.itemId,
     required this.player,
+    this.mediaSourceId,
+    this.playSessionId,
+    this.transcoding = false,
+    this.audioStreamIndex,
   });
 
   final JellyfinClient client;
   final String itemId;
   final Player player;
+  final String? mediaSourceId;
+
+  /// While the server converts the video: its session id (so the dashboard shows it, and
+  /// stopping playback also stops the conversion), and the audio track it carries.
+  /// The player updates these when it reopens the stream (another audio track, say);
+  /// the next report picks them up.
+  String? playSessionId;
+  bool transcoding;
+  int? audioStreamIndex;
 
   static const _interval = Duration(seconds: 10);
 
@@ -25,11 +38,11 @@ class PlaybackReporter {
     await _post('/Sessions/Playing', _state());
     _timer = Timer.periodic(
       _interval,
-      (_) => _post('/Sessions/Playing/Progress', _state()),
+          (_) => _post('/Sessions/Playing/Progress', _state()),
     );
     // Report pauses and resumes straight away rather than on the next tick.
     _playing = player.stream.playing.listen(
-      (_) => _post('/Sessions/Playing/Progress', _state()),
+          (_) => _post('/Sessions/Playing/Progress', _state()),
     );
   }
 
@@ -43,12 +56,13 @@ class PlaybackReporter {
 
   Map<String, Object?> _state() => {
     'ItemId': itemId,
-    'PositionTicks':
-        player.state.position.inMicroseconds *
-        10, // Jellyfin counts in 100 ns ticks
+    'MediaSourceId': ?mediaSourceId,
+    'PlaySessionId': ?playSessionId,
+    'AudioStreamIndex': ?audioStreamIndex,
+    'PositionTicks': player.state.position.inMicroseconds * 10, // Jellyfin counts in 100 ns ticks
     'IsPaused': !player.state.playing,
     'CanSeek': true,
-    'PlayMethod': 'DirectPlay',
+    'PlayMethod': transcoding ? 'Transcode' : 'DirectPlay',
   };
 
   Future<void> _post(String path, Map<String, Object?> body) async {

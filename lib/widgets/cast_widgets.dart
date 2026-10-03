@@ -9,6 +9,7 @@ import 'package:material_ui/material_ui.dart';
 
 import '../utils/cast_controller.dart';
 import '../utils/jellyfin_controller.dart';
+import '../utils/playback_settings.dart';
 
 // ─── Choosing a Chromecast ───────────────────────────────────────────────────
 
@@ -151,6 +152,7 @@ class CastRemote extends StatelessWidget {
       listenable: castController,
       builder: (context, _) {
         final now = castController.nowPlaying;
+        final step = playbackSettings.seekStep; // "Jump by" in Settings
         final buffering = castController.playerState == CastMediaPlayerState.buffering ||
             castController.playerState == CastMediaPlayerState.loading;
 
@@ -217,24 +219,28 @@ class CastRemote extends StatelessWidget {
                       spacing: 40,
                       children: [
                         _RemoteButton(
-                          icon: Icons.replay_10_rounded,
-                          label: 'Back 10 seconds',
+                          icon: _backIcon(step),
+                          label: 'Back $step seconds',
                           size: 36,
-                          onPress: () => castController.seek(castController.position - const Duration(seconds: 10)),
+                          onPress: () => castController.seek(
+                            castController.position > Duration(seconds: step)
+                                ? castController.position - Duration(seconds: step)
+                                : Duration.zero,
+                          ),
                         ),
                         buffering
                             ? const SizedBox(width: 64, height: 64, child: Center(child: FCircularProgress()))
                             : _RemoteButton(
-                                icon: castController.isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                                label: castController.isPlaying ? 'Pause' : 'Play',
-                                size: 52,
-                                onPress: castController.playOrPause,
-                              ),
+                          icon: castController.isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                          label: castController.isPlaying ? 'Pause' : 'Play',
+                          size: 52,
+                          onPress: castController.playOrPause,
+                        ),
                         _RemoteButton(
-                          icon: Icons.forward_10_rounded,
-                          label: 'Forward 10 seconds',
+                          icon: _forwardIcon(step),
+                          label: 'Forward $step seconds',
                           size: 36,
-                          onPress: () => castController.seek(castController.position + const Duration(seconds: 10)),
+                          onPress: () => castController.seek(castController.position + Duration(seconds: step)),
                         ),
                       ],
                     ),
@@ -249,6 +255,21 @@ class CastRemote extends StatelessWidget {
     );
   }
 }
+
+/// Icons with the number on them, where Material has one (5, 10 and 30 seconds).
+IconData _backIcon(int seconds) => switch (seconds) {
+  5 => Icons.replay_5_rounded,
+  10 => Icons.replay_10_rounded,
+  30 => Icons.replay_30_rounded,
+  _ => Icons.replay_rounded,
+};
+
+IconData _forwardIcon(int seconds) => switch (seconds) {
+  5 => Icons.forward_5_rounded,
+  10 => Icons.forward_10_rounded,
+  30 => Icons.forward_30_rounded,
+  _ => Icons.fast_forward_rounded,
+};
 
 class _RemoteButton extends StatelessWidget {
   const _RemoteButton({required this.icon, required this.label, required this.onPress, this.size = 26});

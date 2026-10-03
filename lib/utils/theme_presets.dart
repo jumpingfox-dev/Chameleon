@@ -88,21 +88,21 @@ final themePresets = <ThemePreset>[
     colors: FColors(
       brightness: .dark,
       systemOverlayStyle: .light,
-      barrier: _hsl(200, 0.25, 0.03, 0.65),
-      background: _hsl(200, 0.22, 0.07), // Icon black (#0e1316)
-      foreground: _hsl(0, 0.0, 1.0), // Wordmark white
-      primary: _hsl(195, 0.81, 0.48), // Logo teal-blue (#17addd)
-      primaryForeground: _hsl(200, 0.22, 0.07), // Icon black, readable on teal
-      secondary: _hsl(190, 0.35, 0.16), // Deep teal
-      secondaryForeground: _hsl(185, 0.60, 0.88), // Pale aqua
-      muted: _hsl(195, 0.15, 0.13), // Teal-tinted shadow
-      mutedForeground: _hsl(195, 0.12, 0.65), // Soft grey-teal
-      destructive: _hsl(355, 0.80, 0.60),
-      destructiveForeground: _hsl(0, 0.0, 0.98),
-      error: _hsl(355, 0.80, 0.60),
-      errorForeground: _hsl(0, 0.0, 0.98),
-      card: _hsl(198, 0.18, 0.10), // Lifted surface
-      border: _hsl(172, 0.30, 0.24), // Logo sea-green (#48a598), darkened
+      barrier: _hsl(240, 0.06, 0.03, 0.70),
+      background: _hsl(240, 0.05, 0.075), // Primary background (#121214)
+      foreground: _hsl(20, 0.43, 0.97), // Text primary (#FBF7F5)
+      primary: _hsl(30, 0.92, 0.48), // Sunburst Amber, deepened so light text reads
+      primaryForeground: _hsl(20, 0.43, 0.97), // Text primary (#FBF7F5)
+      secondary: _hsl(350, 0.40, 0.17), // Hot Coral, as a deep rose tint
+      secondaryForeground: _hsl(20, 0.43, 0.97), // Text primary (#FBF7F5)
+      muted: _hsl(240, 0.05, 0.14), // Charcoal
+      mutedForeground: _hsl(240, 0.05, 0.62), // Cool grey
+      destructive: _hsl(0, 0.75, 0.55),
+      destructiveForeground: _hsl(20, 0.43, 0.97),
+      error: _hsl(0, 0.75, 0.55),
+      errorForeground: _hsl(20, 0.43, 0.97),
+      card: _hsl(240, 0.05, 0.105), // Lifted charcoal
+      border: _hsl(240, 0.05, 0.20), // Neutral line
       extensions: const [AppColors()],
     ),
   ),

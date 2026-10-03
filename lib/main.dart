@@ -19,6 +19,7 @@ import 'utils/jellyfin_controller.dart';
 import 'utils/orientation.dart';
 import 'utils/focus_rows.dart';
 import 'utils/home_layout.dart';
+import 'utils/playback_settings.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -30,6 +31,7 @@ Future<void> main() async {
   themeController = await ThemeController.load();
   fontController = await FontController.load();
   iconController = await IconController.load();
+  playbackSettings = await PlaybackSettings.load();
   homeLayout = await HomeLayoutController.load();
 
   jellyfin = JellyfinController();
@@ -40,7 +42,7 @@ Future<void> main() async {
   await castController.init();
 
   // Clean up in the background so it doesn't delay startup.
-  unawaited(pruneFontCache([fontController.display, fontController.body]));
+  unawaited(pruneFontCache([fontController.display, fontController.body, playbackSettings.subtitleFont]));
 
   runApp(const Application());
   WidgetsBinding.instance.addPostFrameCallback((_) => AppOrientation.init());

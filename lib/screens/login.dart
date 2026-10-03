@@ -1,4 +1,3 @@
-import 'package:chameleon/widgets/app_logo.dart';
 import 'package:dart_jellyfin/dart_jellyfin.dart';
 import 'package:flutter/services.dart';
 import 'package:forui/forui.dart';
@@ -7,6 +6,7 @@ import 'package:material_ui/material_ui.dart';
 
 import '../utils/jellyfin_controller.dart';
 import '../widgets/quick_connect_dialog.dart';
+import '../widgets/app_logo.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});

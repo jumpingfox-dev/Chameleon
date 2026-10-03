@@ -12,11 +12,20 @@ import '../utils/font_controller.dart';
 import '../utils/theme_controller.dart';
 import '../utils/theme_presets.dart';
 import '../utils/jellyfin_controller.dart';
+import '../utils/orientation.dart';
 import '../widgets/custom_theme_editor.dart';
 import '../widgets/choice_picker.dart';
 import '../widgets/app_logo.dart';
 import '../widgets/profile_actions.dart';
 import '../utils/account_settings.dart';
+import '../utils/playback_settings.dart';
+import '../widgets/focus_reveal.dart';
+import '../widgets/switch_setting.dart';
+
+/// Phone dropdowns draw their list in the app's top-level layer. The page's own layer is
+/// clipped at the bottom nav bar, which cut lists off; the top-level one isn't. Together with
+/// the shell telling pages where the nav bar starts, lists flip upwards when there's no room.
+const _dropdownLayer = OverlayChildLocation.rootOverlay;
 
 /// One entry per settings tab. Add a line here to add a tab.
 typedef _SettingsTab = ({String label, Widget Function() build});
@@ -42,33 +51,45 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   // indexWhere gives -1 for no match, so clamp falls back to the first tab.
   late int _index = _tabs.indexWhere((t) => t.label == widget.initialTab).clamp(0, _tabs.length - 1);
+  final _scroll = ScrollController();
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) => FScaffold(
-    child: ListView(
-      padding: const EdgeInsets.symmetric(vertical: 16),
-      children: [
-        // Tab pills, above the card.
-        SingleChildScrollView(
-          scrollDirection: Axis
-              .horizontal, // scrolls sideways if there are more pills than fit
-          child: Row(
-            spacing: 8,
-            children: [
-              for (var i = 0; i < _tabs.length; i++)
-                FButton(
-                  variant: i == _index ? .primary : .outline,
-                  size: .sm,
-                  mainAxisSize: .min,
-                  onPress: () => setState(() => _index = i),
-                  child: Text(_tabs[i].label),
-                ),
-            ],
+    // With the remote, keeps headings and the end of the page in view (see FocusReveal).
+    child: FocusReveal(
+      controller: _scroll,
+      child: ListView(
+        controller: _scroll,
+        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 4),
+        children: [
+          // Tab pills, above the card.
+          SingleChildScrollView(
+            scrollDirection: Axis
+                .horizontal, // scrolls sideways if there are more pills than fit
+            child: Row(
+              spacing: 8,
+              children: [
+                for (var i = 0; i < _tabs.length; i++)
+                  FButton(
+                    variant: i == _index ? .primary : .outline,
+                    size: .sm,
+                    mainAxisSize: .min,
+                    onPress: () => setState(() => _index = i),
+                    child: Text(_tabs[i].label),
+                  ),
+              ],
+            ),
           ),
-        ),
-        const SizedBox(height: 16),
-        _tabs[_index].build(),
-      ],
+          const SizedBox(height: 16),
+          _tabs[_index].build(),
+        ],
+      ),
     ),
   );
 }
@@ -157,9 +178,10 @@ class _FontSelect extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // Phones: a compact dropdown (touch only). Elsewhere: a field that opens a remote-friendly list.
-    if (MediaQuery.sizeOf(context).width < 600) {
+    if (isPhoneLayout(context)) {
       return FSelect<String>.searchBuilder(
         label: Text(label),
+        contentOverlayLocation: _dropdownLayer,
         format: (font) => font,
         filter: searchFonts,
         searchFieldProperties: const FSelectSearchFieldProperties(
@@ -203,10 +225,10 @@ class _AppearanceCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
-    listenable: Listenable.merge([themeController, fontController, iconController]),
+    listenable: Listenable.merge([themeController, fontController, iconController, playbackSettings]),
     builder: (context, _) {
       final preset = themeController.value;
-      final isPhone = MediaQuery.sizeOf(context).width < 600;
+      // final isPhone = isPhoneLayout(context);
 
       return _SettingsCard(
         children: [
@@ -223,36 +245,22 @@ class _AppearanceCard extends StatelessWidget {
             value: fontController.body,
             onChange: fontController.setBody,
           ),
+          const SizedBox(height: 16),
+          _FontSelect(
+            label: 'Subtitle Font',
+            value: playbackSettings.subtitleFont,
+            onChange: (font) => playbackSettings.change((s) => s.subtitleFont = font),
+          ),
 
           // ── Theme ──
           const _SectionTitle('Theme', description: 'Pick a preset, or "Custom" to build your own.'),
-          if (isPhone)
-            FSelect<ThemePreset>(
-              label: const Text('Theme'),
-              hint: 'Prism',
-              items: {for (final p in themeController.allPresets) p.label: p},
-              control: FSelectControl.lifted(
-                value: preset,
-                onChange: (selected) {
-                  if (selected != null) themeController.select(selected);
-                },
-              ),
-            )
-          else
-            ChoiceField(
-              label: 'Theme',
-              value: preset.label,
-              onPress: () async {
-                final picked = await showChoicePicker<ThemePreset>(
-                  context: context,
-                  title: 'Theme',
-                  selected: preset,
-                  search: (_) async => themeController.allPresets.toList(),
-                  itemBuilder: (context, p) => Text(p.label),
-                );
-                if (picked != null) themeController.select(picked);
-              },
-            ),
+          _PickerSetting<ThemePreset>(
+            label: 'Theme',
+            value: preset,
+            options: themeController.allPresets.toList(),
+            format: (p) => p.label,
+            onChange: themeController.select,
+          ),
           if (preset.id == customThemeId) ...[
             const SizedBox(height: 16),
             const CustomThemeEditor(),
@@ -260,43 +268,22 @@ class _AppearanceCard extends StatelessWidget {
 
           // ── Icons ──
           const _SectionTitle('Icons', description: 'The icon style used across the app.'),
-          if (isPhone)
-            FSelect<IconStyle>(
-              label: const Text('Icons'),
-              items: {for (final s in IconStyle.values) s.label: s},
-              control: FSelectControl.lifted(
-                value: iconController.value,
-                onChange: (style) {
-                  if (style != null) iconController.select(style);
-                },
-              ),
-            )
-          else
-            ChoiceField(
-              label: 'Icons',
-              value: iconController.value.label,
-              onPress: () async {
-                final picked = await showChoicePicker<IconStyle>(
-                  context: context,
-                  title: 'Icons',
-                  selected: iconController.value,
-                  search: (_) async => IconStyle.values,
-                  itemBuilder: (context, style) {
-                    // A small preview of each style.
-                    final set = style.iconSet;
-                    return Row(
-                      spacing: 12,
-                      children: [
-                        Icon(set.play, size: 18, fill: 1),
-                        Icon(set.favorite, size: 18, fill: 1),
-                        Text(style.label),
-                      ],
-                    );
-                  },
-                );
-                if (picked != null) iconController.select(picked);
-              },
+          _PickerSetting<IconStyle>(
+            label: 'Icons',
+            value: iconController.value,
+            options: IconStyle.values,
+            format: (s) => s.label,
+            onChange: iconController.select,
+            // A small preview of each style.
+            itemBuilder: (context, style) => Row(
+              spacing: 12,
+              children: [
+                Icon(style.iconSet.play, size: 18, fill: 1),
+                Icon(style.iconSet.favorite, size: 18, fill: 1),
+                Text(style.label),
+              ],
             ),
+          ),
         ],
       );
     },
@@ -516,6 +503,7 @@ class _PickerSetting<T> extends StatelessWidget {
     required this.format,
     required this.onChange,
     this.searchable = false,
+    this.itemBuilder,
   });
 
   final String label;
@@ -525,6 +513,11 @@ class _PickerSetting<T> extends StatelessWidget {
   final ValueChanged<T> onChange;
   final bool searchable; // for long lists like languages
 
+  /// How each choice looks in the list. Defaults to its name.
+  final Widget Function(BuildContext context, T option)? itemBuilder;
+
+  Widget _item(BuildContext context, T option) => itemBuilder?.call(context, option) ?? Text(format(option));
+
   List<T> _filter(String query) {
     final q = query.trim().toLowerCase();
     return q.isEmpty ? options : options.where((o) => format(o).toLowerCase().contains(q)).toList();
@@ -532,7 +525,7 @@ class _PickerSetting<T> extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (MediaQuery.sizeOf(context).width < 600) {
+    if (isPhoneLayout(context)) {
       final control = FSelectControl<T>.lifted(
         value: value,
         onChange: (v) {
@@ -542,16 +535,18 @@ class _PickerSetting<T> extends StatelessWidget {
       if (searchable) {
         return FSelect<T>.searchBuilder(
           label: Text(label),
+          contentOverlayLocation: _dropdownLayer,
           format: format,
           filter: _filter,
           contentBuilder: (context, _, items) => [
-            for (final item in items) .item(title: Text(format(item)), value: item),
+            for (final item in items) .item(title: _item(context, item), value: item),
           ],
           control: control,
         );
       }
       return FSelect<T>(
         label: Text(label),
+        contentOverlayLocation: _dropdownLayer,
         items: {for (final o in options) format(o): o},
         control: control,
       );
@@ -568,7 +563,7 @@ class _PickerSetting<T> extends StatelessWidget {
           searchHint: 'Search',
           selected: value,
           search: (query) async => _filter(query),
-          itemBuilder: (context, o) => Text(format(o)),
+          itemBuilder: _item,
         );
         if (picked != null) onChange(picked);
       },
@@ -576,18 +571,258 @@ class _PickerSetting<T> extends StatelessWidget {
   }
 }
 
-/// Playback Settings Tab
+/// Playback Settings Tab. Saved on this device, and used from the next video you play.
 class _PlaybackCard extends StatelessWidget {
   const _PlaybackCard();
 
+  static const _gap = SizedBox(height: 16);
+
   @override
-  Widget build(BuildContext context) {
-    return const _SettingsCard(
-      children: [
-        _SectionTitle('Playback', description: 'Coming soon.', first: true),
-      ],
-    );
-  }
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: playbackSettings,
+    builder: (context, _) {
+      final s = playbackSettings;
+      void update(void Function(PlaybackSettings s) edit) => s.change(edit);
+
+      return _SettingsCard(
+        children: [
+          // ── Skipping ──
+          const _SectionTitle(
+            'Skipping',
+            description: 'What happens when an intro, recap, credits or preview starts. '
+                'Needs Media Segments on your server, or chapters named "Intro", "Credits" and so on.',
+            first: true,
+          ),
+          for (final (i, kind) in SkipKind.values.indexed) ...[
+            if (i > 0) _gap,
+            _PickerSetting<SkipMode>(
+              label: kind.label,
+              value: s.skip[kind]!,
+              options: SkipMode.values,
+              format: (m) => m.label,
+              onChange: (m) => update((s) => s.skip[kind] = m),
+            ),
+          ],
+
+          // ── Up next ──
+          const _SectionTitle('Up Next', description: 'When an episode ends.'),
+          SwitchSetting(
+            label: 'Autoplay next episode',
+            description: 'Counts down during the credits, then plays the next one.',
+            value: s.autoplayNext,
+            onChange: (v) => update((s) => s.autoplayNext = v),
+          ),
+          if (s.autoplayNext) ...[
+            _gap,
+            _PickerSetting<int>(
+              label: 'Countdown',
+              value: s.countdownSeconds,
+              options: countdownOptions,
+              format: (n) => '$n seconds',
+              onChange: (n) => update((s) => s.countdownSeconds = n),
+            ),
+            _gap,
+            _PickerSetting<int>(
+              label: 'Ask "Are you still watching?"',
+              value: s.stillWatchingAfter,
+              options: stillWatchingOptions,
+              format: (n) => n == 0 ? 'Never' : 'After $n episodes in a row',
+              onChange: (n) => update((s) => s.stillWatchingAfter = n),
+            ),
+          ],
+
+          // ── Quality ──
+          const _SectionTitle(
+            'Streaming Quality',
+            description: 'Lower it if videos keep buffering. Above the limit, the server converts '
+                'the video to a smaller size while you watch.',
+          ),
+          _PickerSetting<int>(
+            label: 'On Wi-Fi or Ethernet',
+            value: s.wifiBitrate,
+            options: bitrateOptions,
+            format: bitrateLabel,
+            onChange: (b) => update((s) => s.wifiBitrate = b),
+          ),
+          _gap,
+          _PickerSetting<int>(
+            label: 'On mobile data',
+            value: s.mobileBitrate,
+            options: bitrateOptions,
+            format: bitrateLabel,
+            onChange: (b) => update((s) => s.mobileBitrate = b),
+          ),
+          _gap,
+          _PickerSetting<StreamMode>(
+            label: 'Direct play',
+            value: s.streamMode,
+            options: StreamMode.values,
+            format: (m) => m.label,
+            onChange: (m) => update((s) => s.streamMode = m),
+          ),
+
+          // ── Seeking ──
+          const _SectionTitle('Seeking', description: 'Left and right on the remote, and double-tap on phones.'),
+          _PickerSetting<int>(
+            label: 'Jump by',
+            value: s.seekStep,
+            options: seekStepOptions,
+            format: (n) => '$n seconds',
+            onChange: (n) => update((s) => s.seekStep = n),
+          ),
+          _gap,
+          SwitchSetting(
+            label: 'Speed up when held',
+            description: 'Holding left or right jumps further the longer you hold.',
+            value: s.seekAccelerates,
+            onChange: (v) => update((s) => s.seekAccelerates = v),
+          ),
+
+          // ── Resuming ──
+          const _SectionTitle('Resuming', description: 'Playing something you stopped partway through.'),
+          _PickerSetting<ResumeMode>(
+            label: 'When you come back',
+            value: s.resume,
+            options: ResumeMode.values,
+            format: (m) => m.label,
+            onChange: (m) => update((s) => s.resume = m),
+          ),
+
+          // ── Subtitles ──
+          const _SectionTitle(
+            'Subtitle Appearance',
+            description: 'For text subtitles. Picture subtitles (like Blu-ray PGS) keep their own look.',
+          ),
+          // ignore: prefer_const_constructors
+          _SubtitlePreview(), // not const, so it redraws when a setting changes
+          _gap,
+          _PickerSetting<SubtitleSize>(
+            label: 'Size',
+            value: s.subtitleSize,
+            options: SubtitleSize.values,
+            format: (v) => v.label,
+            onChange: (v) => update((s) => s.subtitleSize = v),
+          ),
+          _gap,
+          _PickerSetting<SubtitleColor>(
+            label: 'Color',
+            value: s.subtitleColor,
+            options: SubtitleColor.values,
+            format: (v) => v.label,
+            onChange: (v) => update((s) => s.subtitleColor = v),
+            itemBuilder: (context, c) => Row(
+              spacing: 12,
+              children: [
+                Container(
+                  width: 16,
+                  height: 16,
+                  decoration: BoxDecoration(
+                    color: c.color,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: context.theme.colors.border),
+                  ),
+                ),
+                Text(c.label),
+              ],
+            ),
+          ),
+          _gap,
+          _PickerSetting<SubtitleBackground>(
+            label: 'Style',
+            value: s.subtitleBackground,
+            options: SubtitleBackground.values,
+            format: (v) => v.label,
+            onChange: (v) => update((s) => s.subtitleBackground = v),
+          ),
+          _gap,
+          SwitchSetting(
+            label: 'Move up when controls show',
+            description: 'Keeps subtitles above the seek bar instead of behind it.',
+            value: s.liftSubtitles,
+            onChange: (v) => update((s) => s.liftSubtitles = v),
+          ),
+
+          // ── Audio ──
+          const _SectionTitle('Audio'),
+          SwitchSetting(
+            label: 'Surround sound passthrough',
+            description: 'Sends Dolby and DTS audio untouched to a soundbar or receiver that decodes it. '
+                'Turn off if you hear nothing.',
+            value: s.passthrough,
+            onChange: (v) => update((s) => s.passthrough = v),
+          ),
+          _gap,
+          SwitchSetting(
+            label: 'Mix down to stereo',
+            description: s.passthrough
+                ? 'Not available with passthrough on.'
+                : 'For headphones and TV speakers, so dialogue from the center channel isn\'t lost.',
+            value: s.downmix && !s.passthrough,
+            enabled: !s.passthrough,
+            onChange: (v) => update((s) => s.downmix = v),
+          ),
+          _gap,
+          SwitchSetting(
+            label: 'Night mode',
+            description: s.passthrough
+                ? 'Not available with passthrough on.'
+                : 'Quiets explosions and lifts quiet dialogue, so you can keep the volume down.',
+            value: s.nightMode && !s.passthrough,
+            enabled: !s.passthrough,
+            onChange: (v) => update((s) => s.nightMode = v),
+          ),
+
+          // ── Display ──
+          const _SectionTitle('Display'),
+          _PickerSetting<AspectMode>(
+            label: 'Picture size',
+            value: s.aspect,
+            options: AspectMode.values,
+            format: (m) => m.label,
+            onChange: (m) => update((s) => s.aspect = m),
+          ),
+          _gap,
+          SwitchSetting(
+            label: 'Show the age rating',
+            description: 'Slides in the rating card when a video starts.',
+            value: s.showRating,
+            onChange: (v) => update((s) => s.showRating = v),
+          ),
+          _gap,
+          SwitchSetting(
+            label: 'Scrubbing previews',
+            description: 'Thumbnails above the seek bar. Turn off on slow devices or connections.',
+            value: s.trickplay,
+            onChange: (v) => update((s) => s.trickplay = v),
+          ),
+        ],
+      );
+    },
+  );
+}
+
+/// A sample line of subtitles over a dark, picture-like background, in the chosen style.
+class _SubtitlePreview extends StatelessWidget {
+  const _SubtitlePreview();
+
+  @override
+  Widget build(BuildContext context) => ClipRRect(
+    borderRadius: BorderRadius.circular(8),
+    child: Container(
+      height: 120,
+      alignment: Alignment.bottomCenter,
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF3A4A5C), Color(0xFF8A7560), Color(0xFFD9C7A8)],
+        ),
+      ),
+      // ignore: prefer_const_constructors
+      child: SubtitleText('This is how subtitles will look.', baseSize: 18, height: 1.2),
+    ),
+  );
 }
 
 /// Server Settings Tab
@@ -650,8 +885,11 @@ class _AboutCardState extends State<_AboutCard> {
         ),
       ),
 
+      const SizedBox(height: 8),
+      const FDivider(),
+
       // ── App ──
-      const _SectionTitle('App'),
+      const _SectionTitle('App', first: true),
       FutureBuilder(
         future: _app,
         builder: (context, snap) => _InfoRow(
@@ -687,7 +925,7 @@ class _AboutCardState extends State<_AboutCard> {
           mainAxisSize: .min,
           onPress: () => showLicensePage(
             context: context,
-            applicationName: 'chameleon',
+            applicationName: 'Chameleon',
             applicationVersion: snap.data?.version,
           ),
           child: const Text('Open-source licenses'),

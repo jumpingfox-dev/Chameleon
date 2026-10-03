@@ -59,7 +59,7 @@ class AppLogo extends StatelessWidget {
         shaderCallback: (bounds) => LinearGradient(
           colors: [
             context.theme.colors.primary,
-            context.theme.colors.secondary,
+            context.theme.colors.border,
           ],
         ).createShader(bounds),
         child: SvgPicture.asset(asset, height: height),

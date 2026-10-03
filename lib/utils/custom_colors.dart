@@ -156,14 +156,9 @@ String colorsToIni(FColors c) {
   for (var i = 0; i < lines.length; i++) {
     var line = lines[i].trim();
     final commentAt = line.indexOf(' ;');
-    if (commentAt != -1)
-      line = line.substring(0, commentAt).trim(); // inline "; comment"
+    if (commentAt != -1) line = line.substring(0, commentAt).trim(); // inline "; comment"
 
-    if (line.isEmpty ||
-        line.startsWith(';') ||
-        line.startsWith('#') ||
-        line.startsWith('['))
-      continue;
+    if (line.isEmpty || line.startsWith(';') || line.startsWith('#') || line.startsWith('[')) continue;
 
     final sep = line.indexOf(RegExp('[=:]'));
     if (sep == -1) {

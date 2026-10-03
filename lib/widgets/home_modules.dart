@@ -10,6 +10,8 @@ import '../theme/app_icons.dart';
 import '../utils/focus_rows.dart';
 import '../utils/home_layout.dart';
 import '../utils/jellyfin_controller.dart';
+import '../utils/page_insets.dart';
+import '../utils/orientation.dart';
 import 'detail_page.dart';
 import 'poster_card.dart';
 import 'scroll_into_view.dart';
@@ -27,9 +29,9 @@ class HomeModuleContent {
 
 /// Loads a section's content. [module] says what it shows (e.g. which collection).
 typedef HomeModuleLoader = Future<HomeModuleContent> Function(
-  JellyfinClient client,
-  HomeModule module,
-);
+    JellyfinClient client,
+    HomeModule module,
+    );
 
 /// What a kind of section shows and how to load it.
 class HomeModuleSpec {
@@ -76,9 +78,9 @@ final homeModuleSpecs = <HomeModuleType, HomeModuleSpec>{
     view: LibraryView.thumbnail,
     load: (client, _) async => HomeModuleContent(
       (await client.tvShows.nextUp(
-            limit: 20,
-            enableResumable: false,
-          )) // in-progress episodes are in Continue Watching
+        limit: 20,
+        enableResumable: false,
+      )) // in-progress episodes are in Continue Watching
           .items
           .where((item) => item.type == JellyfinItemKind.episode)
           .toList(),
@@ -183,7 +185,7 @@ Future<HomeModuleContent> _featured(JellyfinClient client, HomeModule _) async {
   final withArt = page.items
       .where(
         (item) => (item.raw['BackdropImageTags'] as List?)?.isNotEmpty ?? false,
-      )
+  )
       .take(8)
       .toList();
   return HomeModuleContent(withArt);
@@ -191,9 +193,9 @@ Future<HomeModuleContent> _featured(JellyfinClient client, HomeModule _) async {
 
 /// Jellyfin's suggestions for this user, or a random mix when there isn't enough history yet.
 Future<HomeModuleContent> _suggested(
-  JellyfinClient client,
-  HomeModule _,
-) async {
+    JellyfinClient client,
+    HomeModule _,
+    ) async {
   var items = (await client.suggestions.list(
     mediaType: const ['Video'],
     type: _moviesAndShows,
@@ -213,9 +215,9 @@ Future<HomeModuleContent> _suggested(
 
 /// Titles similar to the last movie or show you watched: same kind, sharing its genres.
 Future<HomeModuleContent> _becauseYouWatched(
-  JellyfinClient client,
-  HomeModule _,
-) async {
+    JellyfinClient client,
+    HomeModule _,
+    ) async {
   final last = (await client.items.list(
     filters: const ['IsPlayed'],
     includeItemTypes: const [JellyfinItemKind.movie, JellyfinItemKind.episode],
@@ -234,9 +236,9 @@ Future<HomeModuleContent> _becauseYouWatched(
 
   final title = 'Because You Watched ${baseline.name}';
   final genres =
-      ((baseline.raw['Genres'] as List?)?.cast<String>() ?? const <String>[])
-          .take(2)
-          .toList();
+  ((baseline.raw['Genres'] as List?)?.cast<String>() ?? const <String>[])
+      .take(2)
+      .toList();
   if (genres.isEmpty) return HomeModuleContent(const [], title: title);
 
   final similar = await client.items.list(
@@ -255,9 +257,9 @@ Future<HomeModuleContent> _becauseYouWatched(
 
 /// The movies in the chosen collection, in release order.
 Future<HomeModuleContent> _collection(
-  JellyfinClient client,
-  HomeModule module,
-) async {
+    JellyfinClient client,
+    HomeModule module,
+    ) async {
   final id = module.param;
   if (id == null) return const HomeModuleContent([]);
   final page = await client.items.list(
@@ -271,9 +273,9 @@ Future<HomeModuleContent> _collection(
 
 /// A random mix of movies and shows from the chosen genre.
 Future<HomeModuleContent> _genre(
-  JellyfinClient client,
-  HomeModule module,
-) async {
+    JellyfinClient client,
+    HomeModule module,
+    ) async {
   final genre = module.param;
   if (genre == null) return const HomeModuleContent([]);
   final page = await client.items.list(
@@ -342,10 +344,10 @@ class _HomeModuleViewState extends State<HomeModuleView>
   /// otherwise posters on phones and thumbnails on wider screens.
   LibraryView _viewFor(BuildContext context) =>
       LibraryView.values.asNameMap()[widget.module.view] ??
-      _spec.view ??
-      (MediaQuery.sizeOf(context).width < 600
-          ? LibraryView.poster
-          : LibraryView.thumbnail);
+          _spec.view ??
+          (isPhoneLayout(context)
+              ? LibraryView.poster
+              : LibraryView.thumbnail);
 
   /// Keeps this section alive when it scrolls off-screen, so it isn't rebuilt and reloaded.
   @override
@@ -387,8 +389,7 @@ class _HomeModuleViewState extends State<HomeModuleView>
         });
       }
     } on JellyfinException catch (e) {
-      if (mounted && _content == null)
-        setState(() => _error = describeJellyfinError(e));
+      if (mounted && _content == null) setState(() => _error = describeJellyfinError(e));
     }
   }
 
@@ -400,8 +401,8 @@ class _HomeModuleViewState extends State<HomeModuleView>
         onPress: () => homeLayout.setView(
           widget.module.id,
           (_viewFor(context) == LibraryView.poster
-                  ? LibraryView.thumbnail
-                  : LibraryView.poster)
+              ? LibraryView.thumbnail
+              : LibraryView.poster)
               .name,
         ),
         // Shows the view you'll switch *to*, like the library pages.
@@ -427,9 +428,9 @@ class _HomeModuleViewState extends State<HomeModuleView>
       variant: .ghost,
       onPress: () => homeLayout.remove(widget.module.id),
       child: Icon(
-        appIcons.remove,
-        color: context.theme.colors.destructive,
-        fill: 1
+          appIcons.remove,
+          color: context.theme.colors.destructive,
+          fill: 1
       ),
     ),
   ];
@@ -451,7 +452,7 @@ class _HomeModuleViewState extends State<HomeModuleView>
         _content?.title ?? module.label ?? module.param ?? _spec.title;
     final captions =
         module.type == HomeModuleType.continueWatching ||
-        module.type == HomeModuleType.nextUp;
+            module.type == HomeModuleType.nextUp;
 
     return ScrollIntoViewOnFocus(
       child: Padding(
@@ -463,25 +464,29 @@ class _HomeModuleViewState extends State<HomeModuleView>
           spacing: 8,
           children: [
             if (!isCarousel || widget.editing)
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      title,
-                      style: context.theme.typography.display.lg,
-                    ),
-                  ),
-                  if (widget.editing)
-                    FocusRow(
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: _editControls(context),
+              Padding(
+                padding: pageSides(context),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        title,
+                        style: context.theme.typography.display.lg,
                       ),
                     ),
-                ],
+                    if (widget.editing)
+                      FocusRow(
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: _editControls(context),
+                        ),
+                      ),
+                  ],
+                ),
               ),
             if (isCarousel)
-              _carousel(context)
+            // The banner is a rounded card, so it keeps a margin rather than running to the edge.
+              Padding(padding: pageSides(context), child: _carousel(context))
             else
               _row(context, _viewFor(context), captions: captions),
           ],
@@ -491,7 +496,7 @@ class _HomeModuleViewState extends State<HomeModuleView>
   }
 
   Widget _carousel(BuildContext context) {
-    final isPhone = MediaQuery.sizeOf(context).width < 600;
+    final isPhone = isPhoneLayout(context);
     final items = _content?.items;
     final muted = context.theme.typography.body.sm.copyWith(
       color: context.theme.colors.mutedForeground,
@@ -525,21 +530,27 @@ class _HomeModuleViewState extends State<HomeModuleView>
 
     final Widget content;
     if (_error != null) {
-      content = Align(
-        alignment: Alignment.centerLeft,
-        child: Text(_error!, style: muted),
+      content = Padding(
+        padding: pageSides(context),
+        child: Align(
+          alignment: Alignment.centerLeft,
+          child: Text(_error!, style: muted),
+        ),
       );
     } else if (items == null) {
       content = const Center(child: FCircularProgress());
     } else if (items.isEmpty) {
       content = Align(
-        alignment: Alignment.centerLeft,
+        alignment: Alignment.center,
         child: Text('Nothing here yet', style: muted),
       ); // edit mode only
     } else {
       content = FocusRow(
         child: ListView.separated(
           scrollDirection: Axis.horizontal,
+          // Inside the list, so the first card starts in line with the title
+          // but cards can still scroll right to the screen's edge.
+          padding: pageSides(context),
           itemCount: items.length,
           separatorBuilder: (_, _) => const SizedBox(width: 4),
           itemBuilder: (context, i) {
@@ -552,12 +563,12 @@ class _HomeModuleViewState extends State<HomeModuleView>
               width: tileWidth,
               child: captions
                   ? Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        SizedBox(height: imageHeight, child: card),
-                        _TileCaption(items[i]),
-                      ],
-                    )
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(height: imageHeight, child: card),
+                  _TileCaption(items[i]),
+                ],
+              )
                   : card,
             );
           },
@@ -588,15 +599,14 @@ class AddHomeModules extends StatelessWidget {
           title: 'Choose a collection',
           options: client.items
               .list(
-                includeItemTypes: const ['BoxSet'],
-                recursive: true,
-                sortBy: const ['SortName'],
-                limit: 500,
-              )
+            includeItemTypes: const ['BoxSet'],
+            recursive: true,
+            sortBy: const ['SortName'],
+            limit: 500,
+          )
               .then((page) => [for (final c in page.items) (c.id, c.name)]),
         );
-        if (picked != null)
-          await homeLayout.add(type, param: picked.$1, label: picked.$2);
+        if (picked != null) await homeLayout.add(type, param: picked.$1, label: picked.$2);
 
       case HomeModuleType.genre:
         final picked = await _showOptionPicker(
@@ -604,8 +614,7 @@ class AddHomeModules extends StatelessWidget {
           title: 'Choose a genre',
           options: Future.value([for (final g in jellyfin.genres) (g, g)]),
         );
-        if (picked != null)
-          await homeLayout.add(type, param: picked.$1, label: picked.$2);
+        if (picked != null) await homeLayout.add(type, param: picked.$1, label: picked.$2);
 
       default:
         await homeLayout.add(type);
@@ -661,10 +670,10 @@ class AddHomeModules extends StatelessWidget {
 
 /// Shows a searchable list of (value, label) options and returns the one picked, or null.
 Future<(String, String)?> _showOptionPicker(
-  BuildContext context, {
-  required String title,
-  required Future<List<(String, String)>> options,
-}) {
+    BuildContext context, {
+      required String title,
+      required Future<List<(String, String)>> options,
+    }) {
   return showGeneralDialog<(String, String)>(
     context: context,
     barrierDismissible: true,
@@ -699,7 +708,7 @@ class _OptionPickerState extends State<_OptionPicker> {
     super.initState();
     _search.addListener(() => setState(() {})); // filter as you type
     widget.options.then(
-      (options) {
+          (options) {
         if (mounted) setState(() => _all = options);
       },
       onError: (_) {
@@ -844,8 +853,7 @@ class _CarouselState extends State<_Carousel> {
   void _setEngaged(bool engaged) {
     _engaged = engaged;
     _touch();
-    if (!engaged)
-      _restartTimer(); // leaving: a full 8 seconds before the next slide
+    if (!engaged) _restartTimer(); // leaving: a full 8 seconds before the next slide
   }
 
   /// Slides to a page, wrapping around at either end.
@@ -862,8 +870,7 @@ class _CarouselState extends State<_Carousel> {
   /// → from More info goes to the next slide, ← from Play to the previous one.
   /// Between the two buttons, arrows move focus as usual.
   KeyEventResult _onKey(FocusNode node, KeyEvent event) {
-    if (event is! KeyDownEvent && event is! KeyRepeatEvent)
-      return KeyEventResult.ignored;
+    if (event is! KeyDownEvent && event is! KeyRepeatEvent) return KeyEventResult.ignored;
     _touch(); // any key press counts as someone being here
     final key = event.logicalKey;
     if (key == LogicalKeyboardKey.arrowRight && _infoFocus.hasFocus) {
@@ -966,7 +973,7 @@ class _CarouselSlide extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final client = jellyfin.client!;
-    final isPhone = MediaQuery.sizeOf(context).width < 600;
+    final isPhone = isPhoneLayout(context);
     final backdropTag = (item.raw['BackdropImageTags'] as List).first as String;
     final logoTag = item.imageTags['Logo'];
     final overview = (item.raw['Overview'] as String?)?.trim();
@@ -1039,22 +1046,22 @@ class _CarouselSlide extends StatelessWidget {
                       ),
                       child: logoTag != null
                           ? Image.network(
-                              client.images.url(
-                                itemId: item.id,
-                                type: JellyfinImagesApi.typeLogo,
-                                tag: logoTag,
-                                fillWidth: 720,
-                              ),
-                              fit: BoxFit.contain,
-                              alignment: Alignment.bottomLeft,
-                            )
+                        client.images.url(
+                          itemId: item.id,
+                          type: JellyfinImagesApi.typeLogo,
+                          tag: logoTag,
+                          fillWidth: 720,
+                        ),
+                        fit: BoxFit.contain,
+                        alignment: Alignment.bottomLeft,
+                      )
                           : Text(
-                              item.name,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: context.theme.typography.display.xl2
-                                  .copyWith(color: white),
-                            ),
+                        item.name,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: context.theme.typography.display.xl2
+                            .copyWith(color: white),
+                      ),
                     ),
                     if (facts.isNotEmpty)
                       Text(
@@ -1131,9 +1138,9 @@ class _TileCaption extends StatelessWidget {
     final episode = item.raw['IndexNumber'];
     final subtitle = isEpisode
         ? [
-            if (season != null && episode != null) 'S$season:E$episode',
-            item.name,
-          ].join(' · ')
+      if (season != null && episode != null) 'S$season:E$episode',
+      item.name,
+    ].join(' · ')
         : item.raw['ProductionYear']?.toString();
 
     return Padding(

@@ -21,6 +21,7 @@ import '../utils/focus_rows.dart';
 import '../utils/jellyfin_controller.dart';
 import '../utils/orientation.dart';
 import '../utils/playback_reporter.dart';
+import '../utils/playback_settings.dart';
 import '../widgets/cast_widgets.dart';
 import '../widgets/choice_picker.dart';
 import '../widgets/home_modules.dart';
@@ -41,10 +42,13 @@ class PlayerScreen extends StatefulWidget {
 
 class _PlayerScreenState extends State<PlayerScreen> {
   static const _hideAfter = Duration(seconds: 3);
-  static const _fallbackSkip = Duration(
-    seconds: 10,
-  ); // for files without chapters
   static const _scrubCommitAfter = Duration(milliseconds: 1500);
+
+  /// How far left/right, double-tap and (without chapters) previous/next jump. Set in Settings.
+  Duration get _step => Duration(seconds: playbackSettings.seekStep);
+
+  /// The item playing. Starts as the one opened, and changes when the next episode plays.
+  late String _itemId = widget.itemId;
 
   final _player = Player();
   late final _video = VideoController(_player);
@@ -63,6 +67,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
   final _seekNode = FocusNode(debugLabel: 'Seek bar');
   final _skipNode = FocusNode(debugLabel: 'Skip');
   bool _skipFocused = false; // drives the skip button's "selected" look
+  final _upNextNode = FocusNode(debugLabel: 'Up next: play now');
+  final _upNextScope = FocusNode(debugLabel: 'Up next', skipTraversal: true, canRequestFocus: false);
 
   List<FocusNode> get _optionRow => [_audioNode, _subtitlesNode, _fitNode];
   List<FocusNode> get _transportRow => [_previousNode, _playNode, _nextNode];
@@ -84,9 +90,12 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
   bool get _isPhone => MediaQuery.sizeOf(context).shortestSide < 600;
 
-  EdgeInsets _subtitlePadding({required bool lifted}) => _isPhone
-      ? (lifted ? _subtitlesLiftedPhone : _subtitlesNormalPhone)
-      : (lifted ? _subtitlesLifted : _subtitlesNormal);
+  EdgeInsets _subtitlePadding({required bool lifted}) {
+    lifted = lifted && playbackSettings.liftSubtitles; // "Move up when controls show" in Settings
+    return _isPhone
+        ? (lifted ? _subtitlesLiftedPhone : _subtitlesNormalPhone)
+        : (lifted ? _subtitlesLifted : _subtitlesNormal);
+  }
 
   JellyfinItem? _item;
   String? _error;
@@ -102,6 +111,26 @@ class _PlayerScreenState extends State<PlayerScreen> {
   List<_Segment> _segments = const [];
   _Segment? _activeSegment;
 
+  /// Segments already skipped automatically. Seeking back into one shows the button instead,
+  /// so you can rewatch an intro without being thrown out of it again.
+  final _autoSkipped = <_Segment>{};
+
+  /// "Skipped intro" and the like, shown briefly after an automatic skip.
+  String? _notice;
+  Timer? _noticeTimer;
+
+  /// Up next: the episode after this one (episodes only), and the countdown card.
+  _NextEpisode? _next;
+  bool _upNextShown = false; // the card has appeared for this episode
+  bool _upNextDismissed = false; // Cancel was pressed: this episode just ends
+  bool _stillWatching = false; // the card asks "Are you still watching?" instead of counting down
+  int _countdown = 0;
+  Timer? _countdownTimer;
+
+  /// Set while the server converts the video (to stay under the quality limit, or because
+  /// Settings says to always convert); null while playing the file directly.
+  _Transcode? _transcode;
+
   /// Thumbnail sheets for scrubbing, if the server has generated them.
   _Trickplay? _trickplay;
 
@@ -110,7 +139,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
   /// Fit shows the whole picture (with bars if the shape differs from the screen);
   /// fill zooms in to cover the screen, trimming the edges.
-  BoxFit _fit = BoxFit.contain;
+  BoxFit _fit = playbackSettings.aspect == AspectMode.fill ? BoxFit.cover : BoxFit.contain;
 
   /// Where a D-pad scrub would jump to, while scrubbing; null otherwise.
   Duration? _scrub;
@@ -125,10 +154,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
   bool _ratingVisible = false;
   Timer? _ratingTimer;
 
-  /// Double-tap to seek (phones). Two quick taps on the left or right third jump 10 seconds;
-  /// each further tap on that side, in quick succession, adds another 10.
+  /// Double-tap to seek (phones). Two quick taps on the left or right third jump one step
+  /// (10 seconds unless changed in Settings); each further tap on that side adds another step.
   static const _doubleTapWindow = Duration(milliseconds: 300);
-  static const _tapSeekStep = 10; // seconds
   Timer? _singleTapTimer; // a single tap waits this long in case a second one follows
   DateTime? _lastTapAt;
   int _lastTapSide = 0; // -1 left third, 0 middle, 1 right third
@@ -145,7 +173,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
   @override
   void initState() {
     super.initState();
-    AppOrientation.player(); // landscape and immersive on phones
+    AppOrientation.player(); // full screen, and free to turn either way
     _subscriptions
       ..add(
         _player.stream.error.listen((message) {
@@ -161,38 +189,88 @@ class _PlayerScreenState extends State<PlayerScreen> {
         }),
       )
       ..add(_player.stream.position.listen(_updateActiveSegment))
-    // Finished (including after skipping end credits): go back to where you were.
-      ..add(
-        _player.stream.completed.listen((completed) {
-          if (completed && mounted) context.pop();
-        }),
-      );
+    // Finished (including after skipping end credits): the next episode, or back to where you were.
+      ..add(_player.stream.completed.listen(_onCompleted));
     _skipNode.addListener(() {
       final focused = _skipNode.hasFocus;
       if (focused != _skipFocused && mounted) setState(() => _skipFocused = focused);
     });
     castController.addListener(_onCastChanged);
+    _audioReady = _applyAudioSettings();
     _start();
+  }
+
+  /// Passthrough, stereo downmix and night mode, from Settings. Set before the first video opens.
+  late final Future<void> _audioReady;
+
+  Future<void> _applyAudioSettings() async {
+    // mpv's own options, set straight on it (media_kit doesn't wrap these).
+    final dynamic mpv = _player.platform;
+    if (mpv == null) return;
+    final s = playbackSettings;
+    try {
+      // Passthrough: hand Dolby and DTS to the receiver as they are, undecoded.
+      await mpv.setProperty('audio-spdif', s.passthrough ? 'ac3,eac3,dts,dts-hd,truehd' : '');
+      await mpv.setProperty('audio-channels', s.passthrough ? 'auto' : (s.downmix ? 'stereo' : 'auto-safe'));
+      // Night mode: a gentle compressor that lowers loud peaks and lifts quiet parts.
+      await mpv.setProperty(
+        'af',
+        !s.passthrough && s.nightMode
+            ? 'lavfi=[acompressor=threshold=0.1:ratio=4:attack=10:release=250:makeup=2.5]'
+            : '',
+      );
+    } catch (e) {
+      debugPrint('Audio settings: $e');
+    }
   }
 
   Future<void> _start() async {
     final client = jellyfin.client;
     if (client == null) return;
+    final id = _itemId;
     try {
-      final item = await client.items.byId(widget.itemId);
+      final item = await client.items.byId(id);
       if (item == null) throw StateError('Not found');
-      if (!mounted) return;
+      if (!mounted || id != _itemId) return;
       setState(() {
         _item = item;
         _chapters = _chaptersOf(item);
         _namedChapters = _namedChaptersOf(item);
-        _trickplay = _Trickplay.of(item);
+        _trickplay = playbackSettings.trickplay ? _Trickplay.of(item) : null;
       });
 
-      final resume = _resumePosition(item);
+      // The episode after this one, for Up Next. Loads alongside the video.
+      unawaited(
+        _fetchNextEpisode(item).then((next) {
+          if (mounted && id == _itemId) setState(() => _next = next);
+        }),
+      );
+
+      // Where to start, by the Resuming setting.
+      var start = _resumePosition(item);
+      if (start > Duration.zero) {
+        switch (playbackSettings.resume) {
+          case ResumeMode.resume:
+            break;
+          case ResumeMode.startOver:
+            start = Duration.zero;
+          case ResumeMode.ask:
+            final resume = await _askResume(item, start);
+            if (!mounted || id != _itemId) return;
+            if (resume == null) {
+              context.pop(); // backed out of the question: leave the player
+              return;
+            }
+            if (!resume) start = Duration.zero;
+        }
+      }
+
       // Already connected to a Chromecast: play it there, not here.
-      if (castController.isConnected) return _castItem(item, start: resume);
-      await _openLocal(client, item, resume);
+      if (castController.isConnected) {
+        await _castItem(item, start: start);
+      } else {
+        await _openLocal(client, item, start);
+      }
     } on JellyfinException catch (e) {
       if (mounted) setState(() => _error = describeJellyfinError(e));
     } on StateError {
@@ -200,22 +278,62 @@ class _PlayerScreenState extends State<PlayerScreen> {
     }
   }
 
-  /// Plays [item] on this device from [start].
+  /// "Resume from 12:34" or "Start from the beginning". Null if dismissed with Back.
+  Future<bool?> _askResume(JellyfinItem item, Duration at) => showFDialog<bool>(
+    context: context,
+    builder: (context, style, animation) => FDialog(
+      animation: animation,
+      builder: (context, _) => Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: .min,
+          crossAxisAlignment: .stretch,
+          spacing: 10,
+          children: [
+            Text('Pick up where you left off?', style: context.theme.typography.display.lg),
+            Text(
+              item.name,
+              style: context.theme.typography.body.sm.copyWith(color: context.theme.colors.mutedForeground),
+            ),
+            const SizedBox(height: 4),
+            FButton(
+              autofocus: true,
+              onPress: () => Navigator.of(context).pop(true),
+              child: Text('Resume from ${_formatTime(at)}'),
+            ),
+            FButton(
+              variant: .outline,
+              onPress: () => Navigator.of(context).pop(false),
+              child: const Text('Start from the beginning'),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+
+  /// Plays [item] on this device from [start]: the file as it is, or converted by the server
+  /// when it's over the quality limit (or Settings says to always convert).
   Future<void> _openLocal(JellyfinClient client, JellyfinItem item, Duration start) async {
     _localOpened = true;
     // Start loading the skip segments now, so they're ready by the time the video is.
     final segments = _loadSegments(client, item);
+    await _audioReady;
+
+    final transcode = await _planTranscode(item);
+    if (!mounted) return;
+    _transcode = transcode;
 
     // Open directly at the start position, so there's no seek afterwards.
     await _player.open(
       Media(
-        jellyfin.streamUrl(item.id),
+        transcode?.url ?? jellyfin.streamUrl(item.id),
         httpHeaders: jellyfin.authHeaders,
         start: start > Duration.zero ? start : null,
       ),
     );
 
-    unawaited(_applyDefaultTracks(item));
+    unawaited(transcode == null ? _applyDefaultTracks(item) : _applyTranscodeSubtitles(item, transcode));
 
     final loaded = await segments;
     if (mounted) setState(() => _segments = loaded);
@@ -223,10 +341,252 @@ class _PlayerScreenState extends State<PlayerScreen> {
     _startReporter(client, item);
   }
 
+  // ── Converting (transcoding) ──
+
+  /// How to convert [item], or null to play the file directly. A converted stream carries one
+  /// audio track and no subtitles, so the audio (and any picture subtitles, which are burned
+  /// into the picture) are chosen here, from the account's language settings.
+  Future<_Transcode?> _planTranscode(JellyfinItem item) async {
+    final s = playbackSettings;
+    if (s.streamMode == StreamMode.direct) return null;
+    final limit = await s.currentMaxBitrate();
+    final sourceBitrate = _sourceOf(item)?['Bitrate'];
+    final overLimit = limit != null && sourceBitrate is int && sourceBitrate > limit;
+    if (s.streamMode == StreamMode.auto && !overLimit) return null;
+
+    final audioStreams = _streamsOf(item, 'Audio', external: false);
+    final prefs = await _fetchTrackPrefs();
+    final a = prefs == null ? null : _pickAudio(audioStreams, prefs);
+    final audio = a != null
+        ? audioStreams[a]
+        : (audioStreams.where((x) => x['IsDefault'] == true).firstOrNull ?? audioStreams.firstOrNull);
+
+    int? burnIn;
+    if (prefs != null) {
+      final subtitle = _pickSubtitle(_allSubtitles(item), prefs, audio?['Language'] as String?);
+      if (subtitle != null && subtitle['IsTextSubtitleStream'] == false) burnIn = subtitle['Index'] as int?;
+    }
+    return _Transcode.build(item, audioIndex: audio?['Index'] as int?, burnIn: burnIn, maxBitrate: limit);
+  }
+
+  /// While converting: text subtitles come from the server as separate files.
+  Future<void> _applyTranscodeSubtitles(JellyfinItem item, _Transcode transcode) async {
+    if (transcode.burnIn != null) return; // picture subtitles are already in the picture
+    final prefs = await _fetchTrackPrefs();
+    if (prefs == null || !mounted) return;
+    final audio = _streamsOf(item, 'Audio', external: false)
+        .where((s) => s['Index'] == transcode.audioIndex)
+        .firstOrNull;
+    final pick = _pickSubtitle(_allSubtitles(item), prefs, audio?['Language'] as String?);
+    if (pick == null) return;
+    final url = _externalSubtitleUrl(item, pick);
+    if (url == null) return;
+    await _waitForTracks();
+    if (!mounted) return;
+    await _player.setSubtitleTrack(
+      SubtitleTrack.uri(url, title: pick['DisplayTitle'] as String?, language: pick['Language'] as String?),
+    );
+  }
+
+  /// Reopens the converted stream with another audio track or burned-in subtitles,
+  /// carrying on from the same spot. Text subtitles that were showing stay on.
+  Future<void> _reopenTranscode({required int? audioIndex, required int? burnIn}) async {
+    final item = _item;
+    final old = _transcode;
+    if (item == null || old == null) return;
+    final at = _player.state.position;
+    final subtitle = _player.state.track.subtitle;
+    final next = _Transcode.build(item, audioIndex: audioIndex, burnIn: burnIn, maxBitrate: old.maxBitrate);
+    setState(() => _transcode = next);
+    _reporter
+      ?..playSessionId = next.session
+      ..audioStreamIndex = next.audioIndex;
+
+    _switching = true; // the stop and reopen aren't the episode ending
+    try {
+      await _player.stop();
+      if (!mounted) return;
+      await _player.open(
+        Media(next.url, httpHeaders: jellyfin.authHeaders, start: at > Duration.zero ? at : null),
+      );
+    } finally {
+      _switching = false;
+      unawaited(_stopTranscode(old));
+    }
+    if (burnIn == null && subtitle.id.startsWith('http')) {
+      await _waitForTracks();
+      if (mounted) await _player.setSubtitleTrack(subtitle);
+    }
+  }
+
+  /// Tells the server to stop converting (it otherwise keeps going for a while).
+  Future<void> _stopTranscode(_Transcode transcode) async {
+    final base = jellyfin.client?.baseUrl;
+    if (base == null) return;
+    try {
+      await http
+          .delete(
+        Uri.parse('$base/Videos/ActiveEncodings').replace(
+          queryParameters: {'deviceId': _Transcode.deviceId, 'playSessionId': transcode.session},
+        ),
+        headers: jellyfin.authHeaders,
+      )
+          .timeout(const Duration(seconds: 5));
+    } catch (_) {
+      // The server ends abandoned conversions by itself after a while.
+    }
+  }
+
+  // ── Up next ──
+
+  /// When the episode ends: the next one (via the countdown card), or back to where you were.
+  void _onCompleted(bool completed) {
+    if (!completed || !mounted || _switching) return;
+    final autoplay = _next != null && playbackSettings.autoplayNext && !_upNextDismissed;
+    if (!autoplay) {
+      context.pop();
+      return;
+    }
+    if (!_upNextShown) _showUpNext(); // ended before the card appeared (e.g. no credits)
+  }
+
+  /// Shows the card during the credits (or near the end, without credits), and hides it again
+  /// if you seek back before that point.
+  void _checkUpNext(Duration position) {
+    if (_next == null || _upNextDismissed || _casting || !playbackSettings.autoplayNext) return;
+    final duration = _player.state.duration;
+    if (duration <= Duration.zero) return;
+    final credits = _segments.where((s) => s.kind == _SegmentKind.credits).firstOrNull;
+    final showAt = credits?.start ?? duration - Duration(seconds: playbackSettings.countdownSeconds + 2);
+
+    if (!_upNextShown && position >= showAt) {
+      _showUpNext();
+    } else if (_upNextShown && !_stillWatching && position < showAt - const Duration(seconds: 1)) {
+      _hideUpNext(); // went back into the episode
+    }
+  }
+
+  void _showUpNext() {
+    final limit = playbackSettings.stillWatchingAfter;
+    setState(() {
+      _upNextShown = true;
+      _stillWatching = limit > 0 && playbackSettings.autoplayStreak >= limit;
+      _countdown = playbackSettings.countdownSeconds;
+    });
+    _countdownTimer?.cancel();
+    if (!_stillWatching) {
+      _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+        if (!mounted) return timer.cancel();
+        // Paused: the countdown waits too. It keeps going once the video has ended.
+        if (!_player.state.playing && !_player.state.completed) return;
+        if (_countdown <= 1) {
+          timer.cancel();
+          _playNext(automatic: true);
+        } else {
+          setState(() => _countdown--);
+        }
+      });
+    }
+    // Select "Play now" (or "Continue watching"), so pressing Select goes straight on.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _upNextShown) _upNextNode.requestFocus();
+    });
+  }
+
+  /// Puts the card away. [dismissed]: Cancel was pressed, so this episode just ends.
+  void _hideUpNext({bool dismissed = false}) {
+    _countdownTimer?.cancel();
+    final hadFocus = _upNextNode.hasFocus;
+    setState(() {
+      _upNextShown = false;
+      _stillWatching = false;
+      if (dismissed) _upNextDismissed = true;
+    });
+    if (hadFocus) _focus.requestFocus();
+    if (dismissed && _player.state.completed) context.pop(); // already over: leave now
+  }
+
+  /// [automatic]: the countdown ran out, rather than a button being pressed.
+  Future<void> _playNext({required bool automatic}) async {
+    final next = _next;
+    if (next == null) return;
+    playbackSettings.autoplayStreak = automatic ? playbackSettings.autoplayStreak + 1 : 0;
+    await _switchTo(next.id);
+  }
+
+  /// True while changing to the next episode, so the old one stopping isn't taken as it ending.
+  bool _switching = false;
+
+  /// Plays another item in this same player (the next episode), without leaving the screen.
+  Future<void> _switchTo(String id) async {
+    _switching = true;
+    _countdownTimer?.cancel();
+    _ratingTimer?.cancel();
+    _noticeTimer?.cancel();
+    _scrubCommit?.cancel();
+    try {
+      await _finishItem();
+      await _player.stop();
+    } catch (e) {
+      debugPrint('Switching episodes: $e');
+    } finally {
+      _switching = false;
+    }
+    if (!mounted) return;
+    setState(() {
+      _itemId = id;
+      _item = null;
+      _error = null;
+      _chapters = const [];
+      _namedChapters = const [];
+      _segments = const [];
+      _activeSegment = null;
+      _autoSkipped.clear();
+      _notice = null;
+      _trickplay = null;
+      _ratingShown = false;
+      _ratingVisible = false;
+      _next = null;
+      _upNextShown = false;
+      _upNextDismissed = false;
+      _stillWatching = false;
+      _scrub = null;
+      _dragPreview = null;
+    });
+    _focus.requestFocus();
+    await _start();
+  }
+
+  /// Done with the current item: report where it stopped, refresh Home and detail pages,
+  /// and end any conversion on the server.
+  Future<void> _finishItem() async {
+    final reporter = _reporter;
+    final item = _item;
+    final transcode = _transcode;
+    _reporter = null;
+    _transcode = null;
+    if (transcode != null) unawaited(_stopTranscode(transcode));
+    if (reporter == null) return;
+
+    final ids = {_itemId, item?.raw['SeriesId'], item?.raw['SeasonId']}.whereType<String>();
+    await reporter.stop();
+    clearHomeCache();
+    appCache.invalidateWhere((key) => ids.any((id) => key.endsWith(':$id')));
+  }
+
   /// Tells Jellyfin what's playing here. Not while casting: the Chromecast reports instead.
   void _startReporter(JellyfinClient client, JellyfinItem item) {
     if (_reporter != null) return;
-    _reporter = PlaybackReporter(client: client, itemId: item.id, player: _player)..start();
+    final transcode = _transcode;
+    _reporter = PlaybackReporter(
+      client: client,
+      itemId: item.id,
+      player: _player,
+      mediaSourceId: _sourceOf(item)?['Id'] as String?,
+      transcoding: transcode != null,
+      playSessionId: transcode?.session,
+      audioStreamIndex: transcode?.audioIndex,
+    )..start();
   }
 
   // ── Casting ──
@@ -312,6 +672,17 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
   /// The Jellyfin stream indexes of the audio and subtitles playing here now.
   (int?, int?) _currentStreamIndexes(JellyfinItem item) {
+    // Converting: the audio is the one asked for; subtitles are burned in or loaded by address.
+    if (_transcode case final t?) {
+      final id = _player.state.track.subtitle.id;
+      var subtitle = t.burnIn;
+      if (subtitle == null && id.startsWith('http')) {
+        final match = _allSubtitles(item).where((s) => _externalSubtitleUrl(item, s) == id).firstOrNull;
+        subtitle = match?['Index'] as int?;
+      }
+      return (t.audioIndex, subtitle);
+    }
+
     final tracks = _player.state.tracks;
 
     final audioStreams = _streamsOf(item, 'Audio', external: false);
@@ -449,6 +820,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
   @override
   void dispose() {
     _hideTimer?.cancel();
+    _countdownTimer?.cancel();
+    _noticeTimer?.cancel();
     _scrubCommit?.cancel();
     _ratingTimer?.cancel();
     _singleTapTimer?.cancel();
@@ -458,24 +831,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
       s.cancel();
     }
 
-    final item = _item;
-    final reporter = _reporter;
-    if (reporter != null) {
-      // Report where playback stopped, then let Home and detail pages refresh their progress.
-      final ids = {
-        widget.itemId,
-        item?.raw['SeriesId'],
-        item?.raw['SeasonId'],
-      }.whereType<String>();
-      unawaited(
-        reporter.stop().then((_) {
-          clearHomeCache();
-          appCache.invalidateWhere(
-                (key) => ids.any((id) => key.endsWith(':$id')),
-          );
-        }),
-      );
-    }
+    // Report where playback stopped (the player is read straight away, before it's disposed).
+    unawaited(_finishItem());
 
     _player.dispose();
     _focus.dispose();
@@ -484,6 +841,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
     }
     _seekNode.dispose();
     _skipNode.dispose();
+    _upNextNode.dispose();
+    _upNextScope.dispose();
     AppOrientation.menus();
     super.dispose();
   }
@@ -510,6 +869,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
   /// TV and desktop: a tap or click shows or hides the controls.
   /// Phones: the same, plus double-tap on the left or right third to seek.
   void _onVideoTapUp(TapUpDetails details, {required bool compact}) {
+    playbackSettings.autoplayStreak = 0; // someone's there
     if (!compact) return _toggleControls();
 
     final width = MediaQuery.sizeOf(context).width;
@@ -538,10 +898,11 @@ class _PlayerScreenState extends State<PlayerScreen> {
     });
   }
 
-  /// Jumps 10 seconds back (side -1) or forward (side 1), adding up across a run of taps.
+  /// Jumps one step back (side -1) or forward (side 1), adding up across a run of taps.
   void _seekByTap(int side) {
     final run = _tapSeekVisible ? _tapSeek : null;
-    final seconds = run != null && run.side == side ? run.seconds + _tapSeekStep : _tapSeekStep;
+    final step = playbackSettings.seekStep;
+    final seconds = run != null && run.side == side ? run.seconds + step : step;
     // Count from where the run started: the player's position lags right after a seek.
     if (run == null || run.side != side) _tapSeekFrom = _player.state.position;
 
@@ -567,6 +928,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
   /// Slides the age rating in once, shortly after playback first starts, then away again.
   void _introduceRating() {
     final rating = _item?.raw['OfficialRating'] as String?;
+    if (!playbackSettings.showRating || _casting) return;
     if (_ratingShown || rating == null || rating.isEmpty) return;
     _ratingShown = true;
     _ratingTimer = Timer(const Duration(milliseconds: 800), () {
@@ -593,10 +955,10 @@ class _PlayerScreenState extends State<PlayerScreen> {
     _showControls();
   }
 
-  /// Jumps to the next chapter, or 10 seconds ahead when there are no chapters.
+  /// Jumps to the next chapter, or one step ahead when there are no chapters.
   void _nextChapter() {
     final position = _player.state.position;
-    if (_chapters.isEmpty) return _seekTo(position + _fallbackSkip);
+    if (_chapters.isEmpty) return _seekTo(position + _step);
     final next = _chapters
         .where((c) => c > position + const Duration(seconds: 1))
         .firstOrNull;
@@ -604,14 +966,31 @@ class _PlayerScreenState extends State<PlayerScreen> {
   }
 
   void _updateActiveSegment(Duration position) {
-    final active = _segments.where((s) => s.contains(position)).firstOrNull;
+    if (_switching) return;
+    _checkUpNext(position);
+
+    var active = _segments.where((s) => s.contains(position)).firstOrNull;
+    if (active != null) {
+      switch (_skipModeFor(active.kind)) {
+        case SkipMode.ignore:
+          active = null; // no button
+        case SkipMode.auto when !_autoSkipped.contains(active):
+        // Skip it once. Seeking back into it later shows the button instead.
+          _autoSkipped.add(active);
+          _player.seek(active.end);
+          _showNotice('Skipped ${active.noun}');
+          active = null;
+        case SkipMode.auto || SkipMode.ask:
+          break;
+      }
+    }
     if (identical(active, _activeSegment)) return;
 
     final appeared = _activeSegment == null && active != null;
     final hadFocus = _skipNode.hasFocus;
     setState(() => _activeSegment = active);
 
-    if (appeared) {
+    if (appeared && !_upNextShown) {
       // A skip button just appeared: select it, so Select presses it right away.
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted && _activeSegment != null) _skipNode.requestFocus();
@@ -619,6 +998,23 @@ class _PlayerScreenState extends State<PlayerScreen> {
     } else if (active == null && hadFocus) {
       _focus.requestFocus(); // the button has gone: back to the video
     }
+  }
+
+  /// What Settings says to do for a kind of segment. Commercials work like intros.
+  SkipMode _skipModeFor(_SegmentKind kind) => playbackSettings.skip[switch (kind) {
+    _SegmentKind.intro || _SegmentKind.commercial => SkipKind.intro,
+    _SegmentKind.recap => SkipKind.recap,
+    _SegmentKind.credits => SkipKind.credits,
+    _SegmentKind.preview => SkipKind.preview,
+  }] ?? SkipMode.ask;
+
+  /// A short message in the corner, such as "Skipped intro".
+  void _showNotice(String text) {
+    _noticeTimer?.cancel();
+    setState(() => _notice = text);
+    _noticeTimer = Timer(const Duration(seconds: 2), () {
+      if (mounted) setState(() => _notice = null);
+    });
   }
 
   void _skipSegment() {
@@ -630,10 +1026,10 @@ class _PlayerScreenState extends State<PlayerScreen> {
   }
 
   /// Jumps to the start of this chapter, or to the previous one when you're already near
-  /// the start (like a music player). 10 seconds back when there are no chapters.
+  /// the start (like a music player). One step back when there are no chapters.
   void _previousChapter() {
     final position = _player.state.position;
-    if (_chapters.isEmpty) return _seekTo(position - _fallbackSkip);
+    if (_chapters.isEmpty) return _seekTo(position - _step);
     final earlier = _chapters
         .where((c) => c < position - const Duration(seconds: 3))
         .toList();
@@ -649,24 +1045,76 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
   Future<void> _openAudio() async {
     _showControls(autoHide: false);
+    final t = _transcode;
     await _pickTrack(
       context,
       title: 'Audio',
-      choices: _audioChoices(_player, _item),
-      current: _currentAudioKey(_player),
+      choices: t == null ? _audioChoices(_player, _item) : _transcodeAudioChoices(t),
+      current: t == null ? _currentAudioKey(_player) : 'audio:${t.audioIndex}',
     );
     if (mounted) _showControls();
   }
 
   Future<void> _openSubtitles() async {
     _showControls(autoHide: false);
+    final t = _transcode;
     await _pickTrack(
       context,
       title: 'Subtitles',
-      choices: _subtitleChoices(_player, _item),
-      current: _currentSubtitleKey(_player),
+      choices: t == null ? _subtitleChoices(_player, _item) : _transcodeSubtitleChoices(t),
+      current: t?.burnIn != null ? 'burn:${t!.burnIn}' : _currentSubtitleKey(_player),
     );
     if (mounted) _showControls();
+  }
+
+  /// While converting, the stream has one audio track: another one means reopening it.
+  List<_TrackChoice> _transcodeAudioChoices(_Transcode t) => [
+    for (final s in _streamsOf(_item, 'Audio', external: false))
+      if (s['Index'] case final int index)
+        (
+        key: 'audio:$index',
+        label: (s['DisplayTitle'] as String?) ?? 'Track $index',
+        select: () => _reopenTranscode(audioIndex: index, burnIn: t.burnIn),
+        ),
+  ];
+
+  /// While converting: text subtitles load from the server as files; picture subtitles
+  /// are burned into the picture, which means reopening the stream.
+  List<_TrackChoice> _transcodeSubtitleChoices(_Transcode t) {
+    final item = _item;
+    String label(Map<String, dynamic> s, int index) => (s['DisplayTitle'] as String?) ?? 'Subtitles $index';
+    return [
+      (
+      key: 'off',
+      label: 'Off',
+      select: () async {
+        await _player.setSubtitleTrack(SubtitleTrack.no());
+        if (t.burnIn != null) await _reopenTranscode(audioIndex: t.audioIndex, burnIn: null);
+      },
+      ),
+      for (final s in _allSubtitles(item))
+        if (s['Index'] case final int index)
+          if (s['IsTextSubtitleStream'] == false)
+            (
+            key: 'burn:$index',
+            label: label(s, index),
+            select: () async {
+              await _player.setSubtitleTrack(SubtitleTrack.no());
+              await _reopenTranscode(audioIndex: t.audioIndex, burnIn: index);
+            },
+            )
+          else if (_externalSubtitleUrl(item, s) case final url?)
+            (
+            key: url,
+            label: label(s, index),
+            select: () async {
+              if (t.burnIn != null) await _reopenTranscode(audioIndex: t.audioIndex, burnIn: null);
+              await _player.setSubtitleTrack(
+                SubtitleTrack.uri(url, title: s['DisplayTitle'] as String?, language: s['Language'] as String?),
+              );
+            },
+            ),
+    ];
   }
 
   /// Back while the controls are up: put them away (dropping any unfinished scrub).
@@ -679,14 +1127,20 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
   // ── D-pad scrubbing ──
 
-  /// Moves the preview position; steps grow the longer the button is held.
+  /// Moves the preview position by the step from Settings. With "Speed up when held" on,
+  /// steps grow the longer the button is held (to at least 30 seconds, then a minute).
   void _scrubBy(int direction, {required bool repeat}) {
     _scrubRepeats = repeat ? _scrubRepeats + 1 : 0;
-    final step = _scrubRepeats > 20
-        ? const Duration(seconds: 60)
+    final base = _step;
+    final speedUp = playbackSettings.seekAccelerates;
+    Duration atLeast(Duration d) => base > d ? base : d;
+    final step = !speedUp
+        ? base
+        : _scrubRepeats > 20
+        ? atLeast(const Duration(seconds: 60))
         : _scrubRepeats > 8
-        ? const Duration(seconds: 30)
-        : const Duration(seconds: 10);
+        ? atLeast(const Duration(seconds: 30))
+        : base;
 
     final duration = _player.state.duration;
     var target = (_scrub ?? _player.state.position) + step * direction;
@@ -718,13 +1172,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
         (_seekNode.hasFocus || _allButtons.any((n) => n.hasFocus))) {
       _activeSegment != null ? _skipNode.requestFocus() : _focus.requestFocus();
     }
+    // (The subtitles slide up or down with it: see the subtitles in build.)
     if (visible != _controlsVisible) setState(() => _controlsVisible = visible);
-    _videoKey.currentState?.setSubtitleViewPadding(
-      _subtitlePadding(lifted: visible),
-      duration: const Duration(
-        milliseconds: 200,
-      ), // the same speed as the controls' fade
-    );
   }
 
   /// Moves focus through the controls with the app's row navigation. While just watching,
@@ -747,6 +1196,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
     if (event is! KeyDownEvent && event is! KeyRepeatEvent) return KeyEventResult.ignored;
     final key = event.logicalKey;
     final isRepeat = event is KeyRepeatEvent;
+    playbackSettings.autoplayStreak = 0; // someone's there: no "Are you still watching?" yet
 
     // ── Anywhere ──
     if (key == LogicalKeyboardKey.escape || key == LogicalKeyboardKey.goBack) {
@@ -777,6 +1227,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
     final onButton = _allButtons.any((n) => n.hasPrimaryFocus);
     final onSkip = _skipNode.hasPrimaryFocus;
+    final onUpNext = _upNextScope.hasFocus; // the Up Next card's buttons
 
     // ── ↑ / ↓: always row by row ──
     if (key == LogicalKeyboardKey.arrowUp ||
@@ -793,7 +1244,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
     if (key == LogicalKeyboardKey.arrowLeft ||
         key == LogicalKeyboardKey.arrowRight) {
       final left = key == LogicalKeyboardKey.arrowLeft;
-      if (onButton) {
+      if (onUpNext) {
+        moveFocus(left ? TraversalDirection.left : TraversalDirection.right); // between its buttons
+      } else if (onButton) {
         _moveFocus(left ? TraversalDirection.left : TraversalDirection.right);
       } else {
         _scrubBy(left ? -1 : 1, repeat: isRepeat);
@@ -805,7 +1258,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
     if (key == LogicalKeyboardKey.space ||
         key == LogicalKeyboardKey.select ||
         key == LogicalKeyboardKey.enter) {
-      if (onButton || onSkip) return KeyEventResult.ignored; // a focused button presses itself
+      if (onButton || onSkip || onUpNext) return KeyEventResult.ignored; // a focused button presses itself
       if (!isRepeat) {
         if (_scrub != null) {
           _commitScrub(); // confirms a scrub (from the seek bar or while watching)
@@ -829,7 +1282,10 @@ class _PlayerScreenState extends State<PlayerScreen> {
     return PopScope(
       canPop: !_controlsVisible,
       onPopInvokedWithResult: (didPop, _) {
-        if (!didPop) _hideControlsNow();
+        if (!didPop) return _hideControlsNow();
+        // Leaving: turn the phone back upright now, while the page slides away,
+        // rather than after, so the page underneath never shows sideways.
+        AppOrientation.menus();
       },
       child: Focus(
         focusNode: _focus,
@@ -855,16 +1311,32 @@ class _PlayerScreenState extends State<PlayerScreen> {
                     fit: _fit,
                     fill: _black,
                     subtitleViewConfiguration: SubtitleViewConfiguration(
-                      style: TextStyle(
-                        // The same share of the screen's height on a phone as on a TV.
-                        fontSize: compact ? 48 : 36,
-                        height: compact ? 1.2 : 1.3,
-                        color: _white,
-                        shadows: const [
-                          Shadow(blurRadius: 6, color: Color(0xCC000000)),
-                        ],
+                      visible: false, // drawn below instead, in the style from Settings
+                    ),
+                  ),
+                ),
+
+                // ── Subtitles: size, color, font and style from Settings. Sliding up above the
+                //    controls while they show. The base size is the same share of the screen's
+                //    height on a phone as on a TV. ──
+                IgnorePointer(
+                  child: AnimatedPadding(
+                    duration: const Duration(milliseconds: 200), // the same speed as the controls' fade
+                    curve: Curves.easeOut,
+                    padding: _subtitlePadding(lifted: _controlsVisible),
+                    child: Align(
+                      alignment: Alignment.bottomCenter,
+                      child: StreamBuilder<List<String>>(
+                        stream: _player.stream.subtitle,
+                        initialData: _player.state.subtitle,
+                        builder: (context, snapshot) {
+                          final text = (snapshot.data ?? const <String>[])
+                              .where((line) => line.trim().isNotEmpty)
+                              .join('\n');
+                          if (text.isEmpty || _casting) return const SizedBox.shrink();
+                          return SubtitleText(text, baseSize: compact ? 20 : 36, height: compact ? 1.2 : 1.3);
+                        },
                       ),
-                      padding: _subtitlePadding(lifted: _controlsVisible),
                     ),
                   ),
                 ),
@@ -888,7 +1360,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                   ),
                 ),
 
-                // ── Double-tap seek: "« 10 seconds" on the side that was tapped ──
+                // ── Double-tap seek: "« 10 seconds" (or the step from Settings) on the side that was tapped ──
                 IgnorePointer(child: _TapSeekIndicator(seek: _tapSeek, visible: _tapSeekVisible)),
 
                 // ── Everything drawn over the video, kept clear of the screen's edges.
@@ -954,11 +1426,36 @@ class _PlayerScreenState extends State<PlayerScreen> {
                           right: compact ? 16 : 32,
                           // Above the controls when they're showing; near the corner otherwise.
                           bottom: _controlsVisible ? (compact ? 146 : 170) : (compact ? 12 : 24),
-                          child: _SkipButton(
-                            segment: _activeSegment,
-                            onPress: _skipSegment,
-                            focusNode: _skipNode,
-                            selected: _skipFocused,
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            spacing: 12,
+                            children: [
+                              _Notice(text: _notice),
+                              // Up Next takes the skip button's place (it covers "Skip Credits").
+                              if (_upNextShown && _next != null)
+                                Focus(
+                                  focusNode: _upNextScope,
+                                  skipTraversal: true,
+                                  canRequestFocus: false,
+                                  child: _UpNextCard(
+                                    next: _next!,
+                                    countdown: _countdown,
+                                    stillWatching: _stillWatching,
+                                    compact: compact,
+                                    playNode: _upNextNode,
+                                    onPlay: () => _playNext(automatic: false),
+                                    onCancel: _stillWatching ? () => context.pop() : () => _hideUpNext(dismissed: true),
+                                  ),
+                                )
+                              else
+                                _SkipButton(
+                                  segment: _activeSegment,
+                                  onPress: _skipSegment,
+                                  focusNode: _skipNode,
+                                  selected: _skipFocused,
+                                ),
+                            ],
                           ),
                         ),
                       ],
@@ -1309,6 +1806,15 @@ class _Segment {
     _SegmentKind.credits => 'Skip Credits',
     _SegmentKind.preview => 'Skip Preview',
     _SegmentKind.commercial => 'Skip Ad',
+  };
+
+  /// For "Skipped intro" and the like.
+  String get noun => switch (kind) {
+    _SegmentKind.intro => 'intro',
+    _SegmentKind.recap => 'recap',
+    _SegmentKind.credits => 'credits',
+    _SegmentKind.preview => 'preview',
+    _SegmentKind.commercial => 'ad',
   };
 }
 
@@ -1668,7 +2174,7 @@ class _PlayerControls extends StatelessWidget {
               _ControlButton(
                 focusNode: previousNode,
                 icon: Icons.skip_previous_rounded,
-                label: hasChapters ? 'Previous chapter' : 'Back 10 seconds',
+                label: hasChapters ? 'Previous chapter' : 'Back ${playbackSettings.seekStep} seconds',
                 size: skipSize,
                 onPress: onPreviousChapter,
               ),
@@ -1686,7 +2192,7 @@ class _PlayerControls extends StatelessWidget {
               _ControlButton(
                 focusNode: nextNode,
                 icon: Icons.skip_next_rounded,
-                label: hasChapters ? 'Next chapter' : 'Forward 10 seconds',
+                label: hasChapters ? 'Next chapter' : 'Forward ${playbackSettings.seekStep} seconds',
                 size: skipSize,
                 onPress: onNextChapter,
               ),
@@ -1701,10 +2207,7 @@ class _PlayerControls extends StatelessWidget {
 
         // ── Phones: transport in the middle of the screen ──
         if (compact)
-          Align(
-            alignment: Alignment.center,
-            child: transport(skipSize: 48, playSize: 60, spacing: 48),
-          ),
+          transport(skipSize: 40, playSize: 60, spacing: 48),
 
         // ── Top: back and logo ──
         Positioned(
@@ -1719,7 +2222,7 @@ class _PlayerControls extends StatelessWidget {
                 focusNode: backNode,
                 icon: Icons.arrow_back_rounded,
                 label: 'Back',
-                size: compact ? 32 : 24,
+                size: compact ? 28 : 22,
                 onPress: onBack,
               ),
               if (item != null) Flexible(child: _PlayerTitle(item: item!)),
@@ -1758,14 +2261,14 @@ class _PlayerControls extends StatelessWidget {
                       focusNode: audioNode,
                       icon: Icons.graphic_eq_rounded,
                       label: 'Audio',
-                      size: compact ? 32 : 24,
+                      size: compact ? 28 : 22,
                       onPress: onAudio,
                     ),
                     _ControlButton(
                       focusNode: subtitlesNode,
                       icon: Icons.subtitles_rounded,
                       label: 'Subtitles',
-                      size: compact ? 32 : 24,
+                      size: compact ? 28 : 22,
                       onPress: onSubtitles,
                     ),
                     _ControlButton(
@@ -1774,7 +2277,7 @@ class _PlayerControls extends StatelessWidget {
                           ? Icons.zoom_in_map_rounded
                           : Icons.zoom_out_map_rounded,
                       label: filled ? 'Fit to screen' : 'Fill screen',
-                      size: compact ? 32 : 24,
+                      size: compact ? 28 : 22,
                       onPress: onToggleFit,
                     ),
                   ],
@@ -1797,7 +2300,7 @@ class _PlayerControls extends StatelessWidget {
               ),
               if (!compact) ...[
                 const SizedBox(height: 4),
-                transport(skipSize: 26, playSize: 32, spacing: 24),
+                transport(skipSize: 28, playSize: 32, spacing: 24),
               ],
             ],
           ),
@@ -2242,6 +2745,12 @@ List<Map<String, dynamic>> _streamsOf(
   );
 }
 
+/// All subtitle streams: the file's own, then external files.
+List<Map<String, dynamic>> _allSubtitles(JellyfinItem? item) => [
+  ..._streamsOf(item, 'Subtitle', external: false),
+  ..._streamsOf(item, 'Subtitle', external: true),
+];
+
 /// Jellyfin's description of the n-th track of a kind ("English - AAC - Stereo - Default"),
 /// or mpv's own title and language if Jellyfin has none.
 String _trackLabel(
@@ -2462,4 +2971,272 @@ Map<String, dynamic>? _pickSubtitle(
     default: // 'Default'
       return first((s) => flagged(s) || forced(s));
   }
+}
+// ─── Converting (transcoding) ────────────────────────────────────────────────
+
+/// The item's first media source, as Jellyfin describes it.
+Map? _sourceOf(JellyfinItem item) => (item.raw['MediaSources'] as List?)?.firstOrNull as Map?;
+
+String _randomId() {
+  final random = math.Random.secure();
+  return List.generate(16, (_) => random.nextInt(256).toRadixString(16).padLeft(2, '0')).join();
+}
+
+/// A stream the server converts while you watch: H.264 video under the quality limit, with one
+/// audio track, and picture subtitles burned in if they're on. Settings decide the audio:
+/// passthrough keeps surround formats as they are, downmix asks for stereo.
+class _Transcode {
+  const _Transcode._({
+    required this.url,
+    required this.session,
+    required this.audioIndex,
+    required this.burnIn,
+    required this.maxBitrate,
+  });
+
+  /// Sent with each conversion, so it can be stopped by name afterwards.
+  static const deviceId = 'chameleon-player';
+
+  final String url;
+  final String session; // Jellyfin's PlaySessionId for this conversion
+  final int? audioIndex; // the audio stream carried
+  final int? burnIn; // the picture subtitles burned in, if any
+  final int? maxBitrate; // bits per second, or null for no limit
+
+  factory _Transcode.build(JellyfinItem item, {int? audioIndex, int? burnIn, int? maxBitrate}) {
+    final client = jellyfin.client!;
+    final s = playbackSettings;
+    final session = _randomId();
+    final channels = s.passthrough ? 8 : (s.downmix ? 2 : 6);
+    final url = Uri.parse('${client.baseUrl}/Videos/${item.id}/master.m3u8').replace(
+      queryParameters: {
+        'MediaSourceId': (_sourceOf(item)?['Id'] as String?) ?? item.id,
+        'DeviceId': deviceId,
+        'PlaySessionId': session,
+        'api_key': client.token ?? '',
+        'VideoCodec': 'h264',
+        'AudioCodec': s.passthrough ? 'aac,ac3,eac3,dts,truehd,mp3' : 'aac,ac3,eac3,mp3',
+        // Copy what already fits instead of converting it again.
+        'AllowVideoStreamCopy': 'true',
+        'AllowAudioStreamCopy': 'true',
+        'TranscodingMaxAudioChannels': '$channels',
+        'MaxStreamingBitrate': '${maxBitrate ?? 120000000}',
+        if (maxBitrate != null) 'VideoBitrate': '${math.max(maxBitrate - 384000, 500000)}',
+        'SegmentContainer': 'ts',
+        'BreakOnNonKeyFrames': 'true',
+        if (audioIndex != null) 'AudioStreamIndex': '$audioIndex',
+        if (burnIn != null) ...{'SubtitleStreamIndex': '$burnIn', 'SubtitleMethod': 'Encode'},
+      },
+    ).toString();
+
+    return _Transcode._(
+      url: url,
+      session: session,
+      audioIndex: audioIndex,
+      burnIn: burnIn,
+      maxBitrate: maxBitrate,
+    );
+  }
+}
+
+// ─── Up next ─────────────────────────────────────────────────────────────────
+
+/// The episode after the one playing.
+class _NextEpisode {
+  const _NextEpisode({required this.id, required this.name, this.season, this.episode, this.imageUrl});
+
+  final String id;
+  final String name;
+  final int? season;
+  final int? episode;
+  final String? imageUrl;
+
+  /// "S1:E3 · The Name", or just the name.
+  String get title => season != null && episode != null ? 'S$season:E$episode · $name' : name;
+}
+
+/// The episode after [item] in its series, or null for movies and the last episode.
+Future<_NextEpisode?> _fetchNextEpisode(JellyfinItem item) async {
+  if (item.type != JellyfinItemKind.episode) return null;
+  final client = jellyfin.client;
+  final base = client?.baseUrl;
+  final seriesId = item.raw['SeriesId'] as String?;
+  if (client == null || base == null || seriesId == null) return null;
+
+  try {
+    final uri = Uri.parse('$base/Shows/$seriesId/Episodes').replace(
+      queryParameters: {
+        'userId': ?client.userId,
+        'startItemId': item.id, // this episode first, then the ones after it
+        'limit': '2',
+      },
+    );
+    final res = await http.get(uri, headers: jellyfin.authHeaders).timeout(const Duration(seconds: 10));
+    if (res.statusCode != 200) return null;
+    final items = ((jsonDecode(res.body) as Map)['Items'] as List?) ?? const [];
+    if (items.length < 2) return null; // the last episode
+    final next = items[1] as Map;
+    final id = next['Id'] as String?;
+    if (id == null) return null;
+
+    final tag = (next['ImageTags'] as Map?)?['Primary'] as String?;
+    return _NextEpisode(
+      id: id,
+      name: (next['Name'] as String?) ?? 'Next episode',
+      season: next['ParentIndexNumber'] as int?,
+      episode: next['IndexNumber'] as int?,
+      imageUrl: tag == null ? null : '$base/Items/$id/Images/Primary?fillWidth=400&quality=90&tag=$tag',
+    );
+  } catch (e) {
+    debugPrint('Up next: $e');
+    return null;
+  }
+}
+
+/// "Up next" with the episode's picture, a countdown and Play now / Cancel. After several
+/// episodes in a row with no button pressed, it asks "Are you still watching?" instead.
+class _UpNextCard extends StatelessWidget {
+  const _UpNextCard({
+    required this.next,
+    required this.countdown,
+    required this.stillWatching,
+    required this.compact,
+    required this.playNode,
+    required this.onPlay,
+    required this.onCancel,
+  });
+
+  final _NextEpisode next;
+  final int countdown;
+  final bool stillWatching;
+  final bool compact;
+  final FocusNode playNode;
+  final VoidCallback onPlay;
+  final VoidCallback onCancel;
+
+  @override
+  Widget build(BuildContext context) {
+    final typography = context.theme.typography;
+    final imageWidth = compact ? 104.0 : 140.0;
+
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOutCubic,
+      builder: (context, t, child) => Opacity(
+        opacity: t,
+        child: Transform.translate(offset: Offset(24 * (1 - t), 0), child: child),
+      ),
+      child: Container(
+        width: compact ? 320 : 420,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: const Color(0xE6141414),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0x33FFFFFF)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          spacing: 12,
+          children: [
+            Row(
+              spacing: 12,
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(6),
+                  child: SizedBox(
+                    width: imageWidth,
+                    height: imageWidth * 9 / 16,
+                    child: next.imageUrl == null
+                        ? const ColoredBox(color: Color(0xFF222222))
+                        : Image.network(
+                      next.imageUrl!,
+                      headers: jellyfin.authHeaders,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, _, _) => const ColoredBox(color: Color(0xFF222222)),
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    spacing: 4,
+                    children: [
+                      Text(
+                        stillWatching ? 'Are you still watching?' : 'UP NEXT · $countdown',
+                        style: stillWatching
+                            ? typography.body.md.copyWith(color: _white, fontWeight: FontWeight.w600)
+                            : typography.body.xs.copyWith(color: _dimWhite, letterSpacing: 1.5),
+                      ),
+                      Text(
+                        next.title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: typography.body.sm.copyWith(color: _white, fontWeight: FontWeight.w600),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            FocusRow(
+              child: Row(
+                spacing: 8,
+                children: [
+                  Expanded(
+                    child: FButton(
+                      focusNode: playNode,
+                      size: .sm,
+                      onPress: onPlay,
+                      child: Text(stillWatching ? 'Continue watching' : 'Play now'),
+                    ),
+                  ),
+                  Expanded(
+                    child: FButton(
+                      variant: .outline,
+                      size: .sm,
+                      onPress: onCancel,
+                      child: Text(stillWatching ? 'Stop' : 'Cancel'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// A small message such as "Skipped intro", fading in and out.
+class _Notice extends StatelessWidget {
+  const _Notice({required this.text});
+
+  final String? text;
+
+  @override
+  Widget build(BuildContext context) => IgnorePointer(
+    child: AnimatedSwitcher(
+      duration: const Duration(milliseconds: 250),
+      child: text == null
+          ? const SizedBox.shrink(key: ValueKey('none'))
+          : DecoratedBox(
+        key: ValueKey(text),
+        decoration: BoxDecoration(
+          color: const Color(0xB3000000),
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: Text(
+            text!,
+            style: context.theme.typography.body.sm.copyWith(color: _white, fontWeight: FontWeight.w500),
+          ),
+        ),
+      ),
+    ),
+  );
 }

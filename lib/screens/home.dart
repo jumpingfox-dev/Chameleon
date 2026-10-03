@@ -5,6 +5,8 @@ import 'package:material_ui/material_ui.dart';
 import '../theme/app_icons.dart';
 import '../utils/jellyfin_controller.dart';
 import '../utils/home_layout.dart';
+import '../utils/page_insets.dart';
+import '../utils/orientation.dart';
 import '../widgets/nav_button.dart';
 import '../widgets/home_modules.dart';
 
@@ -33,10 +35,8 @@ class _HomeScreenState extends State<HomeScreen> {
   /// Leaving Home (to a library, another tab, the player, ...) ends edit mode.
   void _onNavigate() {
     final path = _router!.routerDelegate.currentConfiguration.uri.path;
-    if (_editing && path != '/home' && mounted)
-      setState(() => _editing = false);
-    if (path == '/home')
-      homeVisible.value++; // lets sections older than 10 minutes refresh
+    if (_editing && path != '/home' && mounted) setState(() => _editing = false);
+    if (path == '/home') homeVisible.value++; // lets sections older than 10 minutes refresh
   }
 
   @override
@@ -47,21 +47,19 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) => FScaffold(
+    // No side padding here: each part adds its own (pageSides), so rows can scroll to the edge.
+    childPad: false,
     child: Stack(
       children: [
         ListenableBuilder(
           listenable: Listenable.merge([jellyfin, homeLayout]),
           builder: (context, _) {
-            final isPhone = MediaQuery.sizeOf(context).width < 600;
+            final isPhone = isPhoneLayout(context);
 
             return ListView(
               // Extra space at the bottom so the last module isn't hidden behind the Edit button.
-              padding: const EdgeInsets.fromLTRB(
-                4,
-                12,
-                4,
-                48,
-              ), // room for focus outlines at every edge
+              // No side padding: rows scroll edge to edge, everything else adds pageSides.
+              padding: const EdgeInsets.fromLTRB(0, 12, 0, 48),
               children: [
                 // Library links: phones only, since wider screens have them in the top bar.
                 if (isPhone &&
@@ -69,6 +67,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         jellyfin.genres.isNotEmpty)) ...[
                   SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
+                    padding: pageSides(context),
                     child: Row(
                       spacing: 4,
                       children: [
@@ -96,7 +95,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   const SizedBox(height: 16),
                 ],
 
-                if (_editing) const _EditModeBanner(),
+                if (_editing)
+                  Padding(padding: pageSides(context), child: const _EditModeBanner()),
 
                 for (final (i, module) in homeLayout.value.indexed)
                   HomeModuleView(
@@ -111,7 +111,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
                 if (homeLayout.value.isEmpty && !_editing)
                   Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 48),
+                    padding: pageSides(context).copyWith(top: 48, bottom: 48),
                     child: Center(
                       child: Text(
                         'Your home screen is empty. Select the pencil to add sections.',
@@ -122,7 +122,8 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ),
 
-                if (_editing) const AddHomeModules(),
+                if (_editing)
+                  Padding(padding: pageSides(context), child: const AddHomeModules()),
               ],
             );
           },
@@ -130,7 +131,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
         // ── Edit / Done ──
         Positioned(
-          right: 16,
+          right: pageSides(context).right,
           bottom: 16,
           child: AnimatedSwitcher(
             duration: const Duration(milliseconds: 200),
@@ -153,27 +154,27 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             child: _editing
                 ? FButton(
-                    key: const ValueKey('done'),
-                    mainAxisSize: .min,
-                    onPress: _toggleEditing,
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      spacing: 8,
-                      children: [
-                        Icon(appIcons.done, size: 18, fill: 1),
-                        Text('Done'),
-                      ],
-                    ),
-                  )
+              key: const ValueKey('done'),
+              mainAxisSize: .min,
+              onPress: _toggleEditing,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                spacing: 8,
+                children: [
+                  Icon(appIcons.done, size: 18, fill: 1),
+                  Text('Done'),
+                ],
+              ),
+            )
                 : Semantics(
-                    key: const ValueKey('edit'),
-                    label: 'Edit home screen',
-                    button: true,
-                    child: FButton.icon(
-                      onPress: _toggleEditing,
-                      child: Icon(appIcons.edit, fill: 1),
-                    ),
-                  ),
+              key: const ValueKey('edit'),
+              label: 'Edit home screen',
+              button: true,
+              child: FButton.icon(
+                onPress: _toggleEditing,
+                child: Icon(appIcons.edit, fill: 1),
+              ),
+            ),
           ),
         ),
       ],

@@ -209,31 +209,52 @@ class TextFieldArrowEscape extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Actions(
-    actions: {ExtendSelectionVerticallyToAdjacentLineIntent: _LeaveSingleLineField()},
+    actions: {ExtendSelectionVerticallyToAdjacentLineIntent: _LeaveTextField()},
     child: child,
   );
 }
 
-class _LeaveSingleLineField extends ContextAction<ExtendSelectionVerticallyToAdjacentLineIntent> {
+class _LeaveTextField extends ContextAction<ExtendSelectionVerticallyToAdjacentLineIntent> {
   /// The focused text field, if one is focused.
   static EditableTextState? get _field =>
       FocusManager.instance.primaryFocus?.context?.findAncestorStateOfType<EditableTextState>();
 
-  static bool get _singleLine => _field?.widget.maxLines == 1;
+  /// Whether ↑/↓ should leave [field] rather than move its cursor: always in a one-line field,
+  /// and in a multi-line one from the first line going up or the last line going down.
+  static bool _leaves(EditableTextState field, {required bool down}) {
+    if (field.widget.maxLines == 1) return true;
 
-  // Only while a text field is focused. Otherwise this stays out of the way, so ↑/↓ go to
-  // the normal D-pad navigation as before.
+    final editable = field.renderEditable;
+    final text = field.textEditingValue.text;
+    final selection = field.textEditingValue.selection;
+    if (!selection.isValid) return false;
+
+    // Compare the cursor's line with the first or last line of the text. Measured on screen,
+    // so wrapped lines count as lines too.
+    final caret = editable.getLocalRectForCaret(TextPosition(offset: selection.extentOffset));
+    final edge = editable.getLocalRectForCaret(TextPosition(offset: down ? text.length : 0));
+    return (caret.top - edge.top).abs() < editable.preferredLineHeight / 2;
+  }
+
+  // Switched off unless the cursor should leave the field. Then the key does what it normally
+  // would: D-pad navigation outside text fields, or moving between lines inside the editor.
   @override
-  bool isEnabled(ExtendSelectionVerticallyToAdjacentLineIntent intent, [BuildContext? context]) =>
-      _field != null;
+  bool isEnabled(ExtendSelectionVerticallyToAdjacentLineIntent intent, [BuildContext? context]) {
+    final field = _field;
+    return field != null && _leaves(field, down: intent.forward);
+  }
 
   @override
   Object? invoke(ExtendSelectionVerticallyToAdjacentLineIntent intent, [BuildContext? context]) {
-    if (_singleLine) {
-      // Leave the field for whatever is below (or above), using the app's own row rules.
-      moveFocus(intent.forward ? TraversalDirection.down : TraversalDirection.up);
-      return null;
-    }
-    return callingAction?.invoke(intent); // multi-line: move the cursor as usual
+    // Leave the field for whatever is below (or above), using the app's own row rules.
+    moveFocus(intent.forward ? TraversalDirection.down : TraversalDirection.up);
+    return null;
   }
+}
+
+/// True while the focused text field should keep ↑/↓ for itself: a multi-line field whose
+/// cursor isn't on the first line (going up) or the last line (going down).
+bool focusedTextFieldKeepsArrow({required bool down}) {
+  final field = _LeaveTextField._field;
+  return field != null && !_LeaveTextField._leaves(field, down: down);
 }

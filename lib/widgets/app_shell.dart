@@ -147,8 +147,12 @@ class _AppShellState extends State<AppShell> {
     if (!_isArrow(event, LogicalKeyboardKey.arrowUp)) {
       return KeyEventResult.ignored;
     }
+    // In a multi-line text field, ↑ moves between lines until the cursor reaches the top.
+    if (focusedTextFieldKeepsArrow(down: false)) return KeyEventResult.ignored;
+
     final focused = FocusManager.instance.primaryFocus;
     final focusedContext = focused?.context;
+
     if (focused == null || focusedContext == null) {
       return KeyEventResult.ignored;
     }

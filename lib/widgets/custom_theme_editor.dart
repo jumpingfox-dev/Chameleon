@@ -161,20 +161,17 @@ class _SeedEditorState extends State<_SeedEditor> {
           style: context.theme.typography.body.sm,
         ),
         const SizedBox(height: 8),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          spacing: 8,
           children: [
-            Expanded(
-              child: FTextField(
-                control: .managed(controller: _code),
-                hint: 'Enter a code, e.g. 28533082',
-                keyboardType: TextInputType.number,
-                error: _codeError == null ? null : Text(_codeError!),
-              ),
+            FTextField(
+              control: .managed(controller: _code),
+              hint: 'Enter a code, e.g. 28533082',
+              keyboardType: TextInputType.number,
+              error: _codeError == null ? null : Text(_codeError!),
             ),
-            const SizedBox(width: 8),
             FButton(
-              mainAxisSize: .min,
               onPress: _loadCode,
               child: const Text('Load'),
             ),

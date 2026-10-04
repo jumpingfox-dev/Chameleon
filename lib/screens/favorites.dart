@@ -19,6 +19,7 @@ class FavoritesScreen extends StatefulWidget {
 class _FavoritesScreenState extends State<FavoritesScreen> {
   List<JellyfinItem> _movies = const [];
   List<JellyfinItem> _series = const [];
+  List<JellyfinItem> _collections = const [];
   bool _loading = true;
   String? _error;
 
@@ -31,12 +32,13 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
       _load,
     ); // refresh when a favorite changes anywhere
 
-    final cached = appCache.peek<(List<JellyfinItem>, List<JellyfinItem>)>(
+    final cached = appCache.peek<(List<JellyfinItem>, List<JellyfinItem>, List<JellyfinItem>)>(
       _cacheKey,
     );
     if (cached != null) {
       _movies = cached.$1; // a record's positional fields are $1, $2, ...
       _series = cached.$2;
+      _collections = cached.$3;
       _loading = false;
     }
     if (!appCache.isFresh(_cacheKey)) _load();
@@ -57,6 +59,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
         includeItemTypes: const [
           JellyfinItemKind.movie,
           JellyfinItemKind.series,
+          'BoxSet',
         ],
         recursive: true,
         sortBy: const ['SortName'],
@@ -69,15 +72,19 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
       final series = page.items
           .where((i) => i.type == JellyfinItemKind.series)
           .toList();
-      appCache.put(_cacheKey, (movies, series));
+      final collections = page.items
+          .where((i) => i.type == 'BoxSet')
+          .toList();
+      appCache.put(_cacheKey, (movies, series, collections));
       if (!mounted) return;
       setState(() {
         _movies = movies;
         _series = series;
+        _collections = collections;
         _error = null;
       });
     } on JellyfinException catch (e) {
-      if (mounted && _movies.isEmpty && _series.isEmpty) {
+      if (mounted && _movies.isEmpty && _series.isEmpty && _collections.isEmpty) {
         setState(() => _error = describeJellyfinError(e));
       }
     } finally {
@@ -113,7 +120,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
         ),
       );
     }
-    if (_movies.isEmpty && _series.isEmpty) {
+    if (_movies.isEmpty && _series.isEmpty && _collections.isEmpty) {
       return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -145,6 +152,10 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
         if (_series.isNotEmpty) ...[
           const SliverSectionTitle('Shows'),
           SliverItemGrid(items: _series),
+        ],
+        if (_collections.isNotEmpty) ...[
+          const SliverSectionTitle('Collections'),
+          SliverItemGrid(items: _collections),
         ],
         const SliverToBoxAdapter(child: SizedBox(height: 16)),
       ],

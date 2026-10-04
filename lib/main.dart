@@ -20,6 +20,7 @@ import 'utils/orientation.dart';
 import 'utils/focus_rows.dart';
 import 'utils/home_layout.dart';
 import 'utils/playback_settings.dart';
+import 'utils/sync_play_controller.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -43,6 +44,8 @@ Future<void> main() async {
 
   // Clean up in the background so it doesn't delay startup.
   unawaited(pruneFontCache([fontController.display, fontController.body, playbackSettings.subtitleFont]));
+
+  syncPlay.openPlayer = (itemId) => _router.push('/play/$itemId?syncplay=1');
 
   runApp(const Application());
   WidgetsBinding.instance.addPostFrameCallback((_) => AppOrientation.init());
@@ -76,8 +79,11 @@ final GoRouter _router = GoRouter(
     GoRoute(path: '/profiles', builder: (context, state) => const ProfilePickerScreen()),
     GoRoute(
       path: '/play/:id',
-      builder: (context, state) =>
-          PlayerScreen(itemId: state.pathParameters['id']!),
+      builder: (context, state) => PlayerScreen(
+        itemId: state.pathParameters['id']!,
+        queue: state.uri.queryParameters['queue']?.split(',') ?? const [],
+        fromGroup: state.uri.queryParameters['syncplay'] == '1',
+      ),
     ),
     StatefulShellRoute.indexedStack(
       builder: (context, state, navigationShell) =>
@@ -119,11 +125,13 @@ class Application extends StatelessWidget {
         ],
         localizationsDelegates: GlobalMaterialLocalizations.delegates,
         theme: theme.toApproximateMaterialTheme(),
-        builder: (context, child) => RowFocusNavigation(
-          child: UiScaler(
-            child: FTheme(
-              data: theme,
-              child: FToaster(child: FTooltipGroup(child: child!)),
+        builder: (context, child) => TextFieldArrowEscape(
+          child: RowFocusNavigation(
+            child: UiScaler(
+              child: FTheme(
+                data: theme,
+                child: FToaster(child: FTooltipGroup(child: child!)),
+              ),
             ),
           ),
         ),

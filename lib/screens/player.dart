@@ -23,6 +23,7 @@ import '../utils/jellyfin_controller.dart';
 import '../utils/orientation.dart';
 import '../utils/playback_reporter.dart';
 import '../utils/playback_settings.dart';
+import '../utils/sync_play_controller.dart';
 import '../widgets/cast_widgets.dart';
 import '../widgets/choice_picker.dart';
 import '../widgets/home_modules.dart';
@@ -33,9 +34,16 @@ const _dimWhite = Color(0xCCFFFFFF);
 
 /// Full-screen playback of a movie or episode.
 class PlayerScreen extends StatefulWidget {
-  const PlayerScreen({super.key, required this.itemId});
+  const PlayerScreen({super.key, required this.itemId, this.queue = const [], this.fromGroup = false});
 
   final String itemId;
+
+  /// Opened by a Watch Together group (someone else started it), rather than from this device.
+  final bool fromGroup;
+
+  /// Item ids to play through, in order (a collection, or a shuffle of one). When set,
+  /// Up Next plays the next id here instead of the next episode.
+  final List<String> queue;
 
   @override
   State<PlayerScreen> createState() => _PlayerScreenState();
@@ -167,6 +175,23 @@ class _PlayerScreenState extends State<PlayerScreen> {
   Duration _tapSeekFrom = Duration.zero; // where the current run of taps started
   Timer? _tapSeekEnd;
 
+  // ── Watch Together (SyncPlay) ──
+
+  /// In a group: play, pause and seek go through the group, so everyone does them together.
+  /// (Not while casting: the Chromecast plays on its own.)
+  bool get _inGroup => syncPlay.inGroup && !_casting;
+
+  /// The group already knows about what's playing (it started it, or this device told it).
+  late bool _groupDriven = widget.fromGroup;
+
+  StreamSubscription<SyncPlayCommand>? _groupCommands;
+  Timer? _groupTimer; // a pause or unpause scheduled for the group's moment
+  bool? _reportedBuffering; // what the group was last told: loading (true) or ready (false)
+
+  /// True briefly while seeking because the group said to. The short buffer a seek causes
+  /// isn't reported, or the group would pause everyone, resume, seek again … forever.
+  bool _groupSeeking = false;
+
   /// Casting: the video plays on a Chromecast and this screen becomes its remote.
   bool _casting = false;
   bool _castLoaded = false; // the Chromecast has been sent the video
@@ -201,6 +226,11 @@ class _PlayerScreenState extends State<PlayerScreen> {
       if (focused != _skipFocused && mounted) setState(() => _skipFocused = focused);
     });
     castController.addListener(_onCastChanged);
+    // Watch Together: the group can switch what's playing, and tells everyone when to
+    // pause, play and seek. Loading pauses the group until this device catches up.
+    syncPlay.attach(_onGroupSwitch);
+    _groupCommands = syncPlay.commands.listen(_onGroupCommand);
+    _subscriptions.add(_player.stream.buffering.listen(_reportBuffering));
     _audioReady = _applyAudioSettings();
     _start();
   }
@@ -250,14 +280,25 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
       // The episode after this one, for Up Next. Loads alongside the video.
       unawaited(
-        _fetchNextEpisode(item).then((next) {
+        _fetchNext(item).then((next) {
           if (mounted && id == _itemId) setState(() => _next = next);
         }),
       );
 
-      // Where to start, by the Resuming setting.
+      // Where to start: where the group is, or by the Resuming setting.
       var start = _resumePosition(item);
-      if (start > Duration.zero) {
+      // (Not when a Chromecast is connected: casting plays outside the group.)
+      if (_inGroup && !castController.isConnected) {
+        if (_groupDriven) {
+          start = syncPlay.startPosition;
+        } else {
+          // Started here: make it what the whole group watches (the rest of a collection too).
+          final from = widget.queue.indexOf(id);
+          final ids = from == -1 ? [id] : widget.queue.sublist(from);
+          _groupDriven = true;
+          unawaited(syncPlay.play(ids, start: start));
+        }
+      } else if (start > Duration.zero) {
         switch (playbackSettings.resume) {
           case ResumeMode.resume:
             break;
@@ -286,6 +327,10 @@ class _PlayerScreenState extends State<PlayerScreen> {
       if (mounted) setState(() => _error = "This item couldn't be found.");
     }
   }
+
+  /// In a group, the group's own queue decides what's next, so there's no Up Next card.
+  Future<_NextEpisode?> _fetchNext(JellyfinItem item) =>
+      _inGroup ? Future.value(null) : _fetchNextIn(item, widget.queue);
 
   /// "Resume from 12:34" or "Start from the beginning". Null if dismissed with Back.
   Future<bool?> _askResume(JellyfinItem item, Duration at) => showFDialog<bool>(
@@ -334,13 +379,20 @@ class _PlayerScreenState extends State<PlayerScreen> {
     _transcode = transcode;
 
     // Open directly at the start position, so there's no seek afterwards.
+    // In a group, it waits paused until everyone has loaded; the group then starts it.
+    final inGroup = _inGroup;
     await _player.open(
       Media(
         transcode?.url ?? jellyfin.streamUrl(item.id),
         httpHeaders: jellyfin.authHeaders,
         start: start > Duration.zero ? start : null,
       ),
+      play: !inGroup,
     );
+    if (inGroup) {
+      _reportBuffering(true, force: true);
+      unawaited(_waitForTracks().then((_) => _reportBuffering(false, force: true)));
+    }
 
     unawaited(transcode == null ? _applyDefaultTracks(item) : _applyTranscodeSubtitles(item, transcode));
 
@@ -446,11 +498,105 @@ class _PlayerScreenState extends State<PlayerScreen> {
     }
   }
 
+  // ── Watch Together ──
+
+  /// Tells the group this device is loading (it waits) or ready (it can go).
+  void _reportBuffering(bool buffering, {bool force = false}) {
+    if (!_inGroup || !_localOpened || _switching) return;
+    if (!force && (_groupSeeking || _reportedBuffering == buffering)) return;
+    _reportedBuffering = buffering;
+    final position = _player.state.position;
+    final playing = _player.state.playing;
+    if (buffering) {
+      syncPlay.buffering(position, playing: playing);
+    } else {
+      syncPlay.ready(position, playing: playing);
+    }
+  }
+
+  /// The group moved to another item (or confirmed this one): switch to it here.
+  void _onGroupSwitch(String itemId, Duration start) {
+    if (!mounted) return;
+    if (itemId == _itemId) {
+      // Already playing it (this device started it): now the group knows, say where we are.
+      // Not loaded yet counts as loading.
+      _reportBuffering(_player.state.duration == Duration.zero || _player.state.buffering, force: true);
+      return;
+    }
+    _groupDriven = true;
+    _switchTo(itemId);
+  }
+
+  /// Seeks for the group, only if this device is noticeably off (a needless seek would
+  /// rebuffer). The buffering it causes isn't reported back (see [_groupSeeking]).
+  Future<void> _groupSeek(Duration target) async {
+    if ((_player.state.position - target).abs() < const Duration(milliseconds: 500)) return;
+    _groupSeeking = true;
+    try {
+      await _player.seek(target);
+    } finally {
+      Timer(const Duration(milliseconds: 800), () => _groupSeeking = false);
+    }
+  }
+
+  /// Carries out the group's pause, play, seek or stop, at the moment it names, so
+  /// everyone does it at the same time.
+  void _onGroupCommand(SyncPlayCommand command) {
+    if (!_inGroup || !_localOpened || !mounted) return;
+    final current = syncPlay.current;
+    if (command.playlistItemId != null &&
+        current != null &&
+        command.playlistItemId != current.playlistItemId) {
+      return; // meant for a different item
+    }
+    _groupTimer?.cancel();
+    final delay = command.when.difference(DateTime.now());
+
+    switch (command.command) {
+      case 'Unpause':
+        if (delay > Duration.zero) {
+          _groupSeek(command.position);
+          _groupTimer = Timer(delay, _player.play);
+        } else {
+          // Everyone else started a moment ago: jump ahead by that much to catch up.
+          _groupSeek(command.position - delay);
+          _player.play();
+        }
+      case 'Pause':
+        void pause() {
+          _player.pause();
+          _groupSeek(command.position);
+        }
+        if (delay > Duration.zero) {
+          _groupTimer = Timer(delay, pause);
+        } else {
+          pause();
+        }
+      case 'Seek':
+      // Pause, jump, then tell the group we're ready; it starts everyone again together.
+        _player.pause();
+        _groupSeek(command.position).then((_) => _reportBuffering(false, force: true));
+      case 'Stop':
+        context.pop();
+        return;
+    }
+    _showControls();
+  }
+
   // ── Up next ──
 
   /// When the episode ends: the next one (via the countdown card), or back to where you were.
   void _onCompleted(bool completed) {
     if (!completed || !mounted || _switching) return;
+    if (_inGroup) {
+      // The group moves on together (asking twice is harmless: the server ignores repeats).
+      if (syncPlay.hasNext) {
+        syncPlay.requestNext();
+      } else {
+        context.pop();
+      }
+      return;
+    }
     final autoplay = _next != null && playbackSettings.autoplayNext && !_upNextDismissed;
     if (!autoplay) {
       context.pop();
@@ -462,7 +608,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
   /// Shows the card during the credits (or near the end, without credits), and hides it again
   /// if you seek back before that point.
   void _checkUpNext(Duration position) {
-    if (_next == null || _upNextDismissed || _casting || !playbackSettings.autoplayNext) return;
+    if (_next == null || _upNextDismissed || _casting || _inGroup || !playbackSettings.autoplayNext) return;
     final duration = _player.state.duration;
     if (duration <= Duration.zero) return;
     final credits = _segments.where((s) => s.kind == _SegmentKind.credits).firstOrNull;
@@ -529,6 +675,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
   /// Plays another item in this same player (the next episode), without leaving the screen.
   Future<void> _switchTo(String id) async {
     _switching = true;
+    _groupTimer?.cancel();
+    _reportedBuffering = null;
     _countdownTimer?.cancel();
     _ratingTimer?.cancel();
     _noticeTimer?.cancel();
@@ -836,6 +984,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
     _singleTapTimer?.cancel();
     _tapSeekEnd?.cancel();
     castController.removeListener(_onCastChanged);
+    syncPlay.detach(_onGroupSwitch);
+    _groupCommands?.cancel();
+    _groupTimer?.cancel();
     for (final s in _subscriptions) {
       s.cancel();
     }
@@ -920,7 +1071,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
     final duration = _player.state.duration;
     if (target < Duration.zero) target = Duration.zero;
     if (duration > Duration.zero && target > duration) target = duration;
-    _player.seek(target);
+    _seekNow(target);
 
     setState(() {
       _tapSeek = (side: side, seconds: seconds);
@@ -1003,15 +1154,29 @@ class _PlayerScreenState extends State<PlayerScreen> {
   }
 
   void _playOrPause() {
-    _player.playOrPause();
+    if (_inGroup) {
+      // Ask the group; the pause or play happens when the server says, for everyone.
+      _player.state.playing ? syncPlay.requestPause() : syncPlay.requestUnpause();
+    } else {
+      _player.playOrPause();
+    }
     _showControls();
+  }
+
+  /// Seeks here, or asks the group to seek everyone there.
+  void _seekNow(Duration target) {
+    if (_inGroup) {
+      syncPlay.requestSeek(target);
+    } else {
+      _player.seek(target);
+    }
   }
 
   void _seekTo(Duration target) {
     final duration = _player.state.duration;
     if (target < Duration.zero) target = Duration.zero;
     if (duration > Duration.zero && target > duration) target = duration;
-    _player.seek(target);
+    _seekNow(target);
     _showControls();
   }
 
@@ -1037,7 +1202,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
         case SkipMode.auto when !_autoSkipped.contains(active):
         // Skip it once. Seeking back into it later shows the button instead.
           _autoSkipped.add(active);
-          _player.seek(active.end);
+          _seekNow(active.end);
           _showNotice('Skipped ${active.noun}');
           active = null;
         case SkipMode.auto || SkipMode.ask:
@@ -1081,7 +1246,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
     final segment = _activeSegment;
     if (segment == null) return;
     setState(() => _activeSegment = null);
-    _player.seek(segment.end);
+    _seekNow(segment.end);
     _focus.requestFocus(); // back to the video
   }
 
@@ -2713,7 +2878,9 @@ class _SeekBarState extends State<_SeekBar> {
   void _seekToFraction(double fraction) {
     final duration = widget.player.state.duration;
     if (duration == Duration.zero) return;
-    widget.player.seek(duration * fraction.clamp(0.0, 1.0));
+    final target = duration * fraction.clamp(0.0, 1.0);
+    // Watch Together: everyone seeks together, when the group says.
+    syncPlay.inGroup ? syncPlay.requestSeek(target) : widget.player.seek(target);
   }
 
   @override
@@ -2927,9 +3094,11 @@ List<_TrackChoice> _subtitleChoices(Player player, JellyfinItem? item) {
   final tracks = player.state.tracks.subtitle
       .where((t) => _isRealTrack(t.id))
       .toList();
-  // Subtitles mpv found in the file. Any beyond Jellyfin's count were added from the
-  // server (below), so they're listed there instead of twice.
-  final embedded = streams.isEmpty
+  // Subtitles mpv found in the file: as many as Jellyfin lists. mpv also lists every
+  // external file added from the server (below) as a track of its own, so anything past
+  // Jellyfin's count is one of those, already offered below. Only when Jellyfin knows of
+  // no subtitles at all are mpv's own tracks listed as they are.
+  final embedded = streams.isEmpty && external.isEmpty
       ? tracks
       : tracks.take(streams.length).toList();
 
@@ -3172,6 +3341,40 @@ class _NextEpisode {
 
   /// "S1:E3 · The Name", or just the name.
   String get title => season != null && episode != null ? 'S$season:E$episode · $name' : name;
+}
+
+/// What plays after [item]: the next one in [queue] when playing through a list
+/// (a collection), otherwise the next episode of its series.
+Future<_NextEpisode?> _fetchNextIn(JellyfinItem item, List<String> queue) async {
+  if (queue.isEmpty) return _fetchNextEpisode(item);
+  final i = queue.indexOf(item.id);
+  if (i == -1 || i + 1 >= queue.length) return null; // the end of the list
+  final client = jellyfin.client;
+  final base = client?.baseUrl;
+  if (client == null || base == null) return null;
+
+  try {
+    final next = await client.items.byId(queue[i + 1]);
+    if (next == null) return null;
+    // A wide picture for the card: the backdrop, else the thumbnail, else the poster.
+    final backdrop = (next.raw['BackdropImageTags'] as List?)?.firstOrNull as String?;
+    final thumb = next.imageTags['Thumb'];
+    final primary = next.imageTags['Primary'];
+    final (type, tag) = backdrop != null
+        ? ('Backdrop', backdrop)
+        : thumb != null
+        ? ('Thumb', thumb)
+        : ('Primary', primary);
+    return _NextEpisode(
+      id: next.id,
+      name: next.name,
+      season: next.raw['ParentIndexNumber'] as int?,
+      episode: next.raw['IndexNumber'] as int?,
+      imageUrl: tag == null ? null : '$base/Items/${next.id}/Images/$type?fillWidth=400&quality=90&tag=$tag',
+    );
+  } on JellyfinException {
+    return null;
+  }
 }
 
 /// The episode after [item] in its series, or null for movies and the last episode.

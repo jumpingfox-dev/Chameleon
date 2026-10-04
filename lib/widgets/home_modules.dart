@@ -93,9 +93,9 @@ final homeModuleSpecs = <HomeModuleType, HomeModuleSpec>{
     load: (client, _) async => HomeModuleContent(
       (await client.items.list(
         filters: const ['IsFavorite'],
-        includeItemTypes: _moviesAndShows,
+        includeItemTypes: const [..._moviesAndShows, 'BoxSet'],
         recursive: true,
-        sortBy: const ['SortName'],
+        sortBy: const['Random'],
         limit: 30,
         fields: const ['RecursiveItemCount'],
       )).items,
@@ -465,7 +465,10 @@ class _HomeModuleViewState extends State<HomeModuleView>
           children: [
             if (!isCarousel || widget.editing)
               Padding(
-                padding: pageSides(context),
+                padding: pageSides(
+                  context,
+                  extra: 16 + (isCarousel ? 0 : _cardInset(_viewFor(context))),
+                ),
                 child: Row(
                   children: [
                     Expanded(
@@ -578,6 +581,10 @@ class _HomeModuleViewState extends State<HomeModuleView>
 
     return SizedBox(height: rowHeight, child: content);
   }
+
+  /// How far a resting card's artwork sits in from its edge (PosterCard draws it at 0.94).
+  static double _cardInset(LibraryView view) =>
+      (view == LibraryView.poster ? 150.0 : 280.0) * (1 - 0.94) / 2;
 }
 
 // ─── Adding sections ─────────────────────────────────────────────────────────

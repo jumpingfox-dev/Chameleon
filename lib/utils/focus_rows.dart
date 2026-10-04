@@ -196,3 +196,44 @@ bool moveFocus(TraversalDirection direction) {
   }
   return true;
 }
+
+/// Lets ↑/↓ leave one-line text fields (search boxes, sign-in fields) for whatever is above
+/// or below, as a remote expects. A text field normally keeps those keys to move its cursor
+/// to the start or end. Multi-line fields still move between lines.
+///
+/// Install once near the top of the app (next to [RowFocusNavigation]).
+class TextFieldArrowEscape extends StatelessWidget {
+  const TextFieldArrowEscape({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Actions(
+    actions: {ExtendSelectionVerticallyToAdjacentLineIntent: _LeaveSingleLineField()},
+    child: child,
+  );
+}
+
+class _LeaveSingleLineField extends ContextAction<ExtendSelectionVerticallyToAdjacentLineIntent> {
+  /// The focused text field, if one is focused.
+  static EditableTextState? get _field =>
+      FocusManager.instance.primaryFocus?.context?.findAncestorStateOfType<EditableTextState>();
+
+  static bool get _singleLine => _field?.widget.maxLines == 1;
+
+  // Only while a text field is focused. Otherwise this stays out of the way, so ↑/↓ go to
+  // the normal D-pad navigation as before.
+  @override
+  bool isEnabled(ExtendSelectionVerticallyToAdjacentLineIntent intent, [BuildContext? context]) =>
+      _field != null;
+
+  @override
+  Object? invoke(ExtendSelectionVerticallyToAdjacentLineIntent intent, [BuildContext? context]) {
+    if (_singleLine) {
+      // Leave the field for whatever is below (or above), using the app's own row rules.
+      moveFocus(intent.forward ? TraversalDirection.down : TraversalDirection.up);
+      return null;
+    }
+    return callingAction?.invoke(intent); // multi-line: move the cursor as usual
+  }
+}

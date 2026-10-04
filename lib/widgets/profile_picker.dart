@@ -37,7 +37,12 @@ class ProfilePickerScreen extends StatelessWidget {
                 : const Column(
                     mainAxisSize: .min,
                     children: [
-                      AppLogo(height: 32, variant: AppLogoVariant.auto),
+                      AppLogo(
+                        asset: 'assets/images/text_logo.svg',
+                        colorAsset: 'assets/images/text_logo_color.svg',
+                        height: 48,
+                        variant: AppLogoVariant.auto,
+                      ),
                       SizedBox(height: 32),
                       _Heading(),
                       SizedBox(height: 32),

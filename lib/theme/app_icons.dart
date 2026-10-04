@@ -104,6 +104,13 @@ class AppIconSet {
       CupertinoIcons.play_circle_fill,
       FluentIcons.play_circle_24_filled
   );
+  IconData get shuffle => _pick(
+      Symbols.shuffle_rounded,
+      FPhosphorFillIcons.shuffle,
+      FLucideIcons.shuffle,
+      CupertinoIcons.shuffle,
+      FluentIcons.arrow_shuffle_24_filled
+  );
   IconData get pause => _pick(
       Symbols.pause_rounded,
       FPhosphorFillIcons.pause,

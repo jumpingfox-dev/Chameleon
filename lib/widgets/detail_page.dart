@@ -60,15 +60,52 @@ void openPerson(BuildContext context, String personId) => showDetailPopout(
   cacheKey: 'person:$personId',
 );
 
-/// Plays an item: a movie (or episode) directly, or a series from where you left off.
+/// Plays an item: a movie (or episode) directly, a series from where you left off, or a
+/// collection through from its first unwatched title.
 Future<void> playItem(BuildContext context, JellyfinItem item) async {
   final router = GoRouter.of(context); // grab it before any await
-  if (item.type != JellyfinItemKind.series) {
-    router.push('/play/${item.id}');
-    return;
+  switch (item.type) {
+    case JellyfinItemKind.series:
+      final episode = await nextEpisodeFor(item.id);
+      if (episode != null) router.push('/play/${episode.id}');
+    case 'BoxSet':
+      try {
+        final data = await collectionDetails(item.id)(jellyfin.client!);
+        playQueue(router, collectionQueue(data.children));
+      } on JellyfinException {
+        // Couldn't load the collection: nothing to play.
+      }
+    default:
+      router.push('/play/${item.id}');
   }
-  final episode = await nextEpisodeFor(item.id);
-  if (episode != null) router.push('/play/${episode.id}');
+}
+
+/// The titles to play through for a collection, as item ids: in order from the first one
+/// you haven't finished, or all of them in random order with [shuffle].
+/// Only movies and videos play directly; a series inside a collection is left out.
+List<String> collectionQueue(List<JellyfinItem> items, {bool shuffle = false}) {
+  final playable = [
+    for (final item in items)
+      if (item.type == JellyfinItemKind.movie ||
+          item.type == JellyfinItemKind.episode ||
+          item.type == 'Video')
+        item,
+  ];
+  if (shuffle) return [for (final item in playable) item.id]..shuffle();
+
+  final firstUnwatched = playable.indexWhere(
+        (item) => (item.raw['UserData'] as Map?)?['Played'] != true,
+  );
+  final from = firstUnwatched == -1 ? 0 : firstUnwatched; // all watched: from the top
+  return [for (final item in playable.skip(from)) item.id];
+}
+
+/// Opens the player on the first of [ids], playing the rest after it.
+void playQueue(GoRouter router, List<String> ids) {
+  if (ids.isEmpty) return;
+  router.push(
+    Uri(path: '/play/${ids.first}', queryParameters: {'queue': ids.join(',')}).toString(),
+  );
 }
 
 /// The episode to play next in a series: Jellyfin's "Next Up", or else the first episode
@@ -1286,6 +1323,40 @@ class _CollectionInfoCard extends StatelessWidget {
               if (years != null) Text(years, style: muted),
               if (rating != null) _RatingBadge(rating),
             ],
+          ),
+
+          // ── Play, Shuffle, Favorite ──
+          ScrollIntoViewOnFocus(
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                FButton(
+                  mainAxisSize: .min,
+                  onPress: items.isEmpty
+                      ? null
+                      : () => playQueue(GoRouter.of(context), collectionQueue(items)),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    spacing: 8,
+                    children: [Icon(appIcons.play, size: 18, fill: 1), const Text('Play')],
+                  ),
+                ),
+                FButton(
+                  variant: .outline,
+                  mainAxisSize: .min,
+                  onPress: items.length < 2
+                      ? null
+                      : () => playQueue(GoRouter.of(context), collectionQueue(items, shuffle: true)),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    spacing: 8,
+                    children: [Icon(appIcons.shuffle, size: 18, fill: 1), const Text('Shuffle')],
+                  ),
+                ),
+                _FavoriteButton(item: collection),
+              ],
+            ),
           ),
 
           // ── Description ──

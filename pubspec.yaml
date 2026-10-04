@@ -107,16 +107,15 @@ flutter:
 
 flutter_launcher_icons:
   image_path: "assets/icon/icon.png"
+
+  # Android
   android: true
+  adaptive_icon_background: "#0a0d18ff"
+  adaptive_icon_foreground: "assets/icon/icon_foreground.png"
+  adaptive_icon_monochrome: "assets/icon/icon_monochrome.png"
+
+  # iPhone / iPad
   ios: true
   remove_alpha_ios: true
-#  adaptive_icon_background: "#121214"
-#  adaptive_icon_foreground: "assets/icon/icon_foreground.png"
-  web:
-    generate: true
-    background_color: "#121214"
-    theme_color: "#f59e0b"
-  windows:
-    generate: true
-  macos:
-    generate: true
+  desaturate_tinted_to_grayscale_ios: true
+  image_path_ios_tinted_grayscale: "assets/icon/icon_tinted.png"

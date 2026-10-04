@@ -88,57 +88,27 @@ final themePresets = <ThemePreset>[
     colors: FColors(
       brightness: .dark,
       systemOverlayStyle: .light,
-      barrier: _hsl(240, 0.06, 0.03, 0.70),
-      background: _hsl(240, 0.05, 0.075), // Primary background (#121214)
-      foreground: _hsl(20, 0.43, 0.97), // Text primary (#FBF7F5)
-      primary: _hsl(30, 0.92, 0.48), // Sunburst Amber, deepened so light text reads
-      primaryForeground: _hsl(20, 0.43, 0.97), // Text primary (#FBF7F5)
-      secondary: _hsl(350, 0.40, 0.17), // Hot Coral, as a deep rose tint
-      secondaryForeground: _hsl(20, 0.43, 0.97), // Text primary (#FBF7F5)
-      muted: _hsl(240, 0.05, 0.14), // Charcoal
-      mutedForeground: _hsl(240, 0.05, 0.62), // Cool grey
-      destructive: _hsl(0, 0.75, 0.55),
-      destructiveForeground: _hsl(20, 0.43, 0.97),
-      error: _hsl(0, 0.75, 0.55),
-      errorForeground: _hsl(20, 0.43, 0.97),
-      card: _hsl(240, 0.05, 0.105), // Lifted charcoal
-      border: _hsl(240, 0.05, 0.20), // Neutral line
+      barrier: _hsl(227, 0.45, 0.03, 0.70),
+      background: _hsl(227, 0.41, 0.067), // Logo background (#0a0d18)
+      foreground: _hsl(186, 0.67, 0.941), // Wordmark (#e6f8fa)
+      primary: _hsl(262, 0.83, 0.578), // Gradient start, violet (#7c3aed)
+      primaryForeground: _hsl(186, 0.67, 0.941), // Wordmark, reads well on violet
+      secondary: _hsl(262, 0.45, 0.18), // Deep violet: selected tabs and hover
+      secondaryForeground: _hsl(186, 0.67, 0.941), // Wordmark
+      muted: _hsl(226, 0.35, 0.12), // Lifted navy
+      mutedForeground: _hsl(195, 0.15, 0.66), // Cool grey with a hint of cyan
+      destructive: _hsl(355, 0.80, 0.60),
+      destructiveForeground: _hsl(186, 0.67, 0.941),
+      error: _hsl(355, 0.80, 0.60),
+      errorForeground: _hsl(186, 0.67, 0.941),
+      card: _hsl(226, 0.38, 0.10), // Slightly lifted navy
+      border: _hsl(200, 0.35, 0.20), // Gradient end, cyan (#06b6d4), darkened
       extensions: const [AppColors()],
     ),
   ),
 
   // =============================================================================
-  // 1. PRISM - White light split across the full spectrum.
-  // Violet background, indigo cards, cyan secondary, jade muted, magenta edges,
-  // orchid primary, golden text, sky-blue muted text.
-  // =============================================================================
-  ThemePreset(
-    id: 'prism',
-    label: 'Prism',
-    colors: FColors(
-      brightness: .dark,
-      systemOverlayStyle: .light,
-      barrier: _hsl(270, 0.60, 0.05, 0.65),
-      background: _hsl(265, 0.35, 0.05), // Violet black
-      foreground: _hsl(50, 0.60, 0.96), // Golden white light
-      primary: _hsl(295, 0.85, 0.66), // Orchid magenta
-      primaryForeground: _hsl(0, 0.0, 1.0),
-      secondary: _hsl(190, 0.60, 0.17), // Deep cyan
-      secondaryForeground: _hsl(180, 0.70, 0.90), // Aqua
-      muted: _hsl(160, 0.30, 0.13), // Jade shadow
-      mutedForeground: _hsl(200, 0.35, 0.72), // Sky blue
-      destructive: _hsl(355, 0.85, 0.60), // Spectral red
-      destructiveForeground: _hsl(0, 0.0, 0.98),
-      error: _hsl(355, 0.85, 0.60),
-      errorForeground: _hsl(0, 0.0, 0.98),
-      card: _hsl(235, 0.30, 0.09), // Indigo surface
-      border: _hsl(320, 0.45, 0.30), // Magenta refraction edge
-      extensions: const [AppColors()],
-    ),
-  ),
-
-  // =============================================================================
-  // 2. RUBY - "Pigeon's blood" red: deep wine surfaces, rose-white highlights.
+  // 1. RUBY - "Pigeon's blood" red: deep wine surfaces, rose-white highlights.
   // =============================================================================
   ThemePreset(
     id: 'ruby',
@@ -170,7 +140,7 @@ final themePresets = <ThemePreset>[
   ),
 
   // =============================================================================
-  // 3. AMBER - Fossilized resin: honey-brown surfaces, cream text, glowing gold.
+  // 2. AMBER - Fossilized resin: honey-brown surfaces, cream text, glowing gold.
   // =============================================================================
   ThemePreset(
     id: 'amber',
@@ -202,7 +172,7 @@ final themePresets = <ThemePreset>[
   ),
 
   // =============================================================================
-  // 4. CITRINE - Golden quartz: olive-gold depths, champagne light, sunny yellow.
+  // 3. CITRINE - Golden quartz: olive-gold depths, champagne light, sunny yellow.
   // =============================================================================
   ThemePreset(
     id: 'citrine',
@@ -234,7 +204,7 @@ final themePresets = <ThemePreset>[
   ),
 
   // =============================================================================
-  // 5. EMERALD - Deep blue-green depths, mint-white light, vivid green facets.
+  // 4. EMERALD - Deep blue-green depths, mint-white light, vivid green facets.
   // =============================================================================
   ThemePreset(
     id: 'emerald',
@@ -262,7 +232,7 @@ final themePresets = <ThemePreset>[
   ),
 
   // =============================================================================
-  // 6. SAPPHIRE - Royal navy depths, silvery light, cornflower-blue brilliance.
+  // 5. SAPPHIRE - Royal navy depths, silvery light, cornflower-blue brilliance.
   // =============================================================================
   ThemePreset(
     id: 'sapphire',
@@ -290,7 +260,7 @@ final themePresets = <ThemePreset>[
   ),
 
   // =============================================================================
-  // 7. TANZANITE - Trichroic blue-violet: blue depths that flash violet.
+  // 6. TANZANITE - Trichroic blue-violet: blue depths that flash violet.
   // =============================================================================
   ThemePreset(
     id: 'tanzanite',
@@ -318,7 +288,7 @@ final themePresets = <ThemePreset>[
   ),
 
   // =============================================================================
-  // 8. AMETHYST - Royal purple quartz: plum depths, lavender light, orchid glow.
+  // 7. AMETHYST - Royal purple quartz: plum depths, lavender light, orchid glow.
   // =============================================================================
   ThemePreset(
     id: 'amethyst',

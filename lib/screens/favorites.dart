@@ -77,8 +77,9 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
         _error = null;
       });
     } on JellyfinException catch (e) {
-      if (mounted && _movies.isEmpty && _series.isEmpty)
+      if (mounted && _movies.isEmpty && _series.isEmpty) {
         setState(() => _error = describeJellyfinError(e));
+      }
     } finally {
       if (mounted) setState(() => _loading = false);
     }

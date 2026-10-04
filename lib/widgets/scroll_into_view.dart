@@ -30,8 +30,9 @@ class ScrollIntoViewOnFocus extends StatelessWidget {
     onFocusChange: (hasFocus) {
       // Keyboard and remote only: clicking or tapping shouldn't scroll the page.
       if (!hasFocus ||
-          FocusManager.instance.highlightMode != FocusHighlightMode.traditional)
+          FocusManager.instance.highlightMode != FocusHighlightMode.traditional) {
         return;
+      }
       Scrollable.ensureVisible(
         context,
         alignment: alignment,

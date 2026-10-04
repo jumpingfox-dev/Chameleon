@@ -58,8 +58,9 @@ class HomeModule {
 
   static HomeModule? fromJson(Map<String, dynamic> json) {
     final type = HomeModuleType.values.asNameMap()[json['type']];
-    if (type == null)
+    if (type == null) {
       return null; // a type from a newer or older version: skip it
+    }
     return HomeModule(
       id: (json['id'] as String?) ?? type.name,
       type: type,
@@ -98,9 +99,7 @@ class HomeLayoutController extends ValueNotifier<List<HomeModule>> {
       try {
         modules = [
           for (final entry in jsonDecode(raw) as List)
-            if (HomeModule.fromJson(entry as Map<String, dynamic>)
-                case final module?)
-              module,
+            ?HomeModule.fromJson(entry as Map<String, dynamic>),
         ];
       } catch (_) {
         // Unreadable: fall back below.

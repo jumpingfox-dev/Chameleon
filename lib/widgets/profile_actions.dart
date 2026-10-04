@@ -1,5 +1,4 @@
 import 'package:forui/forui.dart';
-import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../theme/app_icons.dart';

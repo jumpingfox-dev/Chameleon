@@ -124,11 +124,13 @@ bool moveFocus(TraversalDirection direction) {
       final forward = direction == TraversalDirection.right;
       target = _best(
         candidates.where((n) {
-          if (_rowOf(n) != row)
+          if (_rowOf(n) != row) {
             return false; // stay in this row (or among loose items)
+          }
           final r = n.rect;
-          if (row == null && !_sameLine(r, cur))
+          if (row == null && !_sameLine(r, cur)) {
             return false; // loose items: same line only
+          }
           return forward
               ? r.center.dx > cur.center.dx + 1
               : r.center.dx < cur.center.dx - 1;
@@ -140,8 +142,9 @@ bool moveFocus(TraversalDirection direction) {
     case TraversalDirection.up || TraversalDirection.down:
       final down = direction == TraversalDirection.down;
       final ahead = candidates.where((n) {
-        if (row != null && _rowOf(n) == row)
+        if (row != null && _rowOf(n) == row) {
           return false; // ↑/↓ always leave the row
+        }
         final r = n.rect;
         return down ? r.top >= cur.center.dy : r.bottom <= cur.center.dy;
       }).toList();
@@ -171,8 +174,9 @@ bool moveFocus(TraversalDirection direction) {
   }
 
   if (target == null) return false;
-  if (row != null)
+  if (row != null) {
     _lastInRow[row] = current; // remember where you left this row
+  }
   final newRow = _rowOf(target);
   if (newRow != null) _lastInRow[newRow] = target;
 

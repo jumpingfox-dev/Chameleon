@@ -57,8 +57,9 @@ class _SearchScreenState extends State<SearchScreen> {
   }
 
   void _onTextChanged() {
-    if (_query.text == _lastSearched)
+    if (_query.text == _lastSearched) {
       return; // cursor moves also notify; ignore them
+    }
     _debounce?.cancel();
     _debounce = Timer(
       const Duration(milliseconds: 400),
@@ -105,15 +106,17 @@ class _SearchScreenState extends State<SearchScreen> {
         _people = people.items;
         _error = null;
       });
-      if (!mounted || id != _requestId)
+      if (!mounted || id != _requestId) {
         return; // a newer search has started; drop this one
+      }
       setState(() {
         _results = page.items;
         _error = null;
       });
     } on JellyfinException catch (e) {
-      if (mounted && id == _requestId)
+      if (mounted && id == _requestId) {
         setState(() => _error = describeJellyfinError(e));
+      }
     } finally {
       if (mounted && id == _requestId) setState(() => _loading = false);
     }
@@ -183,12 +186,14 @@ class _SearchScreenState extends State<SearchScreen> {
     final muted = context.theme.typography.body.md.copyWith(
       color: context.theme.colors.mutedForeground,
     );
-    if (_loading && _results.isEmpty)
+    if (_loading && _results.isEmpty) {
       return const Center(child: FCircularProgress());
+    }
     if (_error != null) return Center(child: Text(_error!));
     if (_query.text.trim().isEmpty) {
-      if (_suggestions.isEmpty)
+      if (_suggestions.isEmpty) {
         return Center(child: Text('Search your library', style: muted));
+      }
       final view = libraryViewFor(context);
       return CustomScrollView(
         slivers: [

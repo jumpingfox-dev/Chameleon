@@ -78,7 +78,7 @@ class _FocusRevealState extends State<FocusReveal> {
     final starts = [
       for (final n in _scope.traversalDescendants)
         if (n.canRequestFocus && !n.skipTraversal)
-          if (startOf(n) case final s?) s,
+          ?startOf(n),
     ];
     final isFirst = starts.isNotEmpty && start <= starts.reduce(math.min) + 1; // e.g. any of the tabs
     final isLast = starts.isNotEmpty && start >= starts.reduce(math.max) - 1;

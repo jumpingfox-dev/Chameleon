@@ -126,6 +126,16 @@ class _AppShellState extends State<AppShell> {
   final _navScope = FocusScopeNode(debugLabel: 'Nav bar');
   final _pageScope = FocusScopeNode(debugLabel: 'Page');
 
+  /// The bottom nav bar, measured after each frame so pages know where it starts.
+  final _footerKey = GlobalKey();
+  double _footerHeight = 0;
+
+  void _measureFooter() {
+    final box = _footerKey.currentContext?.findRenderObject();
+    final height = box is RenderBox && box.hasSize ? box.size.height : 0.0;
+    if (mounted && height != _footerHeight) setState(() => _footerHeight = height);
+  }
+
   @override
   void dispose() {
     _navScope.dispose();
@@ -218,6 +228,7 @@ class _AppShellState extends State<AppShell> {
         ),
         footer: isPhone
             ? SafeArea(
+          key: _footerKey,
           top: false,
           child: FBottomNavigationBar(
             index: widget.navigationShell.currentIndex,
@@ -236,8 +247,8 @@ class _AppShellState extends State<AppShell> {
           ),
         )
             : null,
-        child: LayoutBuilder(
-          builder: (context, constraints) {
+        child: Builder(
+          builder: (context) {
             Widget page = MediaQuery.removeViewInsets(
               context: context,
               removeBottom: true, // the shell already made room for the keyboard; pages shouldn't do it again
@@ -256,11 +267,14 @@ class _AppShellState extends State<AppShell> {
 
             // Phones: dropdowns and menus decide whether to open up or down by measuring the
             // screen. Tell pages the screen ends where the bottom nav bar starts, so nothing
-            // opens behind the bar: it flips upwards (or slides) instead.
+            // opens behind the bar: it flips upwards (or slides) instead. The bar is measured
+            // after each frame rather than during layout, which the page navigators can't handle.
             if (isPhone) {
+              WidgetsBinding.instance.addPostFrameCallback((_) => _measureFooter());
+              final screen = MediaQuery.sizeOf(context);
               page = MediaQuery(
                 data: MediaQuery.of(context).copyWith(
-                  size: Size(constraints.maxWidth, constraints.maxHeight),
+                  size: Size(screen.width, screen.height - _footerHeight),
                 ),
                 child: page,
               );

@@ -75,8 +75,14 @@ final GoRouter _router = GoRouter(
     return null;
   },
   routes: [
-    GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
-    GoRoute(path: '/profiles', builder: (context, state) => const ProfilePickerScreen()),
+    GoRoute(
+      path: '/login',
+      pageBuilder: (context, state) => const NoTransitionPage(child: LoginScreen()),
+    ),
+    GoRoute(
+      path: '/profiles',
+      pageBuilder: (context, state) => const NoTransitionPage(child: ProfilePickerScreen()),
+    ),
     GoRoute(
       path: '/play/:id',
       builder: (context, state) => PlayerScreen(
@@ -86,8 +92,11 @@ final GoRouter _router = GoRouter(
       ),
     ),
     StatefulShellRoute.indexedStack(
-      builder: (context, state, navigationShell) =>
-          AppShell(navigationShell: navigationShell, location: state.uri.path),
+      // No animation in or out: when switching users, the shell is taken down and put back
+      // up in quick succession, and two copies animating at once would share its key.
+      pageBuilder: (context, state, navigationShell) => NoTransitionPage(
+        child: AppShell(navigationShell: navigationShell, location: state.uri.path),
+      ),
       branches: [
         for (final d in destinations)
           StatefulShellBranch(

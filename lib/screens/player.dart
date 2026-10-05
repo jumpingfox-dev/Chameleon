@@ -2133,11 +2133,7 @@ Future<List<_Segment>> _loadSegments(
           _Segment(kind, start, end),
     ]..sort((a, b) => a.start.compareTo(b.start));
 
-    // TODO(cleanup): per-segment tracing left over from debugging; keep the one summary line
     debugPrint('Skip segments: ${result.items.length} from the server');
-    for (final s in result.items) {
-      debugPrint('  ${s.type}: ${s.start} → ${s.end}');
-    }
     if (segments.isNotEmpty) return _plausibleSegments(segments, item);
   } on JellyfinException catch (e) {
     debugPrint(

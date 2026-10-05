@@ -855,7 +855,8 @@ class _ServerCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // TODO(cleanup): the Server tab only says "Coming soon"; ask whether to keep it
+    // Just a placeholder for now, kept as its own tab since it already has a spot reserved
+    // in the sidebar and the icon style.
     return const _SettingsCard(
       children: [
         _SectionTitle('Server', description: 'Coming soon.', first: true),

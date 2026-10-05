@@ -3,15 +3,12 @@ import 'package:forui/forui.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 
-import '../screens/collection.dart';
+import '../screens/detail_screens.dart';
 import '../screens/genres.dart';
 import '../screens/home.dart';
 import '../screens/favorites.dart';
 import '../screens/library.dart';
-import '../screens/movie.dart';
-import '../screens/person.dart';
 import '../screens/search.dart';
-import '../screens/series.dart';
 import '../screens/settings.dart';
 import '../theme/app_icons.dart';
 import '../theme/tappable_states.dart';

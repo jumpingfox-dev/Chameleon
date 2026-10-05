@@ -21,6 +21,7 @@ import '../theme/tappable_states.dart';
 import '../utils/app_cache.dart';
 import '../utils/cast_controller.dart';
 import '../utils/focus_rows.dart';
+import '../utils/format.dart';
 import '../utils/jellyfin_controller.dart';
 import '../utils/orientation.dart';
 import '../utils/playback_reporter.dart';
@@ -355,7 +356,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
             FButton(
               autofocus: true,
               onPress: () => Navigator.of(context).pop(true),
-              child: Text('Resume from ${_formatTime(at)}'),
+              child: Text('Resume from ${formatDuration(at)}'),
             ),
             FButton(
               variant: .outline,
@@ -1809,14 +1810,6 @@ String? _chapterAt(
   return current.name.isEmpty ? null : current.name;
 }
 
-// TODO(cleanup): shared duration formatter; cast_widgets.dart has the same code
-/// "1:02:03" or "4:05".
-String _formatTime(Duration d) {
-  final h = d.inHours, m = d.inMinutes % 60, s = d.inSeconds % 60;
-  final ss = s.toString().padLeft(2, '0');
-  return h > 0 ? '$h:${m.toString().padLeft(2, '0')}:$ss' : '$m:$ss';
-}
-
 /// "4:52 am".
 /// The time of day, kept current. Shown at the top right on TVs and tablets.
 class _Clock extends StatefulWidget {
@@ -2039,7 +2032,7 @@ class _ScrubPreview extends StatelessWidget {
                                     .copyWith(color: _dimWhite),
                               ),
                             Text(
-                              _formatTime(position),
+                              formatDuration(position),
                               style: context.theme.typography.body.sm.copyWith(
                                 color: _white,
                                 fontWeight: FontWeight.w600,
@@ -2824,8 +2817,8 @@ class _TimeRow extends StatelessWidget {
         children: [
           Text(
             chapter == null
-                ? _formatTime(position)
-                : '${_formatTime(position)}  ·  $chapter',
+                ? formatDuration(position)
+                : '${formatDuration(position)}  ·  $chapter',
             // While scrubbing, this is where you'll land: bold, in the theme's color.
             style: preview != null
                 ? style.copyWith(
@@ -2836,7 +2829,7 @@ class _TimeRow extends StatelessWidget {
           ),
           const Spacer(),
           Text(
-            '-${_formatTime(remaining)}  /  ${_formatClock(endsAt)}',
+            '-${formatDuration(remaining)}  /  ${_formatClock(endsAt)}',
             style: style,
           ),
         ],

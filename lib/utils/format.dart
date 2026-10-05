@@ -9,3 +9,10 @@ String initialsOf(String name) {
       ? words.first[0].toUpperCase()
       : (words.first[0] + words.last[0]).toUpperCase();
 }
+
+/// "1:02:03" or "4:05".
+String formatDuration(Duration d) {
+  final h = d.inHours, m = d.inMinutes % 60, s = d.inSeconds % 60;
+  final ss = s.toString().padLeft(2, '0');
+  return h > 0 ? '$h:${m.toString().padLeft(2, '0')}:$ss' : '$m:$ss';
+}

@@ -9,6 +9,7 @@ import 'package:material_ui/material_ui.dart';
 
 import '../theme/tappable_states.dart';
 import '../utils/cast_controller.dart';
+import '../utils/format.dart';
 import '../utils/jellyfin_controller.dart';
 import '../utils/playback_settings.dart';
 
@@ -314,13 +315,6 @@ class _RemoteSeekBar extends StatefulWidget {
 class _RemoteSeekBarState extends State<_RemoteSeekBar> {
   double? _dragging; // 0..1 while the thumb is held
 
-  // TODO(cleanup): shared duration formatter; the player's _formatTime is the same code
-  static String _format(Duration d) {
-    final h = d.inHours, m = d.inMinutes % 60, s = d.inSeconds % 60;
-    final ss = s.toString().padLeft(2, '0');
-    return h > 0 ? '$h:${m.toString().padLeft(2, '0')}:$ss' : '$m:$ss';
-  }
-
   @override
   Widget build(BuildContext context) {
     final total = widget.duration.inMilliseconds;
@@ -351,9 +345,9 @@ class _RemoteSeekBarState extends State<_RemoteSeekBar> {
         ),
         Row(
           children: [
-            Text(_format(shown), style: timeStyle),
+            Text(formatDuration(shown), style: timeStyle),
             const Spacer(),
-            Text(_format(widget.duration), style: timeStyle),
+            Text(formatDuration(widget.duration), style: timeStyle),
           ],
         ),
       ],

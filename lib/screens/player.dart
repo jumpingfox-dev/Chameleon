@@ -98,8 +98,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
   static const _controlsClearance = 150.0;
   static const _controlsClearancePhone = 146.0;
 
-  // TODO(cleanup): use isPhoneLayout, like the rest of the app
-  bool get _isPhone => MediaQuery.sizeOf(context).shortestSide < 600;
+  bool get _isPhone => isPhoneLayout(context);
 
   EdgeInsets _subtitlePadding({required bool lifted}) {
     lifted = lifted && playbackSettings.liftSubtitles; // "Move up when controls show" in Settings
@@ -1505,8 +1504,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
   @override
   Widget build(BuildContext context) {
     final rating = _item?.raw['OfficialRating'] as String?;
-    // TODO(cleanup): use isPhoneLayout
-    final compact = MediaQuery.sizeOf(context).shortestSide < 600;
+    final compact = isPhoneLayout(context);
 
     return PopScope(
       // Phones: Back (or the back swipe) leaves straight away. TV remotes: the first Back
@@ -2436,8 +2434,7 @@ class _PlayerControls extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final previewChapter = preview == null ? null : _chapterAt(chapters, preview!);
-    // TODO(cleanup): use isPhoneLayout
-    final compact = MediaQuery.sizeOf(context).shortestSide < 600;
+    final compact = isPhoneLayout(context);
 
     // Previous, play/pause, next. Big and in the middle on phones (easy to reach with a thumb);
     // under the seek bar elsewhere.
@@ -2707,8 +2704,7 @@ class _ControlButton extends StatelessWidget {
       onPress: onPress,
       builder: (context, states, _) {
         final highlighted = isHighlighted(states);
-        // TODO(cleanup): use isPhoneLayout
-        final compact = MediaQuery.sizeOf(context).shortestSide < 600;
+        final compact = isPhoneLayout(context);
         return AnimatedContainer(
           duration: const Duration(milliseconds: 120),
           padding: EdgeInsets.all(compact ? 10 : 7), // phones: 48 px targets for thumbs
@@ -2903,8 +2899,7 @@ class _SeekBarState extends State<_SeekBar> {
       final buffered = fractionOf(state.buffer);
       final primary = context.theme.colors.primary;
       // Phones: a thicker bar, a bigger handle and a taller touch area, for thumbs.
-      // TODO(cleanup): use isPhoneLayout
-      final compact = MediaQuery.sizeOf(context).shortestSide < 600;
+      final compact = isPhoneLayout(context);
       final thickness = compact ? 6.0 : 4.0;
       final handle = compact
           ? (preview != null ? 26.0 : 20.0)

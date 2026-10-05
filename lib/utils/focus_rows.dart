@@ -85,6 +85,45 @@ class _FocusColumnState extends State<FocusColumn> {
       Focus(focusNode: _node, child: widget.child);
 }
 
+/// The item to focus when a page opens: the first one on the page (in the order the page
+/// lists them) that's actually laid out. Text fields (which would pop up the keyboard) and
+/// items in a side [FocusColumn] (like the A–Z) only count if [mainOnly] is false and there's
+/// nothing else.
+///
+/// Only the page on top counts. Pages underneath it (Home, under a genre you opened from it)
+/// stay in the tree and keep their old positions while hidden, so without this the "first
+/// item" could be one you can't see.
+FocusNode? firstFocusable(FocusScopeNode scope, {bool mainOnly = false}) {
+  final nodes = scope.traversalDescendants
+      .where(
+        (n) =>
+    n.canRequestFocus &&
+        !n.skipTraversal &&
+        n is! FocusScopeNode &&
+        isOnTopPage(n) &&
+        _isLaidOut(n) &&
+        !n.rect.isEmpty,
+  )
+      .toList();
+  bool isTextField(FocusNode n) => n.context?.findAncestorStateOfType<EditableTextState>() != null;
+  final main = nodes.where((n) => _columnOf(n) == null && !isTextField(n)).firstOrNull;
+  return mainOnly ? main : main ?? nodes.firstOrNull;
+}
+
+/// Whether [node] has been laid out yet, so its position can be read. Something that has just
+/// appeared (the edit controls on Home, say) isn't until the next frame.
+bool _isLaidOut(FocusNode node) {
+  final box = node.context?.findRenderObject();
+  return box is RenderBox && box.attached && box.hasSize;
+}
+
+/// Whether [node] is on the page you're looking at, rather than one hidden underneath it.
+bool isOnTopPage(FocusNode node) {
+  final context = node.context;
+  if (context == null) return false;
+  return ModalRoute.of(context)?.isCurrent ?? true;
+}
+
 /// Replaces Flutter's "nearest thing in that direction" arrow navigation for everything below it.
 class RowFocusNavigation extends StatelessWidget {
   const RowFocusNavigation({super.key, required this.child});
@@ -158,7 +197,8 @@ bool moveFocus(TraversalDirection direction) {
         (n) =>
     n != current &&
         n is! FocusScopeNode &&
-        n.context != null &&
+        isOnTopPage(n) && // never onto a page hidden underneath this one
+        _isLaidOut(n) &&
         !n.rect.isEmpty,
   )
       .toList();

@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:dart_jellyfin/dart_jellyfin.dart';
 import 'package:forui/forui.dart';
-import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../utils/app_cache.dart';
@@ -12,7 +11,10 @@ import '../widgets/person_tile.dart';
 import '../widgets/poster_card.dart';
 
 class SearchScreen extends StatefulWidget {
-  const SearchScreen({super.key});
+  const SearchScreen({super.key, this.query});
+
+  /// A search to run straight away, from /search?q=... (the sidebar's search box).
+  final String? query;
 
   @override
   State<SearchScreen> createState() => _SearchScreenState();
@@ -35,18 +37,23 @@ class _SearchScreenState extends State<SearchScreen> {
   void initState() {
     super.initState();
     _query.addListener(_onTextChanged);
+    _takeRouteQuery();
     _loadSuggestions();
   }
 
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    // A search submitted from the top bar arrives as /search?q=...
-    final q = GoRouterState.of(context).uri.queryParameters['q'];
+  /// A search submitted from the sidebar arrives as /search?q=..., passed in as [SearchScreen.query].
+  void _takeRouteQuery() {
+    final q = widget.query;
     if (q != null && q != _routeQuery) {
       _routeQuery = q;
       _query.text = q; // triggers _onTextChanged, which runs the search
     }
+  }
+
+  @override
+  void didUpdateWidget(covariant SearchScreen old) {
+    super.didUpdateWidget(old);
+    _takeRouteQuery(); // a new search while this page is already open
   }
 
   @override
@@ -63,7 +70,7 @@ class _SearchScreenState extends State<SearchScreen> {
     _debounce?.cancel();
     _debounce = Timer(
       const Duration(milliseconds: 400),
-      () => _search(_query.text),
+          () => _search(_query.text),
     );
   }
 
@@ -84,21 +91,21 @@ class _SearchScreenState extends State<SearchScreen> {
     setState(() => _loading = true);
     try {
       final (page, people) = await (
-        client.items.list(
-          searchTerm: query,
-          includeItemTypes: const [
-            JellyfinItemKind.movie,
-            JellyfinItemKind.series,
-          ],
-          recursive: true,
-          sortBy: const ['SortName'],
-          limit: 60,
-        ),
-        client.persons.list(
-          searchTerm: query,
-          personTypes: const ['Actor'],
-          limit: 20,
-        ),
+      client.items.list(
+        searchTerm: query,
+        includeItemTypes: const [
+          JellyfinItemKind.movie,
+          JellyfinItemKind.series,
+        ],
+        recursive: true,
+        sortBy: const ['SortName'],
+        limit: 60,
+      ),
+      client.persons.list(
+        searchTerm: query,
+        personTypes: const ['Actor'],
+        limit: 20,
+      ),
       ).wait;
       if (!mounted || id != _requestId) return;
       setState(() {
@@ -167,7 +174,7 @@ class _SearchScreenState extends State<SearchScreen> {
           control: .managed(controller: _query),
           hint: 'Search movies, shows, and actors',
           autofocus:
-              _routeQuery ==
+          _routeQuery ==
               null, // open the keyboard when arriving from the bottom bar
           clearable: (value) => value.text.isNotEmpty,
           textInputAction: TextInputAction.search,

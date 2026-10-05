@@ -93,6 +93,9 @@ class _LibraryScreenState extends State<LibraryScreen> {
     };
   }
 
+  /// The page's name: the genre, or the library's name.
+  String get _title => widget.genre ?? _library?.name ?? 'Library';
+
   bool get _hasMore => _total == null || _items.length < _total!;
 
   @override
@@ -239,6 +242,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
     builder: (context, _) {
       final view = libraryViewFor(context);
       return FScaffold(
+        header: FHeader(title: Text(_title)),
         // The posters on the left, and the view toggle and A–Z down the right-hand side.
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.stretch,

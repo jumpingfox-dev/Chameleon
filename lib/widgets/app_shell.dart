@@ -82,7 +82,7 @@ final destinations = <AppDestination>[
   label: 'Search',
   icon: (i) => i.search,
   path: '/search',
-  screen: (_) => const SearchScreen(),
+  screen: (state) => SearchScreen(query: state.uri.queryParameters['q']),
   routes: [
     GoRoute(
       path: 'person/:id',
@@ -141,6 +141,33 @@ class _AppShellState extends State<AppShell> {
   final _hovering = ValueNotifier(false);
   late final _sidebarOpen = Listenable.merge([_navScope, _hovering]);
 
+  /// How many times the sidebar has closed. Its sections use this in their keys, so anything
+  /// unfolded folds back up after each close. Counted on close rather than open: by then
+  /// nothing in the sidebar has focus, so rebuilding its items can't lose your place.
+  int _closings = 0;
+  bool _wasOpen = false;
+
+  /// A focus node for each sidebar entry, by name ('Settings', 'Settings/Playback', ...),
+  /// so ← from a page can land on the entry for where you are. Each entry keeps its own node
+  /// for good; nothing is handed from one entry to another.
+  final _navNodes = <String, FocusNode>{};
+  FocusNode _navNode(String id) =>
+      _navNodes.putIfAbsent(id, () => FocusNode(debugLabel: 'Sidebar: $id'));
+
+  /// The sidebar entries for where you are: its link or section, and the page inside that
+  /// section, if there is one.
+  (String, String?) get _here {
+    final loc = widget.location;
+    final last = loc.split('/').last;
+    if (loc.startsWith('/search')) return ('Search', null);
+    if (loc == '/home/favorites') return ('Favorites', null);
+    if (loc.startsWith('/home/library/')) return ('Libraries', 'Libraries/$last');
+    if (loc == '/home/genres') return ('Genres', 'Genres/All');
+    if (loc.startsWith('/home/genre/')) return ('Genres', 'Genres/$last');
+    if (loc == '/settings') return ('Settings', 'Settings/${widget.tab ?? settingsTabLabels.first}');
+    return ('Home', null); // home, and the pages opened from it (a movie, a show, ...)
+  }
+
   /// The bottom nav bar, measured after each frame so pages know where it starts.
   final _footerKey = GlobalKey();
   double _footerHeight = 0;
@@ -156,6 +183,9 @@ class _AppShellState extends State<AppShell> {
     _navScope.dispose();
     _pageScope.dispose();
     _hovering.dispose();
+    for (final node in _navNodes.values) {
+      node.dispose();
+    }
     super.dispose();
   }
 
@@ -193,7 +223,7 @@ class _AppShellState extends State<AppShell> {
       }
     }
 
-    if (!moveFocus(TraversalDirection.left)) _focusFirstOrRemembered(_navScope);
+    if (!moveFocus(TraversalDirection.left)) _enterSidebar();
     return KeyEventResult.handled;
   }
 
@@ -202,21 +232,81 @@ class _AppShellState extends State<AppShell> {
     if (!_isArrow(event, LogicalKeyboardKey.arrowRight)) {
       return KeyEventResult.ignored;
     }
+    // In the search box, → moves the cursor until it reaches the end.
+    final editable = FocusManager.instance.primaryFocus?.context?.findAncestorStateOfType<EditableTextState>();
+    if (editable != null) {
+      final value = editable.textEditingValue;
+      if (!value.selection.isCollapsed || value.selection.baseOffset < value.text.length) {
+        return KeyEventResult.ignored;
+      }
+    }
     _focusFirstOrRemembered(_pageScope);
     return KeyEventResult.handled;
   }
 
-  /// Focuses whatever last had focus inside [scope], or else its first focusable item.
+  /// Into the sidebar, on the entry for where you are: the page itself (Settings › Appearance)
+  /// if it's in a section, otherwise its link.
+  void _enterSidebar() {
+    final (entry, page) = _here;
+    final node = _navNodes[entry];
+    if (node == null || node.context == null) {
+      _focusFirstOrRemembered(_navScope);
+      return;
+    }
+    // The section first: that opens the sidebar. Its pages only appear once it has finished
+    // opening, so then on to yours.
+    node.requestFocus();
+    if (page == null) return;
+    Future.delayed(const Duration(milliseconds: 250), () {
+      final pageNode = _navNodes[page];
+      final pageContext = pageNode?.context;
+      if (!mounted || pageNode == null || pageContext == null) return;
+      if (FocusManager.instance.primaryFocus != node) return; // you've already moved on
+      pageNode.requestFocus();
+      Scrollable.ensureVisible(pageContext, alignment: 0.5);
+    });
+  }
+
+  /// After picking a page in the sidebar: focus that page's first item, not wherever you were
+  /// on the last page. Pages that load their content first (a library, a genre) have nothing
+  /// to focus at the start, so it checks again for a moment.
+  void _focusNewPage([int attempt = 0]) {
+    if (!mounted) return;
+    // You've already moved on (into the page, or back into the sidebar): leave focus be.
+    if (attempt > 0 && (_pageScope.hasFocus || _navScope.hasFocus)) return;
+
+    final first = firstFocusable(_pageScope, mainOnly: true) ??
+        (attempt >= 20 ? firstFocusable(_pageScope) : null); // ~2 s, then anything
+    if (first != null) {
+      first.requestFocus();
+      if (first.context case final context?) Scrollable.ensureVisible(context);
+      return;
+    }
+    if (attempt == 0) _navScope.unfocus(); // close the sidebar while the page loads
+    if (attempt >= 40) return; // nothing to focus on this page at all
+    Future.delayed(const Duration(milliseconds: 100), () => _focusNewPage(attempt + 1));
+  }
+
+  /// Focuses whatever last had focus inside [scope] if it's still on the page you're looking
+  /// at, or else that page's first item.
   void _focusFirstOrRemembered(FocusScopeNode scope) {
-    final remembered = scope.focusedChild;
-    if (remembered != null && remembered.canRequestFocus) {
+    final remembered = _rememberedIn(scope);
+    if (remembered != null) {
       remembered.requestFocus();
     } else {
-      scope.traversalDescendants
-          .where((n) => n.canRequestFocus && !n.skipTraversal && n is! FocusScopeNode)
-          .firstOrNull
-          ?.requestFocus();
+      firstFocusable(scope)?.requestFocus();
     }
+  }
+
+  /// The item last focused inside [scope], following its scopes down (each page keeps its
+  /// own), or null if there isn't one or it's on a page that's now hidden.
+  FocusNode? _rememberedIn(FocusScopeNode scope) {
+    FocusNode? node = scope.focusedChild;
+    while (node is FocusScopeNode && node.focusedChild != null) {
+      node = node.focusedChild;
+    }
+    if (node == null || node is FocusScopeNode || !node.canRequestFocus) return null;
+    return isOnTopPage(node) ? node : null;
   }
 
   @override
@@ -329,15 +419,28 @@ class _AppShellState extends State<AppShell> {
                     onExit: (_) => _hovering.value = false,
                     child: ListenableBuilder(
                       listenable: _sidebarOpen,
-                      builder: (context, _) => FocusScope(
-                        node: _navScope,
-                        onKeyEvent: _onNavKey, // → back into the page
-                        child: _Sidebar(
-                          open: _hovering.value || _navScope.hasFocus,
-                          location: widget.location,
-                          tab: widget.tab,
-                        ),
-                      ),
+                      builder: (context, _) {
+                        final open = _hovering.value || _navScope.hasFocus;
+                        if (_wasOpen && !open) _closings++;
+                        _wasOpen = open;
+                        return FocusScope(
+                          node: _navScope,
+                          onKeyEvent: _onNavKey, // → back into the page
+                          child: _Sidebar(
+                            open: open,
+                            closings: _closings,
+                            location: widget.location,
+                            tab: widget.tab,
+                            // Closes the sidebar and moves to the new page's first item, once it has
+                            // been built.
+                            onLeave: () {
+                              _hovering.value = false;
+                              WidgetsBinding.instance.addPostFrameCallback((_) => _focusNewPage());
+                            },
+                            nodeFor: _navNode,
+                          ),
+                        );
+                      },
                     ),
                   ),
                 ),
@@ -352,17 +455,24 @@ class _AppShellState extends State<AppShell> {
 
 // ─── Sidebar ─────────────────────────────────────────────────────────────────
 
-/// The settings pages listed in the sidebar (SyncPlay has its own spot near the top).
-const _settingsPages = ['Appearance', 'Account', 'Playback', 'Server', 'About'];
-
 /// Wider screens' navigation: a rail of icons down the left side that opens out, with labels,
 /// when it gets focus or the mouse moves over it.
 class _Sidebar extends StatelessWidget {
-  const _Sidebar({required this.open, required this.location, required this.tab});
+  const _Sidebar({
+    required this.open,
+    required this.closings,
+    required this.location,
+    required this.tab,
+    required this.onLeave,
+    required this.nodeFor,
+  });
 
   final bool open;
+  final int closings; // how many times it has closed; folds the sections back up
   final String location;
   final String? tab;
+  final VoidCallback onLeave; // closes the sidebar and moves focus into the page
+  final FocusNode Function(String id) nodeFor; // each entry's own focus node (see _AppShellState)
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
@@ -372,8 +482,16 @@ class _Sidebar extends StatelessWidget {
       final inset = MediaQuery.paddingOf(context).left;
       final onSettings = loc == '/settings';
       // Settings opens on its first page when no tab is given.
-      final settingsTab = tab ?? 'Appearance';
+      final settingsTab = tab ?? settingsTabLabels.first;
       final editing = homeEditing.value;
+
+
+      // Opens a page and closes the sidebar, moving into the page, even if you were already
+      // somewhere in the same section (another settings page, say).
+      void goTo(String path) {
+        context.go(path);
+        onLeave();
+      }
 
       return AnimatedContainer(
         duration: const Duration(milliseconds: 180),
@@ -393,7 +511,10 @@ class _Sidebar extends StatelessWidget {
             return FSidebar(
               header: Padding(
                 padding: EdgeInsets.fromLTRB(inset + _sidePadding, 4, _sidePadding, 4),
-                child: Align(alignment: Alignment.center, child: _SidebarLogo(open: open)),
+                child: Align(
+                  alignment: Alignment.center,
+                  child: _SidebarLogo(open: open, focusNode: nodeFor('Home'), onPress: () => goTo('/home')),
+                ),
               ),
               footer: Padding(
                 padding: EdgeInsets.only(left: inset),
@@ -407,53 +528,38 @@ class _Sidebar extends StatelessWidget {
                       FSidebarGroup(
                         style: const .delta(padding: .value(EdgeInsets.symmetric(horizontal: _sidePadding))),
                         children: [
-                          _SidebarLink(
-                            label: 'Search',
-                            icon: appIcons.search,
+                          _SidebarSearch(
                             open: open,
+                            focusNode: nodeFor('Search'),
                             selected: loc.startsWith('/search'),
-                            onPress: () => context.go('/search'),
+                            onSearched: onLeave,
                           ),
                           _SidebarLink(
                             label: 'Favorites',
                             icon: appIcons.favorite,
+                            focusNode: nodeFor('Favorites'),
                             open: open,
                             selected: loc == '/home/favorites',
-                            onPress: () => context.go('/home/favorites'),
-                          ),
-                          _SidebarLink(
-                            label: 'SyncPlay',
-                            icon: appIcons.syncPlay,
-                            open: open,
-                            selected: onSettings && tab == 'SyncPlay',
-                            onPress: () => context.go('/settings?tab=SyncPlay'),
-                          ),
-                          // Edit mode for the home screen (phones have a button on Home instead).
-                          _SidebarLink(
-                            label: editing ? 'Done editing' : 'Edit home',
-                            icon: editing ? appIcons.check : appIcons.edit,
-                            open: open,
-                            selected: editing,
-                            onPress: () {
-                              if (loc != '/home') context.go('/home');
-                              homeEditing.value = !editing;
-                            },
+                            onPress: () => goTo('/home/favorites'),
                           ),
                           // Libraries, Genres and Settings fold up under one icon each. While the
                           // sidebar is closed only those icons show; open it and they list their pages.
                           _SidebarSection(
                             label: 'Libraries',
                             icon: appIcons.folder,
+                            focusNode: nodeFor('Libraries'),
                             open: open,
+                            closings: closings,
                             active: loc.startsWith('/home/library'),
                             showPages: roomy,
                             children: [
                               for (final lib in jellyfin.libraries)
                                 _SidebarLink(
                                   label: lib.name,
+                                  focusNode: nodeFor('Libraries/${lib.id}'),
                                   open: open,
                                   selected: loc == '/home/library/${lib.id}',
-                                  onPress: () => context.go('/home/library/${lib.id}'),
+                                  onPress: () => goTo('/home/library/${lib.id}'),
                                 ),
                             ],
                           ),
@@ -462,40 +568,59 @@ class _Sidebar extends StatelessWidget {
                             _SidebarSection(
                               label: 'Genres',
                               icon: appIcons.genres,
+                              focusNode: nodeFor('Genres'),
                               open: open,
+                              closings: closings,
                               active: loc.startsWith('/home/genre'),
                               showPages: roomy,
                               children: [
                                 _SidebarLink(
                                   label: 'All genres',
+                                  focusNode: nodeFor('Genres/All'),
                                   open: open,
                                   selected: loc == '/home/genres',
-                                  onPress: () => context.go('/home/genres'),
+                                  onPress: () => goTo('/home/genres'),
                                 ),
                                 for (final genre in jellyfin.genres)
                                   _SidebarLink(
                                     label: genre,
+                                    focusNode: nodeFor('Genres/${Uri.encodeComponent(genre)}'),
                                     open: open,
                                     selected: loc == '/home/genre/${Uri.encodeComponent(genre)}',
-                                    onPress: () => context.go('/home/genre/${Uri.encodeComponent(genre)}'),
+                                    onPress: () => goTo('/home/genre/${Uri.encodeComponent(genre)}'),
                                   ),
                               ],
                             ),
                           _SidebarSection(
                             label: 'Settings',
                             icon: appIcons.settings,
+                            focusNode: nodeFor('Settings'),
                             open: open,
-                            active: onSettings && tab != 'SyncPlay',
+                            closings: closings,
+                            active: onSettings,
                             showPages: roomy,
                             children: [
-                              for (final label in _settingsPages)
+                              for (final label in settingsTabLabels)
                                 _SidebarLink(
                                   label: label,
+                                  focusNode: nodeFor('Settings/$label'),
                                   open: open,
                                   selected: onSettings && settingsTab == label,
-                                  onPress: () => context.go('/settings?tab=$label'),
+                                  onPress: () => goTo('/settings?tab=$label'),
                                 ),
                             ],
+                          ),
+                          // Edit mode for the home screen (phones have a button on Home instead).
+                          _SidebarLink(
+                            label: editing ? 'Done editing' : 'Edit home',
+                            icon: editing ? appIcons.check : appIcons.edit,
+                            open: open,
+                            selected: editing,
+                            onPress: () {
+                              homeEditing.value = !editing;
+                              if (loc != '/home') context.go('/home');
+                              onLeave(); // onto the home screen, to edit it
+                            },
                           ),
                         ],
                       ),
@@ -514,9 +639,11 @@ class _Sidebar extends StatelessWidget {
 /// The logo at the top of the sidebar, which takes you home: just the mark while the sidebar
 /// is closed, turning into the full wordmark as it opens.
 class _SidebarLogo extends StatelessWidget {
-  const _SidebarLogo({required this.open});
+  const _SidebarLogo({required this.open, required this.onPress, this.focusNode});
 
   final bool open;
+  final VoidCallback onPress; // home
+  final FocusNode? focusNode;
 
   static const _height = 28.0;
 
@@ -532,7 +659,8 @@ class _SidebarLogo extends StatelessWidget {
       button: true,
       // .static: no shrink when pressed.
       child: FTappable.static(
-        onPress: () => context.go('/home'),
+        focusNode: focusNode,
+        onPress: onPress,
         builder: (context, states, child) {
           final highlighted = states.contains(FTappableVariant.focused) ||
               states.contains(FTappableVariant.hovered);
@@ -578,7 +706,9 @@ class _SidebarSection extends StatelessWidget {
   const _SidebarSection({
     required this.label,
     this.icon,
+    this.focusNode,
     required this.open,
+    required this.closings,
     required this.active,
     required this.showPages,
     required this.children,
@@ -586,25 +716,122 @@ class _SidebarSection extends StatelessWidget {
 
   final String label;
   final IconData? icon; // none when it's inside another section (Genres)
+  final FocusNode? focusNode;
   final bool open;
+  final int closings; // see _Sidebar.closings
   final bool active; // on one of its pages
   final bool showPages; // the sidebar is fully open, so there's room for them
   final List<Widget> children;
 
   @override
   Widget build(BuildContext context) => FSidebarItem(
+    // A fresh item after each time the sidebar closes, so anything you unfolded folds back up.
+    key: ValueKey((label, closings)),
+    focusNode: focusNode,
     label: switch (icon) {
       final icon? => _IconLabel(icon: icon, label: label, open: open),
       null => _FadingLabel(label, open: open),
     },
-    // Starts unfolded if you're on one of its pages; after that it stays how you left it.
+    // Each time the sidebar opens, only the section you're in starts unfolded.
     initiallyExpanded: active,
     // Only lit up while closed: once open, the page itself shows as selected.
     selected: active && !open,
     // No pages until the sidebar is fully open, so the rail stays a single icon (and the
-    // arrow hides). Whether it's folded or not is remembered for the next time it opens.
+    // arrow hides).
     children: showPages ? children : const [],
   );
+}
+
+/// Search in the sidebar: looks like the other links until you select it, then turns into a
+/// search box in its place. Submitting opens the Search page with the results.
+///
+/// It only becomes a box when selected, not just when the remote passes over it, so the
+/// on-screen keyboard doesn't pop up every time you move down the sidebar.
+class _SidebarSearch extends StatefulWidget {
+  const _SidebarSearch({
+    required this.open,
+    required this.selected,
+    required this.onSearched,
+    this.focusNode,
+  });
+
+  final bool open;
+  final FocusNode? focusNode;
+  final bool selected; // on the Search page
+  final VoidCallback onSearched;
+
+  @override
+  State<_SidebarSearch> createState() => _SidebarSearchState();
+}
+
+class _SidebarSearchState extends State<_SidebarSearch> {
+  final _text = TextEditingController();
+  final _field = FocusNode(debugLabel: 'Sidebar search');
+  bool _typing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Moving away from the box (↑/↓, or the sidebar closing) turns it back into the link.
+    _field.addListener(() {
+      if (!_field.hasFocus && _typing && mounted) setState(() => _typing = false);
+    });
+  }
+
+  @override
+  void didUpdateWidget(covariant _SidebarSearch old) {
+    super.didUpdateWidget(old);
+    if (!widget.open && _typing) _typing = false;
+  }
+
+  @override
+  void dispose() {
+    _text.dispose();
+    _field.dispose();
+    super.dispose();
+  }
+
+  void _start() {
+    setState(() => _typing = true);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _field.requestFocus();
+    });
+  }
+
+  void _submit(String text) {
+    final query = text.trim();
+    if (query.isEmpty) return;
+    context.go(Uri(path: '/search', queryParameters: {'q': query}).toString());
+    _text.clear();
+    setState(() => _typing = false);
+    widget.onSearched(); // into the results
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!(_typing && widget.open)) {
+      return _SidebarLink(
+        label: 'Search',
+        icon: appIcons.search,
+        focusNode: widget.focusNode,
+        open: widget.open,
+        selected: widget.selected,
+        // Closed (a tap on a touch screen): straight to the Search page instead.
+        onPress: widget.open ? _start : () => context.go('/search'),
+      );
+    }
+    return FTextField(
+      control: .managed(controller: _text),
+      focusNode: _field,
+      hint: 'Search',
+      textInputAction: TextInputAction.search,
+      prefixBuilder: (context, style, _) => Padding(
+        padding: const EdgeInsetsDirectional.only(start: 10),
+        child: Icon(appIcons.search, size: 18, fill: 1),
+      ),
+      onSubmit: _submit,
+    );
+  }
 }
 
 /// One sidebar link. Its label fades out when the sidebar closes, leaving just the icon.
@@ -612,6 +839,7 @@ class _SidebarLink extends StatelessWidget {
   const _SidebarLink({
     required this.label,
     this.icon,
+    this.focusNode,
     required this.open,
     required this.onPress,
     this.selected = false,
@@ -619,12 +847,14 @@ class _SidebarLink extends StatelessWidget {
 
   final String label;
   final IconData? icon; // none for the pages under Libraries and Settings
+  final FocusNode? focusNode;
   final bool open;
   final bool selected;
   final VoidCallback onPress;
 
   @override
   Widget build(BuildContext context) => FSidebarItem(
+    focusNode: focusNode,
     label: switch (icon) {
       final icon? => _IconLabel(icon: icon, label: label, open: open),
       null => _FadingLabel(label, open: open), // the pages under Libraries and Settings
@@ -706,14 +936,6 @@ class _SidebarUser extends StatelessWidget {
   /// While closed, the side padding inside the card that puts the picture in the middle.
   static const _closedInner = (_railWidth - 2 * _sidePadding - _ringed) / 2;
 
-  /// The server's name from its dashboard, or else its address without the https://.
-  static String? get _serverLabel {
-    final name = jellyfin.serverName;
-    if (name != null && name.isNotEmpty) return name;
-    final url = jellyfin.client?.baseUrl;
-    return url == null ? null : Uri.tryParse(url)?.host;
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = context.theme;
@@ -772,27 +994,13 @@ class _SidebarUser extends StatelessWidget {
               // The gap closes up with the sidebar, so the picture can sit in the middle.
               AnimatedContainer(duration: _duration, curve: Curves.easeOutCubic, width: open ? 10 : 0),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  spacing: 2,
-                  children: [
-                    _FadingLabel(
-                      jellyfin.userName ?? 'Switch user',
-                      open: open,
-                      style: theme.typography.body.sm.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: theme.colors.foreground,
-                      ),
-                    ),
-                    // Which server you're on, like the email under the name in forui's example.
-                    if (_serverLabel case final server?)
-                      _FadingLabel(
-                        server,
-                        open: open,
-                        style: theme.typography.body.xs.copyWith(color: theme.colors.mutedForeground),
-                      ),
-                  ],
+                child: _FadingLabel(
+                  jellyfin.userName ?? 'Switch user',
+                  open: open,
+                  style: theme.typography.body.sm.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: theme.colors.foreground,
+                  ),
                 ),
               ),
             ],

@@ -43,6 +43,9 @@ final _tabs = <_SettingsTab>[
   (label: 'About', build: () => const _AboutCard()),
 ];
 
+/// The settings page names in order, for the sidebar.
+List<String> get settingsTabLabels => [for (final t in _tabs) t.label];
+
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key, this.initialTab});
 

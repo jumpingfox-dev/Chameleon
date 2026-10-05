@@ -91,7 +91,7 @@ final GoRouter _router = GoRouter(
         fromGroup: state.uri.queryParameters['syncplay'] == '1',
       ),
     ),
-    StatefulShellRoute.indexedStack(
+    StatefulShellRoute(
       // No animation in or out: when switching users, the shell is taken down and put back
       // up in quick succession, and two copies animating at once would share its key.
       pageBuilder: (context, state, navigationShell) => NoTransitionPage(
@@ -100,6 +100,16 @@ final GoRouter _router = GoRouter(
           location: state.uri.path,
           tab: state.uri.queryParameters['tab'],
         ),
+      ),
+      navigatorContainerBuilder: (context, navigationShell, children) => IndexedStack(
+        index: navigationShell.currentIndex,
+        children: [
+          for (final (i, child) in children.indexed)
+            ExcludeFocus(
+              excluding: i != navigationShell.currentIndex,
+              child: TickerMode(enabled: i == navigationShell.currentIndex, child: child),
+            ),
+        ],
       ),
       branches: [
         for (final d in destinations)

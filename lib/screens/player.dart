@@ -3258,12 +3258,6 @@ Map<String, dynamic>? _pickSubtitle(
 /// The item's first media source, as Jellyfin describes it.
 Map? _sourceOf(JellyfinItem item) => (item.raw['MediaSources'] as List?)?.firstOrNull as Map?;
 
-// TODO(cleanup): shared random-hex-id helper; the cast controller and the device id do the same
-String _randomId() {
-  final random = math.Random.secure();
-  return List.generate(16, (_) => random.nextInt(256).toRadixString(16).padLeft(2, '0')).join();
-}
-
 /// A stream the server converts while you watch: H.264 video under the quality limit, with one
 /// audio track, and picture subtitles burned in if they're on. Settings decide the audio:
 /// passthrough keeps surround formats as they are, downmix asks for stereo.
@@ -3288,7 +3282,7 @@ class _Transcode {
   factory _Transcode.build(JellyfinItem item, {int? audioIndex, int? burnIn, int? maxBitrate}) {
     final client = jellyfin.client!;
     final s = playbackSettings;
-    final session = _randomId();
+    final session = randomHexId();
     final channels = s.passthrough ? 8 : (s.downmix ? 2 : 6);
     final url = Uri.parse('${client.baseUrl}/Videos/${item.id}/master.m3u8').replace(
       queryParameters: {

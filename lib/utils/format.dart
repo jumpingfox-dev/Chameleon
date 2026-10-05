@@ -1,3 +1,5 @@
+import 'dart:math';
+
 // Plain formatting and ids shared across the app: nothing here reads a JellyfinItem.
 
 /// Two letters from a name, for an avatar with no picture: the first and last word's first
@@ -15,4 +17,10 @@ String formatDuration(Duration d) {
   final h = d.inHours, m = d.inMinutes % 60, s = d.inSeconds % 60;
   final ss = s.toString().padLeft(2, '0');
   return h > 0 ? '$h:${m.toString().padLeft(2, '0')}:$ss' : '$m:$ss';
+}
+
+/// A random id as [bytes] bytes of hex, e.g. for a device id or a transcoding session.
+String randomHexId([int bytes = 16]) {
+  final random = Random.secure();
+  return List.generate(bytes, (_) => random.nextInt(256).toRadixString(16).padLeft(2, '0')).join();
 }

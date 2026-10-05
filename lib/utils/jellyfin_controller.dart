@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:math';
 
 import 'package:dart_jellyfin/dart_jellyfin.dart';
 import 'package:flutter/foundation.dart';
@@ -211,16 +210,11 @@ class JellyfinController extends ChangeNotifier {
     'Authorization': 'MediaBrowser Token="${client!.token}"',
   };
 
-  // TODO(cleanup): shared random-hex-id helper; the player and the cast controller have the same loop
   /// A random id for this install. Jellyfin tracks sessions by it, so it must stay stable.
   Future<String> _deviceId(SharedPreferences prefs) async {
     var id = prefs.getString(_kDeviceId);
     if (id == null) {
-      final random = Random.secure();
-      id = List.generate(
-        16,
-            (_) => random.nextInt(256).toRadixString(16).padLeft(2, '0'),
-      ).join();
+      id = randomHexId();
       await prefs.setString(_kDeviceId, id);
     }
     return id;

@@ -44,7 +44,6 @@ class ProfilePickerScreen extends StatelessWidget {
                         variant: AppLogoVariant.auto,
                       ),
                       SizedBox(height: 32),
-                      _Heading(),
                       SizedBox(height: 32),
                       ProfilePicker(),
                     ],
@@ -62,27 +61,19 @@ Future<void> showProfilePicker(BuildContext context) => showFDialog<void>(
   builder: (context, style, animation) => FDialog(
     animation: animation,
     constraints: const BoxConstraints(minWidth: 280, maxWidth: 760),
-    builder: (context, _) => const Padding(
-      padding: EdgeInsets.all(24),
+    builder: (context, _) => Padding(
+      padding: const EdgeInsets.all(24),
       child: Column(
         mainAxisSize: .min,
         children: [
-          _Heading(),
-          SizedBox(height: 24),
-          Flexible(child: SingleChildScrollView(child: ProfilePicker(inDialog: true))),
+          Text("Who's watching?", textAlign: TextAlign.center, style: context.theme.typography.display.xl3),
+          const SizedBox(height: 24),
+          const Flexible(child: SingleChildScrollView(child: ProfilePicker(inDialog: true))),
         ],
       ),
     ),
   ),
 );
-
-class _Heading extends StatelessWidget {
-  const _Heading();
-
-  @override
-  Widget build(BuildContext context) =>
-      Text("Who's watching?", textAlign: TextAlign.center, style: context.theme.typography.display.xl3);
-}
 
 /// One person in the picker. At least one of [saved] or [public] is set.
 class _Profile {
@@ -158,6 +149,7 @@ class _ProfilePickerState extends State<ProfilePicker> {
       _busyKey = profile.key;
       _error = null;
     });
+    final before = jellyfin.currentAccount;
 
     try {
       if (profile.saved != null) {
@@ -180,8 +172,12 @@ class _ProfilePickerState extends State<ProfilePicker> {
     } finally {
       if (mounted) setState(() => _busyKey = null);
     }
-    // On success there's nothing left to do: the router moves to the new user's Home,
-    // which also closes this pop-up.
+    // Switched: close the pop-up. The router moves to the new user's Home, but the pop-up
+    // can sit above the whole app (opened from the sidebar), where that doesn't close it.
+    final now = jellyfin.currentAccount;
+    if (now != null && (before == null || !now.isSame(before.server, before.userId))) {
+      _closeDialog();
+    }
   }
 
   /// Users without a password sign straight in; everyone else gets the password box.
@@ -199,6 +195,14 @@ class _ProfilePickerState extends State<ProfilePicker> {
     final router = GoRouter.of(context); // grabbed first: closing the pop-up unmounts this
     if (widget.inDialog) Navigator.of(context).pop();
     router.go('/login?add=1');
+  }
+
+  /// Closes the pop-up this picker is in, if it's still open. Removes exactly that pop-up,
+  /// so nothing else gets closed if the router already took it down.
+  void _closeDialog() {
+    if (!widget.inDialog || !mounted) return;
+    final route = ModalRoute.of(context);
+    if (route != null && route.isActive) Navigator.of(context).removeRoute(route);
   }
 
   @override

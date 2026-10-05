@@ -166,7 +166,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           FButton(
                             variant: .outline,
                             onPress: _busy ? null : _goBack,
-                            child: Text(jellyfin.isConnected ? 'Cancel' : "Back to Who's watching?"),
+                            child: Text(jellyfin.isConnected ? 'Cancel' : "Back"),
                           ),
                       ],
                     ),

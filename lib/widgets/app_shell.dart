@@ -439,8 +439,8 @@ class _Sidebar extends StatelessWidget {
                               homeEditing.value = !editing;
                             },
                           ),
-                          // Libraries and Settings fold up under one icon each. While the sidebar
-                          // is closed only those icons show; open it and they expand to list their pages.
+                          // Libraries, Genres and Settings fold up under one icon each. While the
+                          // sidebar is closed only those icons show; open it and they list their pages.
                           _SidebarSection(
                             label: 'Libraries',
                             icon: appIcons.folder,
@@ -706,6 +706,14 @@ class _SidebarUser extends StatelessWidget {
   /// While closed, the side padding inside the card that puts the picture in the middle.
   static const _closedInner = (_railWidth - 2 * _sidePadding - _ringed) / 2;
 
+  /// The server's name from its dashboard, or else its address without the https://.
+  static String? get _serverLabel {
+    final name = jellyfin.serverName;
+    if (name != null && name.isNotEmpty) return name;
+    final url = jellyfin.client?.baseUrl;
+    return url == null ? null : Uri.tryParse(url)?.host;
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = context.theme;
@@ -713,42 +721,63 @@ class _SidebarUser extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: _sidePadding), // lines up with the list
       child: FTappable.static(
         onPress: () => showProfilePicker(context), // "Who's watching?"
-        builder: (context, states, child) => FFocusedOutline(
-          focused: states.contains(FTappableVariant.focused),
-          child: child!,
-        ),
-        // The card fades in behind the picture and name as the sidebar opens, so while it's
-        // closed there's just the picture.
-        child: Stack(
-          children: [
-            Positioned.fill(
-              child: AnimatedOpacity(
-                duration: _duration,
-                opacity: open ? 1 : 0,
-                child: const FCard(child: SizedBox.expand()),
+        // Focused (remote) or hovered (mouse): the card fills in, like the other sidebar items.
+        builder: (context, states, child) {
+          final highlighted = states.contains(FTappableVariant.focused) ||
+              states.contains(FTappableVariant.hovered);
+          return Stack(
+            children: [
+              // The card fades in behind the picture and name as the sidebar opens, so while
+              // it's closed there's just the picture.
+              Positioned.fill(
+                child: AnimatedOpacity(
+                  duration: _duration,
+                  opacity: open ? 1 : 0,
+                  child: const FCard(child: SizedBox.expand()),
+                ),
               ),
-            ),
-            AnimatedPadding(
-              duration: _duration,
-              curve: Curves.easeOutCubic,
-              padding: EdgeInsets.symmetric(vertical: 12, horizontal: open ? 12 : _closedInner),
-              child: Row(
-                children: [
-                  // A faint ring around the picture.
-                  DecoratedBox(
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(color: theme.colors.primary.withValues(alpha: 0.35), width: 1.5),
-                    ),
-                    child: const Padding(
-                      padding: EdgeInsets.all(_ringGap),
-                      child: UserAvatar(size: _avatarSize),
+              Positioned.fill(
+                child: AnimatedOpacity(
+                  duration: const Duration(milliseconds: 120),
+                  opacity: highlighted ? 1 : 0,
+                  child: DecoratedBox(
+                    decoration: ShapeDecoration(
+                      color: theme.colors.secondary,
+                      shape: RoundedSuperellipseBorder(borderRadius: theme.style.borderRadius.lg),
                     ),
                   ),
-                  // The gap closes up with the sidebar, so the picture can sit in the middle.
-                  AnimatedContainer(duration: _duration, curve: Curves.easeOutCubic, width: open ? 10 : 0),
-                  Expanded(
-                    child: _FadingLabel(
+                ),
+              ),
+              child!,
+            ],
+          );
+        },
+        child:             AnimatedPadding(
+          duration: _duration,
+          curve: Curves.easeOutCubic,
+          padding: EdgeInsets.symmetric(vertical: 12, horizontal: open ? 12 : _closedInner),
+          child: Row(
+            children: [
+              // A faint ring around the picture.
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(color: theme.colors.primary.withValues(alpha: 0.35), width: 1.5),
+                ),
+                child: const Padding(
+                  padding: EdgeInsets.all(_ringGap),
+                  child: UserAvatar(size: _avatarSize),
+                ),
+              ),
+              // The gap closes up with the sidebar, so the picture can sit in the middle.
+              AnimatedContainer(duration: _duration, curve: Curves.easeOutCubic, width: open ? 10 : 0),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  spacing: 2,
+                  children: [
+                    _FadingLabel(
                       jellyfin.userName ?? 'Switch user',
                       open: open,
                       style: theme.typography.body.sm.copyWith(
@@ -756,11 +785,18 @@ class _SidebarUser extends StatelessWidget {
                         color: theme.colors.foreground,
                       ),
                     ),
-                  ),
-                ],
+                    // Which server you're on, like the email under the name in forui's example.
+                    if (_serverLabel case final server?)
+                      _FadingLabel(
+                        server,
+                        open: open,
+                        style: theme.typography.body.xs.copyWith(color: theme.colors.mutedForeground),
+                      ),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

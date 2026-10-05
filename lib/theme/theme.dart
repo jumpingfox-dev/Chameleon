@@ -3,6 +3,9 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:forui_phosphor/forui_phosphor.dart';
 
+import 'styles/button_styles.dart';
+import 'styles/sidebar_style.dart';
+
 part 'colors.dart';
 part 'typography.dart';
 part 'style.dart';
@@ -33,5 +36,7 @@ FThemeData buildTheme(
     icons: icons,
     style: style,
     touch: touch,
+    buttonStyles: buttonStyles(colors: colors, typography: typography, style: style, touch: touch),
+    sidebarStyle: sidebarStyle(colors: colors, typography: typography, icons: icons, style: style, touch: touch),
   );
 }

@@ -21,8 +21,6 @@ class _LoginScreenState extends State<LoginScreen> {
   final _username = TextEditingController();
   final _password = TextEditingController();
   bool _busy = false;
-  // TODO(cleanup): never set (sign-in errors open a dialog), so the error text below never shows; delete both
-  String? _error;
 
   @override
   void initState() {
@@ -50,10 +48,7 @@ class _LoginScreenState extends State<LoginScreen> {
   void _goBack() => context.go(jellyfin.isConnected ? '/home' : '/profiles');
 
   Future<void> _signIn() async {
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
+    setState(() => _busy = true);
     try {
       await jellyfin.signIn(
         server: composeServerUrl(_host.text, _port.text),
@@ -141,11 +136,6 @@ class _LoginScreenState extends State<LoginScreen> {
                           label: const Text('Password'),
                           enabled: !_busy,
                         ),
-                        if (_error != null)
-                          Text(
-                            _error!,
-                            style: TextStyle(color: context.theme.colors.error),
-                          ),
                         FButton(
                           onPress: _busy ? null : _signIn,
                           child: Text(_busy ? 'Connecting…' : 'Sign in'),

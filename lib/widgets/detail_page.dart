@@ -8,6 +8,7 @@ import 'package:material_ui/material_ui.dart';
 import '../theme/app_icons.dart';
 import '../utils/app_cache.dart';
 import '../utils/focus_rows.dart';
+import '../utils/format.dart';
 import '../utils/jellyfin_controller.dart';
 import '../utils/orientation.dart';
 import 'expandable_text.dart';
@@ -1894,14 +1895,7 @@ class _CastTile extends StatelessWidget {
     final name = (person['Name'] as String?) ?? '';
     final role = person['Role'] as String?;
     final tag = person['PrimaryImageTag'] as String?;
-    // TODO(cleanup): shared initials helper
-    final initials = name
-        .trim()
-        .split(RegExp(r'\s+'))
-        .where((w) => w.isNotEmpty)
-        .take(2)
-        .map((w) => w[0])
-        .join();
+    final initials = initialsOf(name);
 
     return HoverLift(
       builder: (context, active) => FTappable(

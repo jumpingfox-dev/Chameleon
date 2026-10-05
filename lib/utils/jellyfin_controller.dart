@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../widgets/home_modules.dart';
 import 'app_cache.dart';
+import 'format.dart';
 import 'library_cache.dart';
 
 class JellyfinLibrary {
@@ -197,15 +198,7 @@ class JellyfinController extends ChangeNotifier {
     return accounts.where((a) => a.isSame(server, userId)).firstOrNull;
   }
 
-  // TODO(cleanup): shared initials helper; three other places work the name out the same way
-  String get initials {
-    final name = userName?.trim() ?? '';
-    if (name.isEmpty) return '?';
-    final parts = name.split(RegExp(r'\s+'));
-    return parts.length == 1
-        ? parts.first.substring(0, 1).toUpperCase()
-        : (parts.first[0] + parts.last[0]).toUpperCase();
-  }
+  String get initials => initialsOf(userName ?? '');
 
   /// The direct-play address for an item: the original file, sent untouched.
   /// mpv decodes it on the device, so the server never has to transcode.

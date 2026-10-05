@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../theme/app_icons.dart';
+import '../utils/format.dart';
 import '../utils/jellyfin_controller.dart';
 import 'app_logo.dart';
 import 'quick_connect_dialog.dart';
@@ -43,8 +44,6 @@ class ProfilePickerScreen extends StatelessWidget {
                         height: 48,
                         variant: AppLogoVariant.auto,
                       ),
-                      SizedBox(height: 32),
-                      // TODO(cleanup): two gaps under the logo; one is a slip
                       SizedBox(height: 32),
                       ProfilePicker(),
                     ],
@@ -278,17 +277,11 @@ class _ProfileTileState extends State<_ProfileTile> {
   bool _focused = false;
   bool _hovered = false;
 
-  String get _initials {
-    final parts = widget.name.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
-    if (parts.isEmpty) return '?';
-    return parts.length == 1 ? parts.first[0].toUpperCase() : (parts.first[0] + parts.last[0]).toUpperCase();
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = context.theme;
     final active = _focused || _hovered;
-    final initials = Text(_initials, style: theme.typography.display.xl2);
+    final initials = Text(initialsOf(widget.name), style: theme.typography.display.xl2);
 
     final Widget picture = widget.icon != null
         ? FAvatar.raw(size: _size, child: Icon(widget.icon, size: 44, fill: 1))

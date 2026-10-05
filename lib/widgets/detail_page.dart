@@ -113,7 +113,11 @@ void playQueue(GoRouter router, List<String> ids) {
 
 /// The episode to play next in a series: Jellyfin's "Next Up", or else the first episode
 /// of the first regular season (skipping Specials).
-// TODO(cleanup): _SeriesPlayButton._findNext works the next episode out all over again; one should call the other
+///
+/// _SeriesPlayButton below works this out again on its own, falling back to the first
+/// *listed* season rather than skipping Specials. Left as two routines for this pass: folding
+/// one into the other changes what Play does for a show whose first season is Specials,
+/// which is a behaviour call rather than a tidy-up.
 Future<JellyfinItem?> nextEpisodeFor(String seriesId) async {
   final client = jellyfin.client!;
 
@@ -1273,8 +1277,7 @@ class _CollectionInfoCard extends StatelessWidget {
       ..sort(
             (a, b) => _ratingOrder.indexOf(a).compareTo(_ratingOrder.indexOf(b)),
       );
-    // TODO(cleanup): stray space in "ratings .first"
-    if (known.isEmpty) return ratings .first; // a rating system outside the US list: show it as-is
+    if (known.isEmpty) return ratings.first; // a rating system outside the US list: show it as-is
     return known.first == known.last
         ? known.first
         : '${known.first} – ${known.last}';

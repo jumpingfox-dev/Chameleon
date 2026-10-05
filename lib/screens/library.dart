@@ -191,7 +191,9 @@ class _LibraryScreenState extends State<LibraryScreen> {
     }
 
     try {
-      // TODO(cleanup): asks the server 27 times at once every time a library opens
+      // 27 requests at once (# plus A-Z). Noted as worth revisiting (batching, or one grouped
+      // query) if it ever causes trouble on a slow connection, but left alone for this pass:
+      // changing it means changing timing and request shape, not just tidying code.
       final results = await Future.wait(_letters.map(hasTitles));
       if (!mounted) return;
       setState(

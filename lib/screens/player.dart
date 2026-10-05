@@ -2106,8 +2106,8 @@ _SegmentKind? _kindFromChapterName(String name) {
   if (RegExp(r'\b(intro|opening|op)\b').hasMatch(n)) return _SegmentKind.intro;
   if (RegExp(r'\b(recap|previously)\b').hasMatch(n)) return _SegmentKind.recap;
   if (RegExp(r'\b(credits|ending|outro|ed)\b').hasMatch(n)) return _SegmentKind.credits;
-  // TODO(cleanup): two statements on one line; split them
-  if (RegExp(r'\b(preview|next time|next episode)\b').hasMatch(n)) return _SegmentKind.preview; return null;
+  if (RegExp(r'\b(preview|next time|next episode)\b').hasMatch(n)) return _SegmentKind.preview;
+  return null;
 }
 
 /// The item's skippable segments: Jellyfin's Media Segments (from TheIntroDB and similar plugins),

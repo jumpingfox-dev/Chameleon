@@ -10,6 +10,7 @@ import '../theme/tappable_states.dart';
 import '../utils/app_cache.dart';
 import '../utils/focus_rows.dart';
 import '../utils/format.dart';
+import '../utils/item_format.dart';
 import '../utils/jellyfin_controller.dart';
 import '../utils/orientation.dart';
 import 'expandable_text.dart';
@@ -1391,15 +1392,6 @@ class _MovieInfoCard extends StatelessWidget {
 
   final JellyfinItem movie;
 
-  // TODO(cleanup): shared runtime formatter; _EpisodeTile has the same getter
-  /// "2h 42m" from Jellyfin's runtime (stored in 100-nanosecond ticks).
-  String? get _runtime {
-    final ticks = movie.raw['RunTimeTicks'];
-    if (ticks is! int || ticks <= 0) return null;
-    final minutes = ticks ~/ 600000000;
-    final h = minutes ~/ 60, m = minutes % 60;
-    return h > 0 ? '${h}h ${m}m' : '${m}m';
-  }
 
   /// Actors only, in billing order, as Jellyfin lists them.
   List<Map<String, dynamic>> get _cast => [
@@ -1416,7 +1408,7 @@ class _MovieInfoCard extends StatelessWidget {
     );
 
     final year = movie.raw['ProductionYear'];
-    final runtime = _runtime;
+    final runtime = formatRuntime(movie.raw['RunTimeTicks']);
     final rating = movie.raw['OfficialRating'] as String?;
     final score = movie.raw['CommunityRating'] as num?;
     final description = (movie.raw['Overview'] as String?)?.trim();
@@ -1736,15 +1728,6 @@ class _EpisodeTile extends StatelessWidget {
     'Dec',
   ];
 
-  // TODO(cleanup): shared runtime formatter; _MovieInfoCard has the same getter
-  String? get _runtime {
-    final ticks = episode.raw['RunTimeTicks'];
-    if (ticks is! int || ticks <= 0) return null;
-    final minutes = ticks ~/ 600000000;
-    final h = minutes ~/ 60, m = minutes % 60;
-    return h > 0 ? '${h}h ${m}m' : '${m}m';
-  }
-
   /// "Jan 20, 2008" from the episode's premiere date.
   String? get _airDate {
     final date = DateTime.tryParse(
@@ -1762,7 +1745,7 @@ class _EpisodeTile extends StatelessWidget {
     final number = episode.raw['IndexNumber'];
     final tag = episode.imageTags['Primary']; // an episode's Primary image is its 16:9 thumbnail
     final overview = (episode.raw['Overview'] as String?)?.trim();
-    final details = [_runtime, _airDate].whereType<String>().join(' · ');
+    final details = [formatRuntime(episode.raw['RunTimeTicks']), _airDate].whereType<String>().join(' · ');
     final thumbWidth = isPhone ? 140.0 : 240.0;
 
     return ScrollIntoViewOnFocus(

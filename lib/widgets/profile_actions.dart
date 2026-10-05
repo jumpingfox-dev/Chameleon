@@ -8,11 +8,7 @@ import 'profile_picker.dart';
 typedef ProfileAction = ({String label, IconData icon, VoidCallback onPress});
 
 /// The profile options, shared by the wide-screen popover and the phone Profile screen.
-List<ProfileAction> profileActions(
-    BuildContext context, {
-      // TODO(cleanup): nothing passes this and nothing below uses it; delete the parameter
-      bool includeProfileLink = true,
-    }) => [
+List<ProfileAction> profileActions(BuildContext context) => [
   (
   label: 'Switch User',
   icon: appIcons.addUser,

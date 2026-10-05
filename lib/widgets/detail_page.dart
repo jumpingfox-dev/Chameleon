@@ -555,14 +555,9 @@ class _DetailPageState extends State<DetailPage> {
         onTap: () => Navigator.of(context).pop(),
         child: _PopoutScope(
           gap: widget.popoutGap,
-          // TODO(cleanup): redundant: main.dart turns scrollbars off for the whole app
-          child: ScrollConfiguration(
-            behavior: ScrollConfiguration.of(context)
-                .copyWith(scrollbars: false),
-            child: Padding(
-              padding: EdgeInsets.symmetric(horizontal: isPhone ? 12 : 24),
-              child: body,
-            ),
+          child: Padding(
+            padding: EdgeInsets.symmetric(horizontal: isPhone ? 12 : 24),
+            child: body,
           ),
         ),
       );

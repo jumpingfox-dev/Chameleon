@@ -116,14 +116,6 @@ class SyncPlayController extends ChangeNotifier {
   /// Whether the player is open on this device.
   bool get playerOpen => _attached != null;
 
-  /// Opens the player on what the group is watching, e.g. after leaving the player for a
-  /// moment. Loading it pauses the group briefly, then everyone carries on together.
-  // TODO(cleanup): nothing calls this; delete it
-  void openCurrent() {
-    final entry = current;
-    if (entry != null && !playerOpen) openPlayer?.call(entry.itemId);
-  }
-
   // ── Groups ──
 
   /// The groups you can join, each with what its members are watching (when the server

@@ -48,8 +48,6 @@ class AccountSettings extends ChangeNotifier {
   Language get audioLanguage => _language(_config['AudioLanguagePreference']);
   Language get subtitleLanguage => _language(_config['SubtitleLanguagePreference']);
   SubtitleMode get subtitleMode => SubtitleMode.fromValue(_config['SubtitleMode'] as String?);
-  // TODO(cleanup): nothing reads this; delete it with setHidePlayedInLatest
-  bool get hidePlayedInLatest => _config['HidePlayedInLatest'] as bool? ?? false;
 
   /// The highest age rating this user may watch, e.g. 'PG-13', or null for no limit.
   String? get maxRating {
@@ -134,8 +132,6 @@ class AccountSettings extends ChangeNotifier {
   Future<void> setAudioLanguage(Language l) => _save('AudioLanguagePreference', l.code);
   Future<void> setSubtitleLanguage(Language l) => _save('SubtitleLanguagePreference', l.code);
   Future<void> setSubtitleMode(SubtitleMode m) => _save('SubtitleMode', m.value);
-  // TODO(cleanup): nothing calls this; delete it with hidePlayedInLatest
-  Future<void> setHidePlayedInLatest(bool hide) => _save('HidePlayedInLatest', hide);
 
   /// Changes one setting, shows it straight away, and saves the whole configuration.
   /// If saving fails, the old value comes back.

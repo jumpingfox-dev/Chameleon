@@ -247,8 +247,6 @@ class _AppearanceCard extends StatelessWidget {
     listenable: Listenable.merge([themeController, fontController, iconController, playbackSettings]),
     builder: (context, _) {
       final preset = themeController.value;
-      // TODO(cleanup): dead commented-out line; delete it
-      // final isPhone = isPhoneLayout(context);
 
       return _SettingsCard(
         children: [

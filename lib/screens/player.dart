@@ -3336,22 +3336,18 @@ Future<_NextEpisode?> _fetchNextIn(JellyfinItem item, List<String> queue) async 
   try {
     final next = await client.items.byId(queue[i + 1]);
     if (next == null) return null;
-    // TODO(cleanup): use the shared wide-image helper
     // A wide picture for the card: the backdrop, else the thumbnail, else the poster.
-    final backdrop = (next.raw['BackdropImageTags'] as List?)?.firstOrNull as String?;
-    final thumb = next.imageTags['Thumb'];
-    final primary = next.imageTags['Primary'];
-    final (type, tag) = backdrop != null
-        ? ('Backdrop', backdrop)
-        : thumb != null
-        ? ('Thumb', thumb)
-        : ('Primary', primary);
+    final imageUrl = wideImageUrl(base, [
+      ('Backdrop', next.id, (next.raw['BackdropImageTags'] as List?)?.firstOrNull as String?),
+      ('Thumb', next.id, next.imageTags['Thumb']),
+      ('Primary', next.id, next.imageTags['Primary']),
+    ], quality: 90);
     return _NextEpisode(
       id: next.id,
       name: next.name,
       season: next.raw['ParentIndexNumber'] as int?,
       episode: next.raw['IndexNumber'] as int?,
-      imageUrl: tag == null ? null : '$base/Items/${next.id}/Images/$type?fillWidth=400&quality=90&tag=$tag',
+      imageUrl: imageUrl,
     );
   } on JellyfinException {
     return null;

@@ -146,7 +146,8 @@ class CastRemote extends StatelessWidget {
     const white = Color(0xFFFFFFFF);
     const dim = Color(0xB3FFFFFF);
     final base = jellyfin.client?.baseUrl;
-    // TODO(cleanup): use the shared wide-image helper
+    // Not wideImageUrl: this one has no poster fallback, and sizes by maxWidth (no crop)
+    // rather than fillWidth, since it's just a dimmed-out background here.
     final backdrop = (item.raw['BackdropImageTags'] as List?)?.firstOrNull as String?;
     final backdropId = backdrop != null ? item.id : item.raw['ParentBackdropItemId'] as String?;
     final backdropTag = backdrop ?? ((item.raw['ParentBackdropImageTags'] as List?)?.firstOrNull as String?);

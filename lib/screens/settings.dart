@@ -1114,21 +1114,20 @@ class _SyncPlayNowPlayingState extends State<_SyncPlayNowPlaying> {
     },
   );
 
-  // TODO(cleanup): use the shared wide-image helper
   /// The backdrop (the show's, for an episode), or else the poster.
   static String? _wideImage(JellyfinItem item) {
     final base = jellyfin.client?.baseUrl;
     if (base == null) return null;
-    final own = (item.raw['BackdropImageTags'] as List?)?.firstOrNull as String?;
-    final parent = (item.raw['ParentBackdropImageTags'] as List?)?.firstOrNull as String?;
     final parentId = item.raw['ParentBackdropItemId'] as String?;
-    final primary = item.imageTags['Primary'];
-    if (own != null) return '$base/Items/${item.id}/Images/Backdrop?fillWidth=400&tag=$own';
-    if (parent != null && parentId != null) {
-      return '$base/Items/$parentId/Images/Backdrop?fillWidth=400&tag=$parent';
-    }
-    if (primary != null) return '$base/Items/${item.id}/Images/Primary?fillWidth=400&tag=$primary';
-    return null;
+    return wideImageUrl(base, [
+      ('Backdrop', item.id, (item.raw['BackdropImageTags'] as List?)?.firstOrNull as String?),
+      (
+        'Backdrop',
+        parentId ?? '',
+        parentId == null ? null : (item.raw['ParentBackdropImageTags'] as List?)?.firstOrNull as String?,
+      ),
+      ('Primary', item.id, item.imageTags['Primary']),
+    ]);
   }
 }
 

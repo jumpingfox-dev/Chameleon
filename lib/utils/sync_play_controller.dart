@@ -164,25 +164,21 @@ class SyncPlayController extends ChangeNotifier {
     }
   }
 
-  // TODO(cleanup): use the shared wide-image helper
   static SyncPlayWatching _watchingFrom(String base, Map item) {
     final id = item['Id'] as String;
     final isEpisode = item['Type'] == 'Episode';
 
     // A wide picture: the item's backdrop, the show's backdrop, or the poster.
-    final backdrops = item['BackdropImageTags'] as List?;
-    final parentBackdrops = item['ParentBackdropImageTags'] as List?;
-    final primary = (item['ImageTags'] as Map?)?['Primary'] as String?;
-    final String? imageUrl;
-    if (backdrops != null && backdrops.isNotEmpty) {
-      imageUrl = '$base/Items/$id/Images/Backdrop?fillWidth=400&tag=${backdrops.first}';
-    } else if (parentBackdrops != null && parentBackdrops.isNotEmpty && item['ParentBackdropItemId'] != null) {
-      imageUrl = '$base/Items/${item['ParentBackdropItemId']}/Images/Backdrop?fillWidth=400&tag=${parentBackdrops.first}';
-    } else if (primary != null) {
-      imageUrl = '$base/Items/$id/Images/Primary?fillWidth=400&tag=$primary';
-    } else {
-      imageUrl = null;
-    }
+    final parentId = item['ParentBackdropItemId'] as String?;
+    final imageUrl = wideImageUrl(base, [
+      ('Backdrop', id, (item['BackdropImageTags'] as List?)?.firstOrNull as String?),
+      (
+        'Backdrop',
+        parentId ?? '',
+        parentId == null ? null : (item['ParentBackdropImageTags'] as List?)?.firstOrNull as String?,
+      ),
+      ('Primary', id, (item['ImageTags'] as Map?)?['Primary'] as String?),
+    ]);
 
     return (
     itemId: id,

@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../theme/app_icons.dart';
+import '../theme/tappable_states.dart';
 import '../utils/app_cache.dart';
 import '../utils/focus_rows.dart';
 import '../utils/format.dart';
@@ -1993,10 +1994,7 @@ class _FloatingIconButton extends StatelessWidget {
       autofocus: autofocus,
       onPress: onPress,
       builder: (context, states, _) {
-        // TODO(cleanup): shared focused-or-hovered helper
-        final active =
-            states.contains(FTappableVariant.hovered) ||
-                states.contains(FTappableVariant.focused);
+        final active = isHighlighted(states);
         return AnimatedScale(
           scale: active
               ? 1.1

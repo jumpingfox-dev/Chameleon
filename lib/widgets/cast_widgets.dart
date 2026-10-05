@@ -7,6 +7,7 @@ import 'package:flutter_to_airplay/flutter_to_airplay.dart';
 import 'package:forui/forui.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../theme/tappable_states.dart';
 import '../utils/cast_controller.dart';
 import '../utils/jellyfin_controller.dart';
 import '../utils/playback_settings.dart';
@@ -291,10 +292,7 @@ class _RemoteButton extends StatelessWidget {
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          // TODO(cleanup): shared focused-or-hovered helper
-          color: states.contains(FTappableVariant.focused) || states.contains(FTappableVariant.hovered)
-              ? const Color(0x33FFFFFF)
-              : const Color(0x00FFFFFF),
+          color: isHighlighted(states) ? const Color(0x33FFFFFF) : const Color(0x00FFFFFF),
         ),
         child: Icon(icon, size: size, color: const Color(0xFFFFFFFF)),
       ),

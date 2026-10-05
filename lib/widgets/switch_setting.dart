@@ -1,6 +1,8 @@
 import 'package:forui/forui.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../theme/tappable_states.dart';
+
 /// An on/off setting. The whole row is one button, so the remote can select and toggle it.
 class SwitchSetting extends StatelessWidget {
   const SwitchSetting({
@@ -27,8 +29,7 @@ class SwitchSetting extends StatelessWidget {
       child: FTappable(
         onPress: enabled ? () => onChange(!value) : null,
         builder: (context, states, _) {
-          // TODO(cleanup): shared focused-or-hovered helper
-          final highlighted = states.contains(FTappableVariant.focused) || states.contains(FTappableVariant.hovered);
+          final highlighted = isHighlighted(states);
           return AnimatedContainer(
             duration: const Duration(milliseconds: 120),
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),

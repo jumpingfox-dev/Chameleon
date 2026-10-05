@@ -14,6 +14,7 @@ import '../screens/search.dart';
 import '../screens/series.dart';
 import '../screens/settings.dart';
 import '../theme/app_icons.dart';
+import '../theme/tappable_states.dart';
 import '../utils/focus_rows.dart';
 import '../utils/home_layout.dart';
 import '../utils/jellyfin_controller.dart';
@@ -699,9 +700,7 @@ class _SidebarLogo extends StatelessWidget {
         focusNode: focusNode,
         onPress: onPress,
         builder: (context, states, child) {
-          // TODO(cleanup): shared helper for the focused-or-hovered check, which about ten widgets repeat
-          final highlighted = states.contains(FTappableVariant.focused) ||
-              states.contains(FTappableVariant.hovered);
+          final highlighted = isHighlighted(states);
           return AnimatedContainer(
             duration: const Duration(milliseconds: 120),
             padding: const EdgeInsets.all(8),
@@ -988,8 +987,7 @@ class _SidebarUser extends StatelessWidget {
         onPress: () => showProfilePicker(context), // "Who's watching?"
         // Focused (remote) or hovered (mouse): the card fills in, like the other sidebar items.
         builder: (context, states, child) {
-          final highlighted = states.contains(FTappableVariant.focused) ||
-              states.contains(FTappableVariant.hovered);
+          final highlighted = isHighlighted(states);
           return Stack(
             children: [
               // The card fades in behind the picture and name as the sidebar opens, so while

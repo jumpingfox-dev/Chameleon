@@ -17,6 +17,7 @@ import 'package:media_kit_video/media_kit_video.dart';
 import 'package:sensors_plus/sensors_plus.dart';
 import 'package:http/http.dart' as http;
 
+import '../theme/tappable_states.dart';
 import '../utils/app_cache.dart';
 import '../utils/cast_controller.dart';
 import '../utils/focus_rows.dart';
@@ -2705,9 +2706,7 @@ class _ControlButton extends StatelessWidget {
       focusNode: focusNode,
       onPress: onPress,
       builder: (context, states, _) {
-        // TODO(cleanup): shared focused-or-hovered helper
-        final focused = states.contains(FTappableVariant.focused);
-        final hovered = states.contains(FTappableVariant.hovered);
+        final highlighted = isHighlighted(states);
         // TODO(cleanup): use isPhoneLayout
         final compact = MediaQuery.sizeOf(context).shortestSide < 600;
         return AnimatedContainer(
@@ -2716,9 +2715,7 @@ class _ControlButton extends StatelessWidget {
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             // Focused (remote or keyboard) or hovered: the same soft translucent circle.
-            color: focused || hovered
-                ? const Color(0x33FFFFFF)
-                : const Color(0x00FFFFFF),
+            color: highlighted ? const Color(0x33FFFFFF) : const Color(0x00FFFFFF),
           ),
           child: Icon(
             icon,

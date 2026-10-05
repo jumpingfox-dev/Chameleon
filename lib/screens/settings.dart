@@ -11,6 +11,7 @@ import 'package:http/http.dart' as http;
 import 'package:package_info_plus/package_info_plus.dart';
 
 import '../theme/app_icons.dart';
+import '../theme/tappable_states.dart';
 import '../utils/font_controller.dart';
 import '../utils/theme_controller.dart';
 import '../utils/theme_presets.dart';
@@ -1160,9 +1161,7 @@ class _SyncPlayTile extends StatelessWidget {
       autofocus: autofocus,
       onPress: onPress,
       builder: (context, states, _) {
-        // TODO(cleanup): shared focused-or-hovered helper
-        final highlighted = onPress != null &&
-            (states.contains(FTappableVariant.focused) || states.contains(FTappableVariant.hovered));
+        final highlighted = onPress != null && isHighlighted(states);
         return AnimatedContainer(
           duration: const Duration(milliseconds: 120),
           padding: const EdgeInsets.all(10),

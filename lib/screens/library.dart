@@ -2,6 +2,7 @@ import 'package:dart_jellyfin/dart_jellyfin.dart';
 import 'package:forui/forui.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../theme/tappable_states.dart';
 import '../utils/focus_rows.dart';
 import '../utils/jellyfin_controller.dart';
 import '../utils/library_cache.dart';
@@ -425,9 +426,7 @@ class _LetterButton extends StatelessWidget {
       onPress: onPress,
       semanticsLabel: 'Jump to $letter',
       builder: (context, states, _) {
-        // TODO(cleanup): shared focused-or-hovered helper
-        final highlighted = states.contains(FTappableVariant.focused) ||
-            states.contains(FTappableVariant.hovered);
+        final highlighted = isHighlighted(states);
         return AnimatedContainer(
           duration: const Duration(milliseconds: 100),
           width: double.infinity,

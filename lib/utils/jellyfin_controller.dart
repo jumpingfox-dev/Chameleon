@@ -205,10 +205,27 @@ class JellyfinController extends ChangeNotifier {
       '${client!.baseUrl}/Videos/$itemId/stream?static=true';
 
   /// Authenticates media requests with a header, keeping the token out of the URL.
-  // TODO(cleanup): add getJson and postJson here; a dozen callers repeat http.get plus jsonDecode
   Map<String, String> get authHeaders => {
     'Authorization': 'MediaBrowser Token="${client!.token}"',
   };
+
+  /// GETs [path] (and any [query] parameters) against the server and decodes the JSON
+  /// response. Throws if there's no server to ask, or it doesn't answer with 200.
+  /// [auth] can be turned off for endpoints that work before signing in.
+  Future<dynamic> getJson(
+      String path, {
+        Map<String, String>? query,
+        bool auth = true,
+        Duration timeout = const Duration(seconds: 10),
+      }) async {
+    final base = client?.baseUrl;
+    if (base == null) throw StateError('Not connected to a server.');
+    var uri = Uri.parse('$base$path');
+    if (query != null) uri = uri.replace(queryParameters: query);
+    final res = await http.get(uri, headers: auth ? authHeaders : null).timeout(timeout);
+    if (res.statusCode != 200) throw Exception('GET $path → ${res.statusCode}');
+    return jsonDecode(res.body);
+  }
 
   /// A random id for this install. Jellyfin tracks sessions by it, so it must stay stable.
   Future<String> _deviceId(SharedPreferences prefs) async {

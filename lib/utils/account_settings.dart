@@ -71,14 +71,7 @@ class AccountSettings extends ChangeNotifier {
 
   String? get _baseUrl => jellyfin.client?.baseUrl;
 
-  // TODO(cleanup): use a shared getJson on JellyfinController
-  Future<dynamic> _get(String path) async {
-    final res = await http
-        .get(Uri.parse('$_baseUrl$path'), headers: jellyfin.authHeaders)
-        .timeout(const Duration(seconds: 10));
-    if (res.statusCode != 200) throw Exception('GET $path → ${res.statusCode}');
-    return jsonDecode(res.body);
-  }
+  Future<dynamic> _get(String path) => jellyfin.getJson(path);
 
   Future<void> load() async {
     if (_baseUrl == null) {

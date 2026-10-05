@@ -5,7 +5,6 @@
 // TODO(cleanup): this file is 3,500 lines; split the controls, the tracks and the segments into parts
 import 'dart:async';
 import 'dart:math' as math;
-import 'dart:convert';
 
 import 'package:dart_jellyfin/dart_jellyfin.dart';
 import 'package:flutter/services.dart';
@@ -3155,16 +3154,10 @@ bool playDefaultAudio, // prefer the file's default audio over the preferred lan
 });
 
 /// Fetched fresh each time, so a change in Settings applies to the very next video.
-// TODO(cleanup): use a shared getJson on JellyfinController
 Future<_TrackPrefs?> _fetchTrackPrefs() async {
-  final baseUrl = jellyfin.client?.baseUrl;
-  if (baseUrl == null) return null;
   try {
-    final res = await http
-        .get(Uri.parse('$baseUrl/Users/Me'), headers: jellyfin.authHeaders)
-        .timeout(const Duration(seconds: 5));
-    if (res.statusCode != 200) return null;
-    final config = (jsonDecode(res.body) as Map<String, dynamic>)['Configuration'] as Map? ?? {};
+    final me = await jellyfin.getJson('/Users/Me', timeout: const Duration(seconds: 5));
+    final config = (me as Map<String, dynamic>)['Configuration'] as Map? ?? {};
     String? lang(Object? v) => v is String && v.isNotEmpty ? v : null;
     return (
     audioLanguage: lang(config['AudioLanguagePreference']),
@@ -3363,17 +3356,15 @@ Future<_NextEpisode?> _fetchNextEpisode(JellyfinItem item) async {
   if (client == null || base == null || seriesId == null) return null;
 
   try {
-    // TODO(cleanup): use a shared getJson on JellyfinController
-    final uri = Uri.parse('$base/Shows/$seriesId/Episodes').replace(
-      queryParameters: {
+    final page = await jellyfin.getJson(
+      '/Shows/$seriesId/Episodes',
+      query: {
         'userId': ?client.userId,
         'startItemId': item.id, // this episode first, then the ones after it
         'limit': '2',
       },
     );
-    final res = await http.get(uri, headers: jellyfin.authHeaders).timeout(const Duration(seconds: 10));
-    if (res.statusCode != 200) return null;
-    final items = ((jsonDecode(res.body) as Map)['Items'] as List?) ?? const [];
+    final items = ((page as Map)['Items'] as List?) ?? const [];
     if (items.length < 2) return null; // the last episode
     final next = items[1] as Map;
     final id = next['Id'] as String?;

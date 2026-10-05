@@ -145,13 +145,13 @@ class SyncPlayController extends ChangeNotifier {
     final base = _client.baseUrl;
     if (base == null) return const {};
     try {
-      // TODO(cleanup): use a shared getJson on JellyfinController
-      final res = await http
-          .get(Uri.parse('$base/Sessions?activeWithinSeconds=960'), headers: jellyfin.authHeaders)
-          .timeout(const Duration(seconds: 5));
-      if (res.statusCode != 200) return const {};
+      final sessions = await jellyfin.getJson(
+        '/Sessions',
+        query: const {'activeWithinSeconds': '960'},
+        timeout: const Duration(seconds: 5),
+      );
       final result = <String, SyncPlayWatching>{};
-      for (final session in jsonDecode(res.body) as List) {
+      for (final session in sessions as List) {
         if (session is! Map) continue;
         final user = session['UserName'] as String?;
         final item = session['NowPlayingItem'];

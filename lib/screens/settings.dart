@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:dart_jellyfin/dart_jellyfin.dart';
 import 'package:forui/forui.dart';
@@ -7,7 +6,6 @@ import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:visibility_detector/visibility_detector.dart';
-import 'package:http/http.dart' as http;
 import 'package:package_info_plus/package_info_plus.dart';
 
 import '../theme/app_icons.dart';
@@ -1236,17 +1234,13 @@ class _AboutCardState extends State<_AboutCard> {
   late final Future<({String name, String version})?> _server = _serverInfo();
 
   /// The server's public info. Needs no sign-in, so it works even if the session expired.
-  // TODO(cleanup): use a shared getJson on JellyfinController
   static Future<({String name, String version})?> _serverInfo() async {
-    final baseUrl = jellyfin.client?.baseUrl;
-    if (baseUrl == null) return null;
-
     try {
-      final res = await http
-          .get(Uri.parse('$baseUrl/System/Info/Public'))
-          .timeout(const Duration(seconds: 5));
-      if (res.statusCode != 200) return null;
-      final json = jsonDecode(res.body) as Map<String, dynamic>;
+      final json = await jellyfin.getJson(
+        '/System/Info/Public',
+        auth: false,
+        timeout: const Duration(seconds: 5),
+      ) as Map<String, dynamic>;
       return (
       name: json['ServerName'] as String? ?? 'Jellyfin',
       version: json['Version'] as String? ?? 'Unknown',

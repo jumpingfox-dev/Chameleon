@@ -95,7 +95,11 @@ final GoRouter _router = GoRouter(
       // No animation in or out: when switching users, the shell is taken down and put back
       // up in quick succession, and two copies animating at once would share its key.
       pageBuilder: (context, state, navigationShell) => NoTransitionPage(
-        child: AppShell(navigationShell: navigationShell, location: state.uri.path),
+        child: AppShell(
+          navigationShell: navigationShell,
+          location: state.uri.path,
+          tab: state.uri.queryParameters['tab'],
+        ),
       ),
       branches: [
         for (final d in destinations)
@@ -103,7 +107,7 @@ final GoRouter _router = GoRouter(
             routes: [
               GoRoute(
                 path: d.path,
-                builder: (context, state) => d.screen(),
+                builder: (context, state) => d.screen(state),
                 routes: d.routes,
               ),
             ],
@@ -128,6 +132,7 @@ class Application extends StatelessWidget {
 
       return MaterialApp.router(
         debugShowCheckedModeBanner: false,
+        scrollBehavior: const MaterialScrollBehavior().copyWith(scrollbars: false),
         supportedLocales: const [
           Locale('en', 'US'),
           ...FLocalizations.supportedLocales,

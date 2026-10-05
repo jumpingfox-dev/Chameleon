@@ -2,6 +2,7 @@ import 'package:dart_jellyfin/dart_jellyfin.dart';
 import 'package:forui/forui.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../utils/focus_rows.dart';
 import '../utils/jellyfin_controller.dart';
 import '../utils/library_cache.dart';
 import '../widgets/detail_page.dart';
@@ -65,7 +66,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
     }
     final letters = groups.keys.toList()
       ..sort(
-        (a, b) => a == '#'
+            (a, b) => a == '#'
             ? -1
             : b == '#'
             ? 1
@@ -84,10 +85,10 @@ class _LibraryScreenState extends State<LibraryScreen> {
       'boxsets' => const ['BoxSet'],
       'playlists' => const [JellyfinItemKind.playlist],
       'musicvideos' => const [JellyfinItemKind.musicVideo],
-      //'homevideos' => const [JellyfinItemKind.],
+    //'homevideos' => const [JellyfinItemKind.],
       'photos' => const [JellyfinItemKind.photoAlbum],
       'books' => const [JellyfinItemKind.book],
-      //'livetv' => const [JellyfinItemKind.],
+    //'livetv' => const [JellyfinItemKind.],
       _ => const [JellyfinItemKind.movie, JellyfinItemKind.series],
     };
   }
@@ -189,7 +190,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
       final results = await Future.wait(_letters.map(hasTitles));
       if (!mounted) return;
       setState(
-        () => _cache.letters = {
+            () => _cache.letters = {
           for (var i = 0; i < _letters.length; i++)
             if (results[i]) _letters[i],
         },
@@ -222,7 +223,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
       if (sectionLetter == letter) break;
       offset +=
           _sectionHeaderHeight +
-          libraryGridHeight(items.length, _gridWidth, view);
+              libraryGridHeight(items.length, _gridWidth, view);
     }
 
     await _scroll.animateTo(
@@ -238,48 +239,22 @@ class _LibraryScreenState extends State<LibraryScreen> {
     builder: (context, _) {
       final view = libraryViewFor(context);
       return FScaffold(
-        header: FHeader(
-          title: LayoutBuilder(
-            builder: (context, constraints) => SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: ConstrainedBox(
-                // At least as wide as the header, so there's room to center the letters.
-                constraints: BoxConstraints(minWidth: constraints.maxWidth),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  spacing: 2,
-                  children: [
-                    for (final letter in _letters)
-                      FButton(
-                        variant: .ghost,
-                        size: .xs,
-                        mainAxisSize: .min,
-                        onPress:
-                            _availableLetters == null ||
-                                _availableLetters!.contains(letter)
-                            ? () => _jumpTo(letter)
-                            : null,
-                        child: Text(letter),
-                      ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          suffixes: [
-            FHeaderAction(
-              // Shows the view you'll switch *to*: a tall rectangle for posters, a wide one for thumbnails.
-              icon: view == LibraryView.poster
-                  ? const AspectIcon(width: 18, height: 10) // 16:9 → thumbnails
-                  : const AspectIcon(width: 11, height: 16), // 2:3 → posters
-              onPress: () =>
-                  libraryViewOverride.value = view == LibraryView.poster
-                  ? LibraryView.thumbnail
-                  : LibraryView.poster,
+        // The posters on the left, and the view toggle and A–Z down the right-hand side.
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(child: _buildBody(context, view)),
+            _LetterRail(
+              view: view,
+              letters: _letters,
+              // Until the server says which letters have titles, every letter works.
+              isAvailable: (letter) => _availableLetters?.contains(letter) ?? true,
+              onLetter: _jumpTo,
+              onToggleView: () => libraryViewOverride.value =
+              view == LibraryView.poster ? LibraryView.thumbnail : LibraryView.poster,
             ),
           ],
         ),
-        child: _buildBody(context, view),
       );
     },
   );
@@ -355,6 +330,118 @@ class _LibraryScreenState extends State<LibraryScreen> {
               ),
             const SliverToBoxAdapter(child: SizedBox(height: 16)),
           ],
+        );
+      },
+    );
+  }
+}
+
+/// The right-hand column on library and genre pages: the poster/thumbnail toggle at the top,
+/// then # and A–Z to jump to. The letters share the height between them, and the column
+/// scrolls only if the screen is too short for them to stay readable.
+class _LetterRail extends StatelessWidget {
+  const _LetterRail({
+    required this.view,
+    required this.letters,
+    required this.isAvailable,
+    required this.onLetter,
+    required this.onToggleView,
+  });
+
+  final LibraryView view;
+  final List<String> letters;
+  final bool Function(String letter) isAvailable;
+  final void Function(String letter) onLetter;
+  final VoidCallback onToggleView;
+
+  static const _width = 36.0;
+  static const _minLetterHeight = 14.0; // below this the letters scroll rather than shrink
+  static const _maxLetterHeight = 24.0;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    width: _width,
+    // A column of its own: ↑/↓ stay in it (and stop at the ends), and ↑/↓ on the posters
+    // never wander into it.
+    child: FocusColumn(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Column(
+          children: [
+            // Shows the view you'll switch *to*: a tall rectangle for posters, a wide one for thumbnails.
+            FButton.icon(
+              variant: .ghost,
+              onPress: onToggleView,
+              child: view == LibraryView.poster
+                  ? const AspectIcon(width: 18, height: 10) // 16:9 → thumbnails
+                  : const AspectIcon(width: 11, height: 16), // 2:3 → posters
+            ),
+            const SizedBox(height: 8),
+            // The letters share whatever height is left under the toggle, measured rather
+            // than guessed, so Z always fits. Only on a very short screen do they scroll.
+            Expanded(
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final fit = constraints.maxHeight / letters.length;
+                  final letterHeight = fit.clamp(_minLetterHeight, _maxLetterHeight);
+                  final column = Column(
+                    children: [
+                      for (final letter in letters)
+                        _LetterButton(
+                          letter: letter,
+                          height: letterHeight,
+                          onPress: isAvailable(letter) ? () => onLetter(letter) : null,
+                        ),
+                    ],
+                  );
+                  return fit < _minLetterHeight ? SingleChildScrollView(child: column) : column;
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+/// One letter in the rail. Dimmed when there's nothing under it.
+class _LetterButton extends StatelessWidget {
+  const _LetterButton({required this.letter, required this.height, required this.onPress});
+
+  final String letter;
+  final double height;
+  final VoidCallback? onPress;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = context.theme;
+    return FTappable(
+      onPress: onPress,
+      semanticsLabel: 'Jump to $letter',
+      builder: (context, states, _) {
+        final highlighted = states.contains(FTappableVariant.focused) ||
+            states.contains(FTappableVariant.hovered);
+        return AnimatedContainer(
+          duration: const Duration(milliseconds: 100),
+          width: double.infinity,
+          height: height,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: highlighted ? theme.colors.secondary : null,
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: Text(
+            letter,
+            style: theme.typography.body.xs.copyWith(
+              fontWeight: FontWeight.w600,
+              color: onPress == null
+                  ? theme.colors.mutedForeground.withValues(alpha: 0.5)
+                  : highlighted
+                  ? theme.colors.foreground
+                  : theme.colors.mutedForeground,
+            ),
+          ),
         );
       },
     );

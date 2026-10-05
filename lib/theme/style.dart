@@ -18,7 +18,7 @@ FStyle _style({
       touch: touch,
     ),
     focusedOutlineStyle: FFocusedOutlineStyle(
-      color: colors.primary,
+      color: const Color(0x00000000), // no ring: focus shows as the hover fill instead
       borderRadius: borderRadius.md,
     ),
     sizes: FSizes.inherit(touch: touch),

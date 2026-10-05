@@ -18,10 +18,7 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  /// While true, the home screen's modules can be added, removed and rearranged.
-  bool _editing = false;
-
-  void _toggleEditing() => setState(() => _editing = !_editing);
+  void _toggleEditing() => homeEditing.value = !homeEditing.value;
   GoRouter? _router;
 
   @override
@@ -35,7 +32,7 @@ class _HomeScreenState extends State<HomeScreen> {
   /// Leaving Home (to a library, another tab, the player, ...) ends edit mode.
   void _onNavigate() {
     final path = _router!.routerDelegate.currentConfiguration.uri.path;
-    if (_editing && path != '/home' && mounted) setState(() => _editing = false);
+    if (homeEditing.value && path != '/home') homeEditing.value = false;
     if (path == '/home') homeVisible.value++; // lets sections older than 10 minutes refresh
   }
 
@@ -52,9 +49,10 @@ class _HomeScreenState extends State<HomeScreen> {
     child: Stack(
       children: [
         ListenableBuilder(
-          listenable: Listenable.merge([jellyfin, homeLayout]),
+          listenable: Listenable.merge([jellyfin, homeLayout, homeEditing]),
           builder: (context, _) {
             final isPhone = isPhoneLayout(context);
+            final editing = homeEditing.value;
 
             return ListView(
               // Extra space at the bottom so the last module isn't hidden behind the Edit button.
@@ -95,7 +93,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   const SizedBox(height: 16),
                 ],
 
-                if (_editing)
+                if (editing)
                   Padding(padding: pageSides(context), child: const _EditModeBanner()),
 
                 for (final (i, module) in homeLayout.value.indexed)
@@ -104,12 +102,12 @@ class _HomeScreenState extends State<HomeScreen> {
                       module.id,
                     ), // keeps each section's content attached when it moves
                     module: module,
-                    editing: _editing,
+                    editing: editing,
                     isFirst: i == 0,
                     isLast: i == homeLayout.value.length - 1,
                   ),
 
-                if (homeLayout.value.isEmpty && !_editing)
+                if (homeLayout.value.isEmpty && !editing)
                   Padding(
                     padding: pageSides(context).copyWith(top: 48, bottom: 48),
                     child: Center(
@@ -122,7 +120,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ),
 
-                if (_editing)
+                if (editing)
                   Padding(padding: pageSides(context), child: const AddHomeModules()),
               ],
             );
@@ -130,53 +128,57 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
 
         // ── Edit / Done ──
-        Positioned(
-          right: pageSides(context).right,
-          bottom: 16,
-          child: AnimatedSwitcher(
-            duration: const Duration(milliseconds: 200),
-            switchInCurve: Curves.easeOut,
-            switchOutCurve: Curves.easeIn,
-            // Keep both buttons pinned to the bottom-right corner while they crossfade,
-            // instead of centering them (which makes the smaller one slide sideways).
-            layoutBuilder: (current, previous) => Stack(
-              alignment: Alignment.bottomRight,
-              children: [...previous, ?current],
-            ),
-            // Fade plus a slight scale, growing from the corner the button sits in.
-            transitionBuilder: (child, animation) => FadeTransition(
-              opacity: animation,
-              child: ScaleTransition(
-                scale: Tween(begin: 0.9, end: 1.0).animate(animation),
-                alignment: Alignment.bottomRight,
-                child: child,
-              ),
-            ),
-            child: _editing
-                ? FButton(
-              key: const ValueKey('done'),
-              mainAxisSize: .min,
-              onPress: _toggleEditing,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                spacing: 8,
-                children: [
-                  Icon(appIcons.check, size: 18, fill: 1),
-                  Text('Done'),
-                ],
-              ),
-            )
-                : Semantics(
-              key: const ValueKey('edit'),
-              label: 'Edit home screen',
-              button: true,
-              child: FButton.icon(
-                onPress: _toggleEditing,
-                child: Icon(appIcons.edit, fill: 1),
+        if (isPhoneLayout(context))
+          Positioned(
+            right: pageSides(context).right,
+            bottom: 16,
+            child: ValueListenableBuilder(
+              valueListenable: homeEditing,
+              builder: (context, editing, _) => AnimatedSwitcher(
+                duration: const Duration(milliseconds: 200),
+                switchInCurve: Curves.easeOut,
+                switchOutCurve: Curves.easeIn,
+                // Keep both buttons pinned to the bottom-right corner while they crossfade,
+                // instead of centering them (which makes the smaller one slide sideways).
+                layoutBuilder: (current, previous) => Stack(
+                  alignment: Alignment.bottomRight,
+                  children: [...previous, ?current],
+                ),
+                // Fade plus a slight scale, growing from the corner the button sits in.
+                transitionBuilder: (child, animation) => FadeTransition(
+                  opacity: animation,
+                  child: ScaleTransition(
+                    scale: Tween(begin: 0.9, end: 1.0).animate(animation),
+                    alignment: Alignment.bottomRight,
+                    child: child,
+                  ),
+                ),
+                child: editing
+                    ? FButton(
+                  key: const ValueKey('done'),
+                  mainAxisSize: .min,
+                  onPress: _toggleEditing,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    spacing: 8,
+                    children: [
+                      Icon(appIcons.check, size: 18, fill: 1),
+                      Text('Done'),
+                    ],
+                  ),
+                )
+                    : Semantics(
+                  key: const ValueKey('edit'),
+                  label: 'Edit home screen',
+                  button: true,
+                  child: FButton.icon(
+                    onPress: _toggleEditing,
+                    child: Icon(appIcons.edit, fill: 1),
+                  ),
+                ),
               ),
             ),
           ),
-        ),
       ],
     ),
   );

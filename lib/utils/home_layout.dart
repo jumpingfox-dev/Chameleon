@@ -172,3 +172,6 @@ class HomeLayoutController extends ValueNotifier<List<HomeModule>> {
 }
 
 late final HomeLayoutController homeLayout;
+
+/// Whether the home screen is being edited. Shared so the sidebar can switch it too.
+final homeEditing = ValueNotifier(false);

@@ -403,6 +403,27 @@ class AppIconSet {
       CupertinoIcons.square_arrow_right_fill,
       FluentIcons.sign_out_24_filled
   );
+  IconData get syncPlay => _pick(
+      Symbols.group_rounded,
+      FPhosphorFillIcons.usersThree,
+      FLucideIcons.users,
+      CupertinoIcons.person_2_fill,
+      FluentIcons.people_24_filled
+  );
+  IconData get appearance => _pick(
+      Symbols.palette_rounded,
+      FPhosphorFillIcons.palette,
+      FLucideIcons.palette,
+      CupertinoIcons.paintbrush_fill,
+      FluentIcons.color_24_filled)
+  ;
+  IconData get server => _pick(
+      Symbols.dns_rounded,
+      FPhosphorFillIcons.hardDrives,
+      FLucideIcons.server,
+      CupertinoIcons.desktopcomputer,
+      FluentIcons.server_24_filled
+  );
 
   // ── Genres ──
   /// Genre keyword → icon, for the current style. First match wins, so keep longer phrases first.

@@ -55,8 +55,17 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   // indexWhere gives -1 for no match, so clamp falls back to the first tab.
-  late int _index = _tabs.indexWhere((t) => t.label == widget.initialTab).clamp(0, _tabs.length - 1);
+  late int _index = _indexOf(widget.initialTab);
   final _scroll = ScrollController();
+
+  static int _indexOf(String? label) =>
+      _tabs.indexWhere((t) => t.label == label).clamp(0, _tabs.length - 1);
+
+  @override
+  void didUpdateWidget(covariant SettingsScreen old) {
+    super.didUpdateWidget(old);
+    if (widget.initialTab != old.initialTab) _index = _indexOf(widget.initialTab);
+  }
 
   @override
   void dispose() {
@@ -73,25 +82,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
         controller: _scroll,
         padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 4),
         children: [
-          // Tab pills, above the card.
-          SingleChildScrollView(
-            scrollDirection: Axis
-                .horizontal, // scrolls sideways if there are more pills than fit
-            child: Row(
-              spacing: 8,
-              children: [
-                for (var i = 0; i < _tabs.length; i++)
-                  FButton(
-                    variant: i == _index ? .primary : .outline,
-                    size: .sm,
-                    mainAxisSize: .min,
-                    onPress: () => setState(() => _index = i),
-                    child: Text(_tabs[i].label),
-                  ),
-              ],
+          // Tab pills, above the card. Phones only: wider screens pick the page from the sidebar.
+          if (isPhoneLayout(context)) ...[
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal, // scrolls sideways if there are more pills than fit
+              child: Row(
+                spacing: 8,
+                children: [
+                  for (var i = 0; i < _tabs.length; i++)
+                    FButton(
+                      variant: i == _index ? .primary : .outline,
+                      size: .sm,
+                      mainAxisSize: .min,
+                      // Through the address, so the sidebar shows the same page as selected.
+                      onPress: () => context.go('${GoRouterState.of(context).uri.path}?tab=${_tabs[i].label}'),
+                      child: Text(_tabs[i].label),
+                    ),
+                ],
+              ),
             ),
-          ),
-          const SizedBox(height: 16),
+            const SizedBox(height: 16),
+          ],
           _tabs[_index].build(),
         ],
       ),

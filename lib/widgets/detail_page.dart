@@ -2120,14 +2120,8 @@ class _SeriesPlayButtonState extends State<_SeriesPlayButton> {
   @override
   Widget build(BuildContext context) {
     final next = _next;
-    // TODO(cleanup): shared episode-label helper
-    final season = next?.raw['ParentIndexNumber'];
-    final episode = next?.raw['IndexNumber'];
-    final label = next == null
-        ? 'Play'
-        : season != null && episode != null
-        ? 'Play S$season:E$episode'
-        : 'Play';
+    final se = next == null ? null : seasonEpisode(next.raw['ParentIndexNumber'], next.raw['IndexNumber']);
+    final label = se == null ? 'Play' : 'Play $se';
 
     return FButton(
       mainAxisSize: .min,

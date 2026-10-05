@@ -13,6 +13,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import '../theme/app_icons.dart';
 import '../theme/tappable_states.dart';
 import '../utils/font_controller.dart';
+import '../utils/item_format.dart';
 import '../utils/theme_controller.dart';
 import '../utils/theme_presets.dart';
 import '../utils/jellyfin_controller.dart';
@@ -1097,10 +1098,9 @@ class _SyncPlayNowPlayingState extends State<_SyncPlayNowPlaying> {
             : isEpisode
             ? (item.raw['SeriesName'] as String?) ?? item.name
             : item.name,
-        // TODO(cleanup): shared episode-label helper
         lines: [
           if (item != null && isEpisode)
-            [if (season != null && episode != null) 'S$season:E$episode', item.name].join(' · ')
+            episodeLabel(season, episode, item.name)
           else if (item?.raw['ProductionYear'] case final year?)
             '$year',
           if (widget.playerOpen) "You're watching along.",

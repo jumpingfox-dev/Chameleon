@@ -22,6 +22,7 @@ import '../utils/app_cache.dart';
 import '../utils/cast_controller.dart';
 import '../utils/focus_rows.dart';
 import '../utils/format.dart';
+import '../utils/item_format.dart';
 import '../utils/jellyfin_controller.dart';
 import '../utils/orientation.dart';
 import '../utils/playback_reporter.dart';
@@ -2737,18 +2738,9 @@ class _PlayerTitle extends StatelessWidget {
         ? (item.raw['SeriesName'] as String?) ?? item.name
         : item.name;
 
-    final String? details;
-    // TODO(cleanup): shared episode-label helper
-    if (isEpisode) {
-      final season = item.raw['ParentIndexNumber'];
-      final episode = item.raw['IndexNumber'];
-      details = [
-        if (season != null && episode != null) 'S$season:E$episode',
-        item.name,
-      ].join(' · ');
-    } else {
-      details = item.raw['ProductionYear']?.toString();
-    }
+    final details = isEpisode
+        ? episodeLabel(item.raw['ParentIndexNumber'], item.raw['IndexNumber'], item.name)
+        : item.raw['ProductionYear']?.toString();
 
     final nameText = Text(
       name,
@@ -3328,8 +3320,7 @@ class _NextEpisode {
   final String? imageUrl;
 
   /// "S1:E3 · The Name", or just the name.
-  // TODO(cleanup): shared episode-label helper
-  String get title => season != null && episode != null ? 'S$season:E$episode · $name' : name;
+  String get title => episodeLabel(season, episode, name);
 }
 
 /// What plays after [item]: the next one in [queue] when playing through a list

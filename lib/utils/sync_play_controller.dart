@@ -5,6 +5,7 @@ import 'package:dart_jellyfin/dart_jellyfin.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
+import 'item_format.dart';
 import 'jellyfin_controller.dart';
 
 /// A play/pause/seek/stop instruction from the group, to carry out at [when].
@@ -163,11 +164,10 @@ class SyncPlayController extends ChangeNotifier {
     }
   }
 
-  // TODO(cleanup): use the shared wide-image and episode-label helpers
+  // TODO(cleanup): use the shared wide-image helper
   static SyncPlayWatching _watchingFrom(String base, Map item) {
     final id = item['Id'] as String;
     final isEpisode = item['Type'] == 'Episode';
-    final season = item['ParentIndexNumber'], episode = item['IndexNumber'];
 
     // A wide picture: the item's backdrop, the show's backdrop, or the poster.
     final backdrops = item['BackdropImageTags'] as List?;
@@ -188,7 +188,7 @@ class SyncPlayController extends ChangeNotifier {
     itemId: id,
     title: isEpisode ? (item['SeriesName'] as String?) ?? '${item['Name']}' : '${item['Name']}',
     subtitle: isEpisode
-        ? [if (season != null && episode != null) 'S$season:E$episode', item['Name']].join(' · ')
+        ? episodeLabel(item['ParentIndexNumber'], item['IndexNumber'], '${item['Name']}')
         : item['ProductionYear']?.toString(),
     imageUrl: imageUrl,
     );

@@ -141,12 +141,19 @@ class _AppShellState extends State<AppShell> {
   final _hovering = ValueNotifier(false);
   late final _sidebarOpen = Listenable.merge([_navScope, _hovering]);
 
-  /// How many times the sidebar has closed. Its sections use this in their keys, so anything
+  /// How many times the sidebar has closed. Every section's key includes this, so anything
   /// unfolded folds back up after each close. Counted on close rather than open: by then
   /// nothing in the sidebar has focus, so rebuilding its items can't lose your place.
-  // TODO(cleanup): the shell should own which sections are unfolded, instead of re-keying them to fold them back up
   int _closings = 0;
   bool _wasOpen = false;
+
+  /// Bumped for one label each time [_enterSidebar] needs that section open to reach a page
+  /// inside it — its own section may be sitting collapsed from an earlier visit, if the page
+  /// became "active" by a route pushed from outside the sidebar (a Genre button on a movie's
+  /// details, say). A section's key includes its own entry here, so forui always builds it
+  /// fresh with [FSidebarItem.initiallyExpanded] true when this changes. Pressing a section
+  /// to fold or unfold it by hand never touches this, so that keeps its usual animation.
+  final _forceOpen = <String, int>{};
 
   /// A focus node for each sidebar entry, by name ('Settings', 'Settings/Playback', ...),
   /// so ← from a page can land on the entry for where you are. Each entry keeps its own node
@@ -157,7 +164,6 @@ class _AppShellState extends State<AppShell> {
 
   /// The sidebar entries for where you are: its link or section, and the page inside that
   /// section, if there is one.
-  // TODO(cleanup): /profile falls through to Home, so ← from the Profile page lands on the logo
   (String, String?) get _here {
     final loc = widget.location;
     final last = loc.split('/').last;
@@ -167,6 +173,7 @@ class _AppShellState extends State<AppShell> {
     if (loc == '/home/genres') return ('Genres', 'Genres/All');
     if (loc.startsWith('/home/genre/')) return ('Genres', 'Genres/$last');
     if (loc == '/settings') return ('Settings', 'Settings/${widget.tab ?? settingsTabLabels.first}');
+    if (loc == '/profile') return ('Settings', 'Settings/${widget.tab ?? 'Account'}');
     return ('Home', null); // home, and the pages opened from it (a movie, a show, ...)
   }
 
@@ -248,7 +255,6 @@ class _AppShellState extends State<AppShell> {
 
   /// Into the sidebar, on the entry for where you are: the page itself (Settings › Appearance)
   /// if it's in a section, otherwise its link.
-  // TODO(cleanup): unfold the section first and wait for its page entry to be focusable; a folded section's pages can't take focus, so this quietly does nothing
   void _enterSidebar() {
     final (entry, page) = _here;
     final node = _navNodes[entry];
@@ -256,18 +262,32 @@ class _AppShellState extends State<AppShell> {
       _focusFirstOrRemembered(_navScope);
       return;
     }
-    // The section first: that opens the sidebar. Its pages only appear once it has finished
-    // opening, so then on to yours.
+    if (page != null) {
+      // Force the section open. It might already be (because it's the one you're on), but it
+      // might just as well be sitting collapsed from an earlier visit, if this page became
+      // "active" by a route pushed from outside the sidebar (a Genre button on a movie's
+      // details, say) rather than by pressing into the sidebar.
+      setState(() => _forceOpen[entry] = (_forceOpen[entry] ?? 0) + 1);
+    }
+    // The section first: that opens the sidebar. Its page only appears once the sidebar has
+    // finished widening and the section has finished unfolding, so wait for it.
     node.requestFocus();
-    if (page == null) return;
-    Future.delayed(const Duration(milliseconds: 250), () {
-      final pageNode = _navNodes[page];
-      final pageContext = pageNode?.context;
-      if (!mounted || pageNode == null || pageContext == null) return;
-      if (FocusManager.instance.primaryFocus != node) return; // you've already moved on
+    if (page != null) _focusSidebarPage(node, page);
+  }
+
+  /// Waits for [page]'s entry to become focusable — the sidebar widening and the section
+  /// unfolding both take a moment — then focuses it. Gives up quietly if you've already
+  /// moved on, or if it never becomes focusable at all.
+  void _focusSidebarPage(FocusNode sectionNode, String page, [int attempt = 0]) {
+    if (!mounted || FocusManager.instance.primaryFocus != sectionNode) return; // moved on
+    final pageNode = _navNodes[page];
+    if (pageNode != null && pageNode.canRequestFocus) {
       pageNode.requestFocus();
-      Scrollable.ensureVisible(pageContext, alignment: 0.5);
-    });
+      if (pageNode.context case final context?) Scrollable.ensureVisible(context, alignment: 0.5);
+      return;
+    }
+    if (attempt >= 20) return; // ~1 s: give up rather than wait forever
+    Future.delayed(const Duration(milliseconds: 50), () => _focusSidebarPage(sectionNode, page, attempt + 1));
   }
 
   /// After picking a page in the sidebar: focus that page's first item, not wherever you were
@@ -285,8 +305,10 @@ class _AppShellState extends State<AppShell> {
       if (first.context case final context?) Scrollable.ensureVisible(context);
       return;
     }
-    // TODO(cleanup): this parks focus above the page, where ← no longer reaches the sidebar; move it onto the page scope instead
-    if (attempt == 0) _navScope.unfocus(); // close the sidebar while the page loads
+    // Close the sidebar while the page loads, without leaving focus somewhere ← can't reach:
+    // unlike _navScope.unfocus() (which moves it to the scope above both scopes), requesting
+    // _pageScope keeps it at or below the scope _onPageKey listens on.
+    if (attempt == 0) _pageScope.requestFocus();
     if (attempt >= 40) return; // nothing to focus on this page at all
     Future.delayed(const Duration(milliseconds: 100), () => _focusNewPage(attempt + 1));
   }
@@ -425,7 +447,10 @@ class _AppShellState extends State<AppShell> {
                       listenable: _sidebarOpen,
                       builder: (context, _) {
                         final open = _hovering.value || _navScope.hasFocus;
-                        if (_wasOpen && !open) _closings++;
+                        if (_wasOpen && !open) {
+                          _closings++;
+                          _forceOpen.clear(); // moot now: the next open starts fresh anyway
+                        }
                         _wasOpen = open;
                         return FocusScope(
                           node: _navScope,
@@ -433,6 +458,7 @@ class _AppShellState extends State<AppShell> {
                           child: _Sidebar(
                             open: open,
                             closings: _closings,
+                            forceOpen: _forceOpen,
                             location: widget.location,
                             tab: widget.tab,
                             // Closes the sidebar and moves to the new page's first item, once it has
@@ -466,6 +492,7 @@ class _Sidebar extends StatelessWidget {
   const _Sidebar({
     required this.open,
     required this.closings,
+    required this.forceOpen,
     required this.location,
     required this.tab,
     required this.onLeave,
@@ -474,6 +501,7 @@ class _Sidebar extends StatelessWidget {
 
   final bool open;
   final int closings; // how many times it has closed; folds the sections back up
+  final Map<String, int> forceOpen; // see _AppShellState._forceOpen
   final String location;
   final String? tab;
   final VoidCallback onLeave; // closes the sidebar and moves focus into the page
@@ -555,6 +583,7 @@ class _Sidebar extends StatelessWidget {
                             focusNode: nodeFor('Libraries'),
                             open: open,
                             closings: closings,
+                            forceOpen: forceOpen['Libraries'] ?? 0,
                             active: loc.startsWith('/home/library'),
                             showPages: roomy,
                             children: [
@@ -576,6 +605,7 @@ class _Sidebar extends StatelessWidget {
                               focusNode: nodeFor('Genres'),
                               open: open,
                               closings: closings,
+                              forceOpen: forceOpen['Genres'] ?? 0,
                               active: loc.startsWith('/home/genre'),
                               showPages: roomy,
                               children: [
@@ -602,6 +632,7 @@ class _Sidebar extends StatelessWidget {
                             focusNode: nodeFor('Settings'),
                             open: open,
                             closings: closings,
+                            forceOpen: forceOpen['Settings'] ?? 0,
                             active: onSettings,
                             showPages: roomy,
                             children: [
@@ -616,10 +647,10 @@ class _Sidebar extends StatelessWidget {
                             ],
                           ),
                           // Edit mode for the home screen (phones have a button on Home instead).
-                          // TODO(cleanup): Edit home has no focus node, unlike every other entry
                           _SidebarLink(
                             label: editing ? 'Done editing' : 'Edit home',
                             icon: editing ? appIcons.check : appIcons.edit,
+                            focusNode: nodeFor('Edit'),
                             open: open,
                             selected: editing,
                             onPress: () {
@@ -716,6 +747,7 @@ class _SidebarSection extends StatelessWidget {
     this.focusNode,
     required this.open,
     required this.closings,
+    required this.forceOpen,
     required this.active,
     required this.showPages,
     required this.children,
@@ -726,22 +758,25 @@ class _SidebarSection extends StatelessWidget {
   final FocusNode? focusNode;
   final bool open;
   final int closings; // see _Sidebar.closings
+  final int forceOpen; // see _AppShellState._forceOpen: a fresh value forces this open
   final bool active; // on one of its pages
   final bool showPages; // the sidebar is fully open, so there's room for them
   final List<Widget> children;
 
   @override
   Widget build(BuildContext context) => FSidebarItem(
-    // A fresh item after each time the sidebar closes, so anything you unfolded folds back up.
-    // TODO(cleanup): drop the re-keying once the shell keeps the unfolded sections itself
-    key: ValueKey((label, closings)),
+    // A fresh item after each time the sidebar closes, so anything you unfolded folds back
+    // up, and each time ← needs this section open and it wasn't already. forui only reads
+    // initiallyExpanded once, in its own initState, so forcing it open means rebuilding it.
+    key: ValueKey((label, closings, forceOpen)),
     focusNode: focusNode,
     label: switch (icon) {
       final icon? => _IconLabel(icon: icon, label: label, open: open),
       null => _FadingLabel(label, open: open),
     },
-    // Each time the sidebar opens, only the section you're in starts unfolded.
-    initiallyExpanded: active,
+    // Each time the sidebar opens, only the section you're in starts unfolded — unless ←
+    // has already forced this one open to reach a page inside it.
+    initiallyExpanded: active || forceOpen > 0,
     // Only lit up while closed: once open, the page itself shows as selected.
     selected: active && !open,
     // No pages until the sidebar is fully open, so the rail stays a single icon (and the

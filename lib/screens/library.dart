@@ -190,6 +190,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
     }
 
     try {
+      // TODO(cleanup): asks the server 27 times at once every time a library opens
       final results = await Future.wait(_letters.map(hasTitles));
       if (!mounted) return;
       setState(
@@ -424,6 +425,7 @@ class _LetterButton extends StatelessWidget {
       onPress: onPress,
       semanticsLabel: 'Jump to $letter',
       builder: (context, states, _) {
+        // TODO(cleanup): shared focused-or-hovered helper
         final highlighted = states.contains(FTappableVariant.focused) ||
             states.contains(FTappableVariant.hovered);
         return AnimatedContainer(

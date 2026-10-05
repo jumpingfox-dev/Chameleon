@@ -113,6 +113,7 @@ class _SearchScreenState extends State<SearchScreen> {
         _people = people.items;
         _error = null;
       });
+      // TODO(cleanup): the setState above already stored the results; this repeat drops the people
       if (!mounted || id != _requestId) {
         return; // a newer search has started; drop this one
       }

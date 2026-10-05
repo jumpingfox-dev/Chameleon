@@ -197,6 +197,7 @@ class JellyfinController extends ChangeNotifier {
     return accounts.where((a) => a.isSame(server, userId)).firstOrNull;
   }
 
+  // TODO(cleanup): shared initials helper; three other places work the name out the same way
   String get initials {
     final name = userName?.trim() ?? '';
     if (name.isEmpty) return '?';
@@ -212,10 +213,12 @@ class JellyfinController extends ChangeNotifier {
       '${client!.baseUrl}/Videos/$itemId/stream?static=true';
 
   /// Authenticates media requests with a header, keeping the token out of the URL.
+  // TODO(cleanup): add getJson and postJson here; a dozen callers repeat http.get plus jsonDecode
   Map<String, String> get authHeaders => {
     'Authorization': 'MediaBrowser Token="${client!.token}"',
   };
 
+  // TODO(cleanup): shared random-hex-id helper; the player and the cast controller have the same loop
   /// A random id for this install. Jellyfin tracks sessions by it, so it must stay stable.
   Future<String> _deviceId(SharedPreferences prefs) async {
     var id = prefs.getString(_kDeviceId);

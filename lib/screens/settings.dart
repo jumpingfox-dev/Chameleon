@@ -247,6 +247,7 @@ class _AppearanceCard extends StatelessWidget {
     listenable: Listenable.merge([themeController, fontController, iconController, playbackSettings]),
     builder: (context, _) {
       final preset = themeController.value;
+      // TODO(cleanup): dead commented-out line; delete it
       // final isPhone = isPhoneLayout(context);
 
       return _SettingsCard(
@@ -856,6 +857,7 @@ class _ServerCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // TODO(cleanup): the Server tab only says "Coming soon"; ask whether to keep it
     return const _SettingsCard(
       children: [
         _SectionTitle('Server', description: 'Coming soon.', first: true),
@@ -864,6 +866,7 @@ class _ServerCard extends StatelessWidget {
   }
 }
 
+// TODO(cleanup): the SyncPlay widgets are a third of this file; move them into their own part
 /// SyncPlay Tab
 class _SyncPlayCard extends StatefulWidget {
   const _SyncPlayCard();
@@ -1094,6 +1097,7 @@ class _SyncPlayNowPlayingState extends State<_SyncPlayNowPlaying> {
             : isEpisode
             ? (item.raw['SeriesName'] as String?) ?? item.name
             : item.name,
+        // TODO(cleanup): shared episode-label helper
         lines: [
           if (item != null && isEpisode)
             [if (season != null && episode != null) 'S$season:E$episode', item.name].join(' · ')
@@ -1110,6 +1114,7 @@ class _SyncPlayNowPlayingState extends State<_SyncPlayNowPlaying> {
     },
   );
 
+  // TODO(cleanup): use the shared wide-image helper
   /// The backdrop (the show's, for an episode), or else the poster.
   static String? _wideImage(JellyfinItem item) {
     final base = jellyfin.client?.baseUrl;
@@ -1156,6 +1161,7 @@ class _SyncPlayTile extends StatelessWidget {
       autofocus: autofocus,
       onPress: onPress,
       builder: (context, states, _) {
+        // TODO(cleanup): shared focused-or-hovered helper
         final highlighted = onPress != null &&
             (states.contains(FTappableVariant.focused) || states.contains(FTappableVariant.hovered));
         return AnimatedContainer(
@@ -1233,6 +1239,7 @@ class _AboutCardState extends State<_AboutCard> {
   late final Future<({String name, String version})?> _server = _serverInfo();
 
   /// The server's public info. Needs no sign-in, so it works even if the session expired.
+  // TODO(cleanup): use a shared getJson on JellyfinController
   static Future<({String name, String version})?> _serverInfo() async {
     final baseUrl = jellyfin.client?.baseUrl;
     if (baseUrl == null) return null;

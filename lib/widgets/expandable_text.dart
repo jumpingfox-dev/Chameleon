@@ -74,6 +74,7 @@ class _ExpandableTextState extends State<ExpandableText> {
                   focusNode: _linkFocus,
                   onPress: _toggle,
                   builder: (context, states, _) {
+                    // TODO(cleanup): shared focused-or-hovered helper
                     final active =
                         states.contains(FTappableVariant.hovered) ||
                         states.contains(FTappableVariant.focused);

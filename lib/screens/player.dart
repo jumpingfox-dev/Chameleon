@@ -2,6 +2,7 @@
 // solid, evenly weighted and instantly recognizable for media controls,
 // whatever icon style is chosen in Settings.
 
+// TODO(cleanup): this file is 3,500 lines; split the controls, the tracks and the segments into parts
 import 'dart:async';
 import 'dart:math' as math;
 import 'dart:convert';
@@ -96,6 +97,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
   static const _controlsClearance = 150.0;
   static const _controlsClearancePhone = 146.0;
 
+  // TODO(cleanup): use isPhoneLayout, like the rest of the app
   bool get _isPhone => MediaQuery.sizeOf(context).shortestSide < 600;
 
   EdgeInsets _subtitlePadding({required bool lifted}) {
@@ -1502,6 +1504,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
   @override
   Widget build(BuildContext context) {
     final rating = _item?.raw['OfficialRating'] as String?;
+    // TODO(cleanup): use isPhoneLayout
     final compact = MediaQuery.sizeOf(context).shortestSide < 600;
 
     return PopScope(
@@ -1807,6 +1810,7 @@ String? _chapterAt(
   return current.name.isEmpty ? null : current.name;
 }
 
+// TODO(cleanup): shared duration formatter; cast_widgets.dart has the same code
 /// "1:02:03" or "4:05".
 String _formatTime(Duration d) {
   final h = d.inHours, m = d.inMinutes % 60, s = d.inSeconds % 60;
@@ -2110,6 +2114,7 @@ _SegmentKind? _kindFromChapterName(String name) {
   if (RegExp(r'\b(intro|opening|op)\b').hasMatch(n)) return _SegmentKind.intro;
   if (RegExp(r'\b(recap|previously)\b').hasMatch(n)) return _SegmentKind.recap;
   if (RegExp(r'\b(credits|ending|outro|ed)\b').hasMatch(n)) return _SegmentKind.credits;
+  // TODO(cleanup): two statements on one line; split them
   if (RegExp(r'\b(preview|next time|next episode)\b').hasMatch(n)) return _SegmentKind.preview; return null;
 }
 
@@ -2128,6 +2133,7 @@ Future<List<_Segment>> _loadSegments(
           _Segment(kind, start, end),
     ]..sort((a, b) => a.start.compareTo(b.start));
 
+    // TODO(cleanup): per-segment tracing left over from debugging; keep the one summary line
     debugPrint('Skip segments: ${result.items.length} from the server');
     for (final s in result.items) {
       debugPrint('  ${s.type}: ${s.start} → ${s.end}');
@@ -2433,6 +2439,7 @@ class _PlayerControls extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final previewChapter = preview == null ? null : _chapterAt(chapters, preview!);
+    // TODO(cleanup): use isPhoneLayout
     final compact = MediaQuery.sizeOf(context).shortestSide < 600;
 
     // Previous, play/pause, next. Big and in the middle on phones (easy to reach with a thumb);
@@ -2702,8 +2709,10 @@ class _ControlButton extends StatelessWidget {
       focusNode: focusNode,
       onPress: onPress,
       builder: (context, states, _) {
+        // TODO(cleanup): shared focused-or-hovered helper
         final focused = states.contains(FTappableVariant.focused);
         final hovered = states.contains(FTappableVariant.hovered);
+        // TODO(cleanup): use isPhoneLayout
         final compact = MediaQuery.sizeOf(context).shortestSide < 600;
         return AnimatedContainer(
           duration: const Duration(milliseconds: 120),
@@ -2747,6 +2756,7 @@ class _PlayerTitle extends StatelessWidget {
         : item.name;
 
     final String? details;
+    // TODO(cleanup): shared episode-label helper
     if (isEpisode) {
       final season = item.raw['ParentIndexNumber'];
       final episode = item.raw['IndexNumber'];
@@ -2900,6 +2910,7 @@ class _SeekBarState extends State<_SeekBar> {
       final buffered = fractionOf(state.buffer);
       final primary = context.theme.colors.primary;
       // Phones: a thicker bar, a bigger handle and a taller touch area, for thumbs.
+      // TODO(cleanup): use isPhoneLayout
       final compact = MediaQuery.sizeOf(context).shortestSide < 600;
       final thickness = compact ? 6.0 : 4.0;
       final handle = compact
@@ -3171,6 +3182,7 @@ bool playDefaultAudio, // prefer the file's default audio over the preferred lan
 });
 
 /// Fetched fresh each time, so a change in Settings applies to the very next video.
+// TODO(cleanup): use a shared getJson on JellyfinController
 Future<_TrackPrefs?> _fetchTrackPrefs() async {
   final baseUrl = jellyfin.client?.baseUrl;
   if (baseUrl == null) return null;
@@ -3265,6 +3277,7 @@ Map<String, dynamic>? _pickSubtitle(
 /// The item's first media source, as Jellyfin describes it.
 Map? _sourceOf(JellyfinItem item) => (item.raw['MediaSources'] as List?)?.firstOrNull as Map?;
 
+// TODO(cleanup): shared random-hex-id helper; the cast controller and the device id do the same
 String _randomId() {
   final random = math.Random.secure();
   return List.generate(16, (_) => random.nextInt(256).toRadixString(16).padLeft(2, '0')).join();
@@ -3340,6 +3353,7 @@ class _NextEpisode {
   final String? imageUrl;
 
   /// "S1:E3 · The Name", or just the name.
+  // TODO(cleanup): shared episode-label helper
   String get title => season != null && episode != null ? 'S$season:E$episode · $name' : name;
 }
 
@@ -3356,6 +3370,7 @@ Future<_NextEpisode?> _fetchNextIn(JellyfinItem item, List<String> queue) async 
   try {
     final next = await client.items.byId(queue[i + 1]);
     if (next == null) return null;
+    // TODO(cleanup): use the shared wide-image helper
     // A wide picture for the card: the backdrop, else the thumbnail, else the poster.
     final backdrop = (next.raw['BackdropImageTags'] as List?)?.firstOrNull as String?;
     final thumb = next.imageTags['Thumb'];
@@ -3386,6 +3401,7 @@ Future<_NextEpisode?> _fetchNextEpisode(JellyfinItem item) async {
   if (client == null || base == null || seriesId == null) return null;
 
   try {
+    // TODO(cleanup): use a shared getJson on JellyfinController
     final uri = Uri.parse('$base/Shows/$seriesId/Episodes').replace(
       queryParameters: {
         'userId': ?client.userId,

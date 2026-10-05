@@ -359,6 +359,7 @@ class _LeaveTextField extends ContextAction<ExtendSelectionVerticallyToAdjacentL
   }
 }
 
+// TODO(cleanup): nothing calls focusedTextFieldKeepsArrow; delete it
 /// True while the focused text field should keep ↑/↓ for itself: a multi-line field whose
 /// cursor isn't on the first line (going up) or the last line (going down).
 bool focusedTextFieldKeepsArrow({required bool down}) {

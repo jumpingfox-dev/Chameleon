@@ -200,6 +200,7 @@ class _Stepper extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // TODO(cleanup): measures width where the rest of the app uses isPhoneLayout; switching changes phones held sideways
     final isPhone = MediaQuery
         .sizeOf(context)
         .width < 600;

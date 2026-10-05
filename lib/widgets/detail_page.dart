@@ -110,6 +110,7 @@ void playQueue(GoRouter router, List<String> ids) {
 
 /// The episode to play next in a series: Jellyfin's "Next Up", or else the first episode
 /// of the first regular season (skipping Specials).
+// TODO(cleanup): _SeriesPlayButton._findNext works the next episode out all over again; one should call the other
 Future<JellyfinItem?> nextEpisodeFor(String seriesId) async {
   final client = jellyfin.client!;
 
@@ -553,6 +554,7 @@ class _DetailPageState extends State<DetailPage> {
         onTap: () => Navigator.of(context).pop(),
         child: _PopoutScope(
           gap: widget.popoutGap,
+          // TODO(cleanup): redundant: main.dart turns scrollbars off for the whole app
           child: ScrollConfiguration(
             behavior: ScrollConfiguration.of(context)
                 .copyWith(scrollbars: false),
@@ -597,6 +599,7 @@ class _DetailPageState extends State<DetailPage> {
   }
 }
 
+// TODO(cleanup): split the cards and tiles below into parts of their own
 // ─── Building blocks, shared by layouts ──────────────────────────────────────
 
 /// An info card: image, title, subtitle and expandable description.
@@ -1272,6 +1275,7 @@ class _CollectionInfoCard extends StatelessWidget {
       ..sort(
             (a, b) => _ratingOrder.indexOf(a).compareTo(_ratingOrder.indexOf(b)),
       );
+    // TODO(cleanup): stray space in "ratings .first"
     if (known.isEmpty) return ratings .first; // a rating system outside the US list: show it as-is
     return known.first == known.last
         ? known.first
@@ -1390,6 +1394,7 @@ class _MovieInfoCard extends StatelessWidget {
 
   final JellyfinItem movie;
 
+  // TODO(cleanup): shared runtime formatter; _EpisodeTile has the same getter
   /// "2h 42m" from Jellyfin's runtime (stored in 100-nanosecond ticks).
   String? get _runtime {
     final ticks = movie.raw['RunTimeTicks'];
@@ -1734,6 +1739,7 @@ class _EpisodeTile extends StatelessWidget {
     'Dec',
   ];
 
+  // TODO(cleanup): shared runtime formatter; _MovieInfoCard has the same getter
   String? get _runtime {
     final ticks = episode.raw['RunTimeTicks'];
     if (ticks is! int || ticks <= 0) return null;
@@ -1888,6 +1894,7 @@ class _CastTile extends StatelessWidget {
     final name = (person['Name'] as String?) ?? '';
     final role = person['Role'] as String?;
     final tag = person['PrimaryImageTag'] as String?;
+    // TODO(cleanup): shared initials helper
     final initials = name
         .trim()
         .split(RegExp(r'\s+'))
@@ -1997,6 +2004,7 @@ class _FloatingIconButton extends StatelessWidget {
       autofocus: autofocus,
       onPress: onPress,
       builder: (context, states, _) {
+        // TODO(cleanup): shared focused-or-hovered helper
         final active =
             states.contains(FTappableVariant.hovered) ||
                 states.contains(FTappableVariant.focused);
@@ -2142,6 +2150,7 @@ class _SeriesPlayButtonState extends State<_SeriesPlayButton> {
   @override
   Widget build(BuildContext context) {
     final next = _next;
+    // TODO(cleanup): shared episode-label helper
     final season = next?.raw['ParentIndexNumber'];
     final episode = next?.raw['IndexNumber'];
     final label = next == null

@@ -61,6 +61,7 @@ class PersonPhoto extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.theme.colors;
     final tag = person.imageTags['Primary'];
+    // TODO(cleanup): shared initials helper; this one throws on an empty name
     final initials = person.name
         .trim()
         .split(RegExp(r'\s+'))

@@ -118,6 +118,7 @@ class SyncPlayController extends ChangeNotifier {
 
   /// Opens the player on what the group is watching, e.g. after leaving the player for a
   /// moment. Loading it pauses the group briefly, then everyone carries on together.
+  // TODO(cleanup): nothing calls this; delete it
   void openCurrent() {
     final entry = current;
     if (entry != null && !playerOpen) openPlayer?.call(entry.itemId);
@@ -151,6 +152,7 @@ class SyncPlayController extends ChangeNotifier {
     final base = _client.baseUrl;
     if (base == null) return const {};
     try {
+      // TODO(cleanup): use a shared getJson on JellyfinController
       final res = await http
           .get(Uri.parse('$base/Sessions?activeWithinSeconds=960'), headers: jellyfin.authHeaders)
           .timeout(const Duration(seconds: 5));
@@ -169,6 +171,7 @@ class SyncPlayController extends ChangeNotifier {
     }
   }
 
+  // TODO(cleanup): use the shared wide-image and episode-label helpers
   static SyncPlayWatching _watchingFrom(String base, Map item) {
     final id = item['Id'] as String;
     final isEpisode = item['Type'] == 'Episode';

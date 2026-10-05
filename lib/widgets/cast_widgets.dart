@@ -144,6 +144,7 @@ class CastRemote extends StatelessWidget {
     const white = Color(0xFFFFFFFF);
     const dim = Color(0xB3FFFFFF);
     final base = jellyfin.client?.baseUrl;
+    // TODO(cleanup): use the shared wide-image helper
     final backdrop = (item.raw['BackdropImageTags'] as List?)?.firstOrNull as String?;
     final backdropId = backdrop != null ? item.id : item.raw['ParentBackdropItemId'] as String?;
     final backdropTag = backdrop ?? ((item.raw['ParentBackdropImageTags'] as List?)?.firstOrNull as String?);
@@ -290,6 +291,7 @@ class _RemoteButton extends StatelessWidget {
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
           shape: BoxShape.circle,
+          // TODO(cleanup): shared focused-or-hovered helper
           color: states.contains(FTappableVariant.focused) || states.contains(FTappableVariant.hovered)
               ? const Color(0x33FFFFFF)
               : const Color(0x00FFFFFF),
@@ -314,6 +316,7 @@ class _RemoteSeekBar extends StatefulWidget {
 class _RemoteSeekBarState extends State<_RemoteSeekBar> {
   double? _dragging; // 0..1 while the thumb is held
 
+  // TODO(cleanup): shared duration formatter; the player's _formatTime is the same code
   static String _format(Duration d) {
     final h = d.inHours, m = d.inMinutes % 60, s = d.inSeconds % 60;
     final ss = s.toString().padLeft(2, '0');

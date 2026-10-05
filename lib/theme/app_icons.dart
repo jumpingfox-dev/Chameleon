@@ -403,6 +403,7 @@ class AppIconSet {
       CupertinoIcons.square_arrow_right_fill,
       FluentIcons.sign_out_24_filled
   );
+  // TODO(cleanup): syncPlay, appearance and server are unused; ask before deleting
   IconData get syncPlay => _pick(
       Symbols.group_rounded,
       FPhosphorFillIcons.usersThree,

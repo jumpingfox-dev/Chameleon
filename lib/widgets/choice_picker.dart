@@ -38,6 +38,7 @@ class ChoiceField extends StatelessWidget {
         FTappable(
           onPress: onPress,
           builder: (context, states, _) {
+            // TODO(cleanup): shared focused-or-hovered helper
             final active =
                 states.contains(FTappableVariant.hovered) ||
                 states.contains(FTappableVariant.focused);

@@ -280,6 +280,7 @@ class CastController extends ChangeNotifier {
 
   static String _newId() {
     final r = Random.secure();
+    // TODO(cleanup): shared random-hex-id helper
     return List.generate(16, (_) => r.nextInt(256).toRadixString(16).padLeft(2, '0')).join();
   }
 

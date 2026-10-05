@@ -174,6 +174,7 @@ class PosterCard extends StatelessWidget {
   final VoidCallback onPress;
   final LibraryView view;
 
+  // TODO(cleanup): the thumbnail fallbacks belong in the shared wide-image helper
   /// Posters use the Primary image. Thumbnails prefer the landscape Thumb image,
   /// then a Backdrop, then fall back to the poster (cropped to fit).
   String? _imageUrl(JellyfinClient client) {

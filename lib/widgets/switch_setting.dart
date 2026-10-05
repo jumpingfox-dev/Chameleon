@@ -27,6 +27,7 @@ class SwitchSetting extends StatelessWidget {
       child: FTappable(
         onPress: enabled ? () => onChange(!value) : null,
         builder: (context, states, _) {
+          // TODO(cleanup): shared focused-or-hovered helper
           final highlighted = states.contains(FTappableVariant.focused) || states.contains(FTappableVariant.hovered);
           return AnimatedContainer(
             duration: const Duration(milliseconds: 120),

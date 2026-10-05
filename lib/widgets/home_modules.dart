@@ -1141,6 +1141,7 @@ class _TileCaption extends StatelessWidget {
         ? (item.raw['SeriesName'] as String?) ?? item.name
         : item.name;
 
+    // TODO(cleanup): shared episode-label helper
     final season = item.raw['ParentIndexNumber'];
     final episode = item.raw['IndexNumber'];
     final subtitle = isEpisode

@@ -144,6 +144,7 @@ class _AppShellState extends State<AppShell> {
   /// How many times the sidebar has closed. Its sections use this in their keys, so anything
   /// unfolded folds back up after each close. Counted on close rather than open: by then
   /// nothing in the sidebar has focus, so rebuilding its items can't lose your place.
+  // TODO(cleanup): the shell should own which sections are unfolded, instead of re-keying them to fold them back up
   int _closings = 0;
   bool _wasOpen = false;
 
@@ -156,6 +157,7 @@ class _AppShellState extends State<AppShell> {
 
   /// The sidebar entries for where you are: its link or section, and the page inside that
   /// section, if there is one.
+  // TODO(cleanup): /profile falls through to Home, so ← from the Profile page lands on the logo
   (String, String?) get _here {
     final loc = widget.location;
     final last = loc.split('/').last;
@@ -246,6 +248,7 @@ class _AppShellState extends State<AppShell> {
 
   /// Into the sidebar, on the entry for where you are: the page itself (Settings › Appearance)
   /// if it's in a section, otherwise its link.
+  // TODO(cleanup): unfold the section first and wait for its page entry to be focusable; a folded section's pages can't take focus, so this quietly does nothing
   void _enterSidebar() {
     final (entry, page) = _here;
     final node = _navNodes[entry];
@@ -282,6 +285,7 @@ class _AppShellState extends State<AppShell> {
       if (first.context case final context?) Scrollable.ensureVisible(context);
       return;
     }
+    // TODO(cleanup): this parks focus above the page, where ← no longer reaches the sidebar; move it onto the page scope instead
     if (attempt == 0) _navScope.unfocus(); // close the sidebar while the page loads
     if (attempt >= 40) return; // nothing to focus on this page at all
     Future.delayed(const Duration(milliseconds: 100), () => _focusNewPage(attempt + 1));
@@ -453,6 +457,7 @@ class _AppShellState extends State<AppShell> {
   );
 }
 
+// TODO(cleanup): the sidebar is half this file; move it into a part of its own
 // ─── Sidebar ─────────────────────────────────────────────────────────────────
 
 /// Wider screens' navigation: a rail of icons down the left side that opens out, with labels,
@@ -611,6 +616,7 @@ class _Sidebar extends StatelessWidget {
                             ],
                           ),
                           // Edit mode for the home screen (phones have a button on Home instead).
+                          // TODO(cleanup): Edit home has no focus node, unlike every other entry
                           _SidebarLink(
                             label: editing ? 'Done editing' : 'Edit home',
                             icon: editing ? appIcons.check : appIcons.edit,
@@ -662,6 +668,7 @@ class _SidebarLogo extends StatelessWidget {
         focusNode: focusNode,
         onPress: onPress,
         builder: (context, states, child) {
+          // TODO(cleanup): shared helper for the focused-or-hovered check, which about ten widgets repeat
           final highlighted = states.contains(FTappableVariant.focused) ||
               states.contains(FTappableVariant.hovered);
           return AnimatedContainer(
@@ -726,6 +733,7 @@ class _SidebarSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) => FSidebarItem(
     // A fresh item after each time the sidebar closes, so anything you unfolded folds back up.
+    // TODO(cleanup): drop the re-keying once the shell keeps the unfolded sections itself
     key: ValueKey((label, closings)),
     focusNode: focusNode,
     label: switch (icon) {

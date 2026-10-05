@@ -44,6 +44,7 @@ class ProfilePickerScreen extends StatelessWidget {
                         variant: AppLogoVariant.auto,
                       ),
                       SizedBox(height: 32),
+                      // TODO(cleanup): two gaps under the logo; one is a slip
                       SizedBox(height: 32),
                       ProfilePicker(),
                     ],

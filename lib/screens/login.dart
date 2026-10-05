@@ -21,6 +21,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _username = TextEditingController();
   final _password = TextEditingController();
   bool _busy = false;
+  // TODO(cleanup): never set (sign-in errors open a dialog), so the error text below never shows; delete both
   String? _error;
 
   @override

@@ -48,7 +48,6 @@ class AccountSettings extends ChangeNotifier {
   Language get audioLanguage => _language(_config['AudioLanguagePreference']);
   Language get subtitleLanguage => _language(_config['SubtitleLanguagePreference']);
   SubtitleMode get subtitleMode => SubtitleMode.fromValue(_config['SubtitleMode'] as String?);
-  bool get hidePlayedInLatest => _config['HidePlayedInLatest'] as bool? ?? false;
 
   /// The highest age rating this user may watch, e.g. 'PG-13', or null for no limit.
   String? get maxRating {
@@ -72,13 +71,7 @@ class AccountSettings extends ChangeNotifier {
 
   String? get _baseUrl => jellyfin.client?.baseUrl;
 
-  Future<dynamic> _get(String path) async {
-    final res = await http
-        .get(Uri.parse('$_baseUrl$path'), headers: jellyfin.authHeaders)
-        .timeout(const Duration(seconds: 10));
-    if (res.statusCode != 200) throw Exception('GET $path → ${res.statusCode}');
-    return jsonDecode(res.body);
-  }
+  Future<dynamic> _get(String path) => jellyfin.getJson(path);
 
   Future<void> load() async {
     if (_baseUrl == null) {
@@ -132,7 +125,6 @@ class AccountSettings extends ChangeNotifier {
   Future<void> setAudioLanguage(Language l) => _save('AudioLanguagePreference', l.code);
   Future<void> setSubtitleLanguage(Language l) => _save('SubtitleLanguagePreference', l.code);
   Future<void> setSubtitleMode(SubtitleMode m) => _save('SubtitleMode', m.value);
-  Future<void> setHidePlayedInLatest(bool hide) => _save('HidePlayedInLatest', hide);
 
   /// Changes one setting, shows it straight away, and saves the whole configuration.
   /// If saving fails, the old value comes back.

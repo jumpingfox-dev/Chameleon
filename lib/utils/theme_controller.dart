@@ -27,7 +27,6 @@ class ThemeController extends ValueNotifier<ThemePreset> {
   String? _customIni;
   bool _advanced;
 
-  ThemePreset get customPreset => _custom;
   ThemeSeed get seed => _seed;
   bool get advanced => _advanced;
   List<ThemePreset> get allPresets => [...themePresets, _custom];

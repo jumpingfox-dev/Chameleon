@@ -176,6 +176,9 @@ class PosterCard extends StatelessWidget {
 
   /// Posters use the Primary image. Thumbnails prefer the landscape Thumb image,
   /// then a Backdrop, then fall back to the poster (cropped to fit).
+  ///
+  /// Not wideImageUrl: this goes through client.images.url() for its quality and sizing,
+  /// not a hand-built address.
   String? _imageUrl(JellyfinClient client) {
     if (view == LibraryView.thumbnail) {
       final thumb = item.imageTags['Thumb'];

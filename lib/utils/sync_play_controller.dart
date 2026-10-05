@@ -5,6 +5,7 @@ import 'package:dart_jellyfin/dart_jellyfin.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
+import 'item_format.dart';
 import 'jellyfin_controller.dart';
 
 /// A play/pause/seek/stop instruction from the group, to carry out at [when].
@@ -116,13 +117,6 @@ class SyncPlayController extends ChangeNotifier {
   /// Whether the player is open on this device.
   bool get playerOpen => _attached != null;
 
-  /// Opens the player on what the group is watching, e.g. after leaving the player for a
-  /// moment. Loading it pauses the group briefly, then everyone carries on together.
-  void openCurrent() {
-    final entry = current;
-    if (entry != null && !playerOpen) openPlayer?.call(entry.itemId);
-  }
-
   // ── Groups ──
 
   /// The groups you can join, each with what its members are watching (when the server
@@ -151,12 +145,13 @@ class SyncPlayController extends ChangeNotifier {
     final base = _client.baseUrl;
     if (base == null) return const {};
     try {
-      final res = await http
-          .get(Uri.parse('$base/Sessions?activeWithinSeconds=960'), headers: jellyfin.authHeaders)
-          .timeout(const Duration(seconds: 5));
-      if (res.statusCode != 200) return const {};
+      final sessions = await jellyfin.getJson(
+        '/Sessions',
+        query: const {'activeWithinSeconds': '960'},
+        timeout: const Duration(seconds: 5),
+      );
       final result = <String, SyncPlayWatching>{};
-      for (final session in jsonDecode(res.body) as List) {
+      for (final session in sessions as List) {
         if (session is! Map) continue;
         final user = session['UserName'] as String?;
         final item = session['NowPlayingItem'];
@@ -172,28 +167,24 @@ class SyncPlayController extends ChangeNotifier {
   static SyncPlayWatching _watchingFrom(String base, Map item) {
     final id = item['Id'] as String;
     final isEpisode = item['Type'] == 'Episode';
-    final season = item['ParentIndexNumber'], episode = item['IndexNumber'];
 
     // A wide picture: the item's backdrop, the show's backdrop, or the poster.
-    final backdrops = item['BackdropImageTags'] as List?;
-    final parentBackdrops = item['ParentBackdropImageTags'] as List?;
-    final primary = (item['ImageTags'] as Map?)?['Primary'] as String?;
-    final String? imageUrl;
-    if (backdrops != null && backdrops.isNotEmpty) {
-      imageUrl = '$base/Items/$id/Images/Backdrop?fillWidth=400&tag=${backdrops.first}';
-    } else if (parentBackdrops != null && parentBackdrops.isNotEmpty && item['ParentBackdropItemId'] != null) {
-      imageUrl = '$base/Items/${item['ParentBackdropItemId']}/Images/Backdrop?fillWidth=400&tag=${parentBackdrops.first}';
-    } else if (primary != null) {
-      imageUrl = '$base/Items/$id/Images/Primary?fillWidth=400&tag=$primary';
-    } else {
-      imageUrl = null;
-    }
+    final parentId = item['ParentBackdropItemId'] as String?;
+    final imageUrl = wideImageUrl(base, [
+      ('Backdrop', id, (item['BackdropImageTags'] as List?)?.firstOrNull as String?),
+      (
+        'Backdrop',
+        parentId ?? '',
+        parentId == null ? null : (item['ParentBackdropImageTags'] as List?)?.firstOrNull as String?,
+      ),
+      ('Primary', id, (item['ImageTags'] as Map?)?['Primary'] as String?),
+    ]);
 
     return (
     itemId: id,
     title: isEpisode ? (item['SeriesName'] as String?) ?? '${item['Name']}' : '${item['Name']}',
     subtitle: isEpisode
-        ? [if (season != null && episode != null) 'S$season:E$episode', item['Name']].join(' · ')
+        ? episodeLabel(item['ParentIndexNumber'], item['IndexNumber'], '${item['Name']}')
         : item['ProductionYear']?.toString(),
     imageUrl: imageUrl,
     );

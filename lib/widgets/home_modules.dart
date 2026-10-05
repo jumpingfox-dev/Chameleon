@@ -9,6 +9,7 @@ import 'package:material_ui/material_ui.dart';
 import '../theme/app_icons.dart';
 import '../utils/focus_rows.dart';
 import '../utils/home_layout.dart';
+import '../utils/item_format.dart';
 import '../utils/jellyfin_controller.dart';
 import '../utils/page_insets.dart';
 import '../utils/orientation.dart';
@@ -1141,13 +1142,8 @@ class _TileCaption extends StatelessWidget {
         ? (item.raw['SeriesName'] as String?) ?? item.name
         : item.name;
 
-    final season = item.raw['ParentIndexNumber'];
-    final episode = item.raw['IndexNumber'];
     final subtitle = isEpisode
-        ? [
-      if (season != null && episode != null) 'S$season:E$episode',
-      item.name,
-    ].join(' · ')
+        ? episodeLabel(item.raw['ParentIndexNumber'], item.raw['IndexNumber'], item.name)
         : item.raw['ProductionYear']?.toString();
 
     return Padding(

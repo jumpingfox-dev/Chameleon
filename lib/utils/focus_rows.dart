@@ -358,10 +358,3 @@ class _LeaveTextField extends ContextAction<ExtendSelectionVerticallyToAdjacentL
     return null;
   }
 }
-
-/// True while the focused text field should keep ↑/↓ for itself: a multi-line field whose
-/// cursor isn't on the first line (going up) or the last line (going down).
-bool focusedTextFieldKeepsArrow({required bool down}) {
-  final field = _LeaveTextField._field;
-  return field != null && !_LeaveTextField._leaves(field, down: down);
-}

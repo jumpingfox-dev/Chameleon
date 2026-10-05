@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:forui/forui.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../theme/tappable_states.dart';
 import '../utils/focus_rows.dart';
 
 /// A form-style field showing the current choice; selecting it opens [showChoicePicker].
@@ -38,9 +39,7 @@ class ChoiceField extends StatelessWidget {
         FTappable(
           onPress: onPress,
           builder: (context, states, _) {
-            final active =
-                states.contains(FTappableVariant.hovered) ||
-                states.contains(FTappableVariant.focused);
+            final active = isHighlighted(states);
             return Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               decoration: BoxDecoration(

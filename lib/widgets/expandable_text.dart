@@ -2,6 +2,7 @@ import 'package:forui/forui.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../theme/app_icons.dart';
+import '../theme/tappable_states.dart';
 import 'scroll_into_view.dart';
 
 /// Text that's cut off after [limit] characters, with a "Read more" link to show the rest.
@@ -74,9 +75,7 @@ class _ExpandableTextState extends State<ExpandableText> {
                   focusNode: _linkFocus,
                   onPress: _toggle,
                   builder: (context, states, _) {
-                    final active =
-                        states.contains(FTappableVariant.hovered) ||
-                        states.contains(FTappableVariant.focused);
+                    final active = isHighlighted(states);
                     final color = context.theme.colors.primary;
                     return Row(
                       mainAxisSize: MainAxisSize.min,

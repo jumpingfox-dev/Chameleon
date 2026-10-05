@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:math';
 
 import 'package:dart_jellyfin/dart_jellyfin.dart';
 import 'package:flutter/foundation.dart';
@@ -9,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../widgets/home_modules.dart';
 import 'app_cache.dart';
+import 'format.dart';
 import 'library_cache.dart';
 
 class JellyfinLibrary {
@@ -197,14 +197,7 @@ class JellyfinController extends ChangeNotifier {
     return accounts.where((a) => a.isSame(server, userId)).firstOrNull;
   }
 
-  String get initials {
-    final name = userName?.trim() ?? '';
-    if (name.isEmpty) return '?';
-    final parts = name.split(RegExp(r'\s+'));
-    return parts.length == 1
-        ? parts.first.substring(0, 1).toUpperCase()
-        : (parts.first[0] + parts.last[0]).toUpperCase();
-  }
+  String get initials => initialsOf(userName ?? '');
 
   /// The direct-play address for an item: the original file, sent untouched.
   /// mpv decodes it on the device, so the server never has to transcode.
@@ -216,15 +209,29 @@ class JellyfinController extends ChangeNotifier {
     'Authorization': 'MediaBrowser Token="${client!.token}"',
   };
 
+  /// GETs [path] (and any [query] parameters) against the server and decodes the JSON
+  /// response. Throws if there's no server to ask, or it doesn't answer with 200.
+  /// [auth] can be turned off for endpoints that work before signing in.
+  Future<dynamic> getJson(
+      String path, {
+        Map<String, String>? query,
+        bool auth = true,
+        Duration timeout = const Duration(seconds: 10),
+      }) async {
+    final base = client?.baseUrl;
+    if (base == null) throw StateError('Not connected to a server.');
+    var uri = Uri.parse('$base$path');
+    if (query != null) uri = uri.replace(queryParameters: query);
+    final res = await http.get(uri, headers: auth ? authHeaders : null).timeout(timeout);
+    if (res.statusCode != 200) throw Exception('GET $path → ${res.statusCode}');
+    return jsonDecode(res.body);
+  }
+
   /// A random id for this install. Jellyfin tracks sessions by it, so it must stay stable.
   Future<String> _deviceId(SharedPreferences prefs) async {
     var id = prefs.getString(_kDeviceId);
     if (id == null) {
-      final random = Random.secure();
-      id = List.generate(
-        16,
-            (_) => random.nextInt(256).toRadixString(16).padLeft(2, '0'),
-      ).join();
+      id = randomHexId();
       await prefs.setString(_kDeviceId, id);
     }
     return id;

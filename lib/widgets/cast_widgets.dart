@@ -7,7 +7,9 @@ import 'package:flutter_to_airplay/flutter_to_airplay.dart';
 import 'package:forui/forui.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../theme/tappable_states.dart';
 import '../utils/cast_controller.dart';
+import '../utils/format.dart';
 import '../utils/jellyfin_controller.dart';
 import '../utils/playback_settings.dart';
 
@@ -144,6 +146,8 @@ class CastRemote extends StatelessWidget {
     const white = Color(0xFFFFFFFF);
     const dim = Color(0xB3FFFFFF);
     final base = jellyfin.client?.baseUrl;
+    // Not wideImageUrl: this one has no poster fallback, and sizes by maxWidth (no crop)
+    // rather than fillWidth, since it's just a dimmed-out background here.
     final backdrop = (item.raw['BackdropImageTags'] as List?)?.firstOrNull as String?;
     final backdropId = backdrop != null ? item.id : item.raw['ParentBackdropItemId'] as String?;
     final backdropTag = backdrop ?? ((item.raw['ParentBackdropImageTags'] as List?)?.firstOrNull as String?);
@@ -290,9 +294,7 @@ class _RemoteButton extends StatelessWidget {
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          color: states.contains(FTappableVariant.focused) || states.contains(FTappableVariant.hovered)
-              ? const Color(0x33FFFFFF)
-              : const Color(0x00FFFFFF),
+          color: isHighlighted(states) ? const Color(0x33FFFFFF) : const Color(0x00FFFFFF),
         ),
         child: Icon(icon, size: size, color: const Color(0xFFFFFFFF)),
       ),
@@ -313,12 +315,6 @@ class _RemoteSeekBar extends StatefulWidget {
 
 class _RemoteSeekBarState extends State<_RemoteSeekBar> {
   double? _dragging; // 0..1 while the thumb is held
-
-  static String _format(Duration d) {
-    final h = d.inHours, m = d.inMinutes % 60, s = d.inSeconds % 60;
-    final ss = s.toString().padLeft(2, '0');
-    return h > 0 ? '$h:${m.toString().padLeft(2, '0')}:$ss' : '$m:$ss';
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -350,9 +346,9 @@ class _RemoteSeekBarState extends State<_RemoteSeekBar> {
         ),
         Row(
           children: [
-            Text(_format(shown), style: timeStyle),
+            Text(formatDuration(shown), style: timeStyle),
             const Spacer(),
-            Text(_format(widget.duration), style: timeStyle),
+            Text(formatDuration(widget.duration), style: timeStyle),
           ],
         ),
       ],

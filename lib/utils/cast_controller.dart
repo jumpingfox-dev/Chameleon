@@ -1,13 +1,13 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:math';
 
 import 'package:dart_jellyfin/dart_jellyfin.dart' show JellyfinItem, JellyfinItemKind;
 import 'package:flutter/foundation.dart';
 import 'package:flutter_chrome_cast/flutter_chrome_cast.dart';
 import 'package:http/http.dart' as http;
 
+import 'format.dart';
 import 'jellyfin_controller.dart';
 
 /// Chromecast support, on Android and iOS phones and tablets.
@@ -150,7 +150,7 @@ class CastController extends ChangeNotifier {
         ? null
         : streams.where((s) => s['Type'] == 'Subtitle' && s['Index'] == subtitleStreamIndex).firstOrNull;
     final textSubtitle = subtitle != null && subtitle['IsTextSubtitleStream'] != false;
-    final playSessionId = previous?.itemId == item.id ? previous!.playSessionId : _newId();
+    final playSessionId = previous?.itemId == item.id ? previous!.playSessionId : randomHexId();
 
     // ── The stream: HLS, H.264 + AAC, picture subtitles burned in ──
     final url = Uri.parse('$base/Videos/${item.id}/master.m3u8').replace(
@@ -277,11 +277,6 @@ class CastController extends ChangeNotifier {
 
   // Text subtitle track ids: the Jellyfin stream index + 1 (Cast track ids start at 1).
   static int _trackId(int streamIndex) => streamIndex + 1;
-
-  static String _newId() {
-    final r = Random.secure();
-    return List.generate(16, (_) => r.nextInt(256).toRadixString(16).padLeft(2, '0')).join();
-  }
 
   // ─── Telling Jellyfin what's playing ─────────────────────────────────────
 

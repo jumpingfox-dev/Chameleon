@@ -403,6 +403,8 @@ class AppIconSet {
       CupertinoIcons.square_arrow_right_fill,
       FluentIcons.sign_out_24_filled
   );
+  // syncPlay, appearance and server aren't drawn anywhere yet, but they match the Settings
+  // tabs of the same names, so they're kept rather than deleted as unused.
   IconData get syncPlay => _pick(
       Symbols.group_rounded,
       FPhosphorFillIcons.usersThree,

@@ -200,6 +200,9 @@ class _Stepper extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Not isPhoneLayout (which uses shortestSide, not width): a phone held sideways gets the
+    // smaller button here instead of the touch-sized one. Left as-is for this pass rather
+    // than guessed at -- switching it changes what a landscape phone sees.
     final isPhone = MediaQuery
         .sizeOf(context)
         .width < 600;

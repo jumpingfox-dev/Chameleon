@@ -113,13 +113,6 @@ class _SearchScreenState extends State<SearchScreen> {
         _people = people.items;
         _error = null;
       });
-      if (!mounted || id != _requestId) {
-        return; // a newer search has started; drop this one
-      }
-      setState(() {
-        _results = page.items;
-        _error = null;
-      });
     } on JellyfinException catch (e) {
       if (mounted && id == _requestId) {
         setState(() => _error = describeJellyfinError(e));

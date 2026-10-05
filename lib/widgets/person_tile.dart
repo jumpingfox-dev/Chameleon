@@ -2,6 +2,7 @@ import 'package:dart_jellyfin/dart_jellyfin.dart';
 import 'package:forui/forui.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../utils/format.dart';
 import '../utils/jellyfin_controller.dart';
 import 'hover_lift.dart';
 
@@ -61,12 +62,7 @@ class PersonPhoto extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.theme.colors;
     final tag = person.imageTags['Primary'];
-    final initials = person.name
-        .trim()
-        .split(RegExp(r'\s+'))
-        .take(2)
-        .map((w) => w[0])
-        .join();
+    final initials = initialsOf(person.name);
 
     return SizedBox.square(
       dimension: size,

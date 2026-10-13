@@ -4,9 +4,7 @@
 
 # Chameleon
 
-A Flutter client for [Jellyfin](https://jellyfin.org) that adapts to whatever screen it's
-on — a customizable home layout, a remote-friendly sidebar on TV and desktop, and a bottom
-nav bar on phones.
+Chameleon is a deeply customizable [Jellyfin](https://jellyfin.org) client built on top of Flutter.
 
 ## Features
 
@@ -86,11 +84,12 @@ how the server verifies you behind the scenes.
 
 ```
 lib/
-  main.dart            entry point, routing, the top-level app widget
-  screens/             one widget per route
-  widgets/             reusable widgets shared across screens
-  utils/               controllers, settings stores, formatting helpers
-  theme/               forui theme, app icons, generated + hand-edited styles
+  main.dart            entry point and the top-level app widget
+  app/                 routing and the shell (sidebar / bottom bar)
+  core/                Jellyfin session, casting, remote focus, platform helpers -- no UI
+  features/            auth, home, library, detail, player, settings, search
+  theme/               forui theme, app icons, theme controllers, styles
+  widgets/             small widgets shared across features
 ```
 
 See [docs/architecture.md](docs/architecture.md) for the full picture.

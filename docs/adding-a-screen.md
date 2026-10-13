@@ -12,7 +12,7 @@ Two different kinds of screen, depending on whether it needs its own place in th
 
 ## 1. The route
 
-Branch routes live in `destinations` in `lib/widgets/app_shell.dart`. Add a `GoRoute` to the
+Branch routes live in `destinations` in `lib/app/app_shell.dart`. Add a `GoRoute` to the
 right branch's `routes` list:
 
 ```dart
@@ -45,11 +45,11 @@ GoRoute(
 
 If the screen is reached from more than one place and shows as a card over the current page
 rather than a full navigation, use `showDetailPopout` instead of a route — see how
-`openItem` in `lib/widgets/detail_page.dart` opens movies, series and collections.
+`openItem` in `lib/features/detail/detail_page.dart` opens movies, series and collections.
 
 ## 2. The screen itself
 
-Put it in `lib/screens/`. The minimal shape:
+Put it in its feature's folder under `lib/features/` (a new folder if it's a new area). The minimal shape:
 
 ```dart
 class RecommendationsScreen extends StatelessWidget {
@@ -63,13 +63,13 @@ class RecommendationsScreen extends StatelessWidget {
 }
 ```
 
-If it needs to load something, follow the pattern in `screens/favorites.dart` or
-`screens/library.dart`: a `StatefulWidget`, a cache check in `initState` (see
-`utils/app_cache.dart`), and a `_load()` that calls into `jellyfin.client`.
+If it needs to load something, follow the pattern in `features/library/favorites.dart` or
+`features/library/library.dart`: a `StatefulWidget`, a cache check in `initState` (see
+`core/platform/app_cache.dart`), and a `_load()` that calls into `jellyfin.client`.
 
 ## 3. The sidebar entry (wide screens)
 
-In `lib/widgets/app_sidebar.dart`'s `_Sidebar.build`, add a `_SidebarLink` (a plain link) or
+In `lib/app/app_sidebar.dart`'s `_Sidebar.build`, add a `_SidebarLink` (a plain link) or
 a `_SidebarSection` (a folding list of pages, like Libraries or Settings) alongside the
 existing ones:
 
@@ -104,7 +104,7 @@ Skip this step for a sub-page that doesn't want its own sidebar entry (most deta
 ## 4. The phone nav entry
 
 Phones don't use the sidebar — a top-level page only shows up there if you add a
-`NavButton` somewhere reachable (`widgets/nav_button.dart`), the way `screens/home.dart`'s
+`NavButton` somewhere reachable (`widgets/nav_button.dart`), the way `features/home/home.dart`'s
 horizontal row of library/genre buttons does for phones specifically
 (`if (isPhone && ...)`). A page that's only reachable via the sidebar on wide screens still
 needs *some* phone-visible way in, or it becomes unreachable on a phone — a button on Home,

@@ -26,7 +26,7 @@ names, each tracked by its own controller.
 
 ## Presets
 
-`lib/utils/theme_presets.dart` defines `themePresets`, a plain list of `ThemePreset(id, label,
+`lib/theme/theme_presets.dart` defines `themePresets`, a plain list of `ThemePreset(id, label,
 colors)`. Each `colors` is a complete `FColors` — add a preset by adding an entry here, with
 every field filled in (there's no partial-preset inheritance). `themeController.select(preset)`
 saves the chosen id and switches `value`; `ThemeController.load()` looks the saved id up
@@ -37,7 +37,7 @@ from before a preset list change, say).
 
 Custom isn't a preset in the list — it's synthesized on the fly by `ThemeController` itself
 (`customThemeId = 'custom'`) and always appears as the last option. Two editing modes, both in
-`widgets/custom_theme_editor.dart`:
+`features/settings/custom_theme_editor.dart`:
 
 - **Simple**: four steppers (`_SeedEditor`) over a `ThemeSeed(baseHue, accentHue, vibrance,
   depth)`, each 0–359 or 0–9. `generateColors(seed)` in `theme_presets.dart` turns that into a
@@ -45,7 +45,7 @@ Custom isn't a preset in the list — it's synthesized on the fly by `ThemeContr
   needs adjusting. The seed also has a shareable 8-digit code (`ThemeSeed.code` /
   `ThemeSeed.parse`), shown and editable as text.
 - **Advanced**: a text box of `name = color` lines (`_AdvancedEditor`), parsed by
-  `parseColorIni` in `utils/custom_colors.dart` into an `FColors`, starting from the current
+  `parseColorIni` in `theme/custom_colors.dart` into an `FColors`, starting from the current
   seed's colors as a base. `colorsToIni` does the reverse, for prefilling the box.
 
 `themeController.applySeed(seed)` and `applyCustomIni(text)` both save and immediately call
@@ -58,7 +58,7 @@ actually notice the change.
 Any Google Font, picked separately for headings (`fontController.display`) and body text
 (`fontController.body`), plus a third, independent pick for subtitles
 (`playbackSettings.subtitleFont`, since that's a playback setting, not an appearance one —
-see [adding-a-setting.md](adding-a-setting.md)). `utils/font_controller.dart`'s
+see [adding-a-setting.md](adding-a-setting.md)). `theme/font_controller.dart`'s
 `searchFonts(query)` filters `GoogleFonts.asMap().keys` and preloads the first screenful so
 the list doesn't flash unstyled text; `pruneFontCache` deletes cached font files for anything
 no longer selected, run once at startup in `main.dart`.

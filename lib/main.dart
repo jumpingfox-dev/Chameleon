@@ -2,25 +2,21 @@ import 'dart:async';
 
 import 'package:material_ui/material_ui.dart';
 import 'package:forui/forui.dart';
-import 'package:go_router/go_router.dart';
 import 'package:media_kit/media_kit.dart';
 
-import 'screens/login.dart';
-import 'screens/player.dart';
-import 'widgets/app_shell.dart';
-import 'widgets/profile_picker.dart';
-import 'widgets/ui_scaler.dart';
-import 'theme/theme.dart';
+import 'app/router.dart';
+import 'app/ui_scaler.dart';
+import 'core/cast/cast_controller.dart';
+import 'core/cast/sync_play_controller.dart';
+import 'core/focus/focus_rows.dart';
+import 'core/jellyfin/jellyfin_controller.dart';
+import 'core/platform/orientation.dart';
+import 'features/home/home_layout.dart';
+import 'features/player/playback_settings.dart';
 import 'theme/app_icons.dart';
-import 'utils/theme_controller.dart';
-import 'utils/font_controller.dart';
-import 'utils/cast_controller.dart';
-import 'utils/jellyfin_controller.dart';
-import 'utils/orientation.dart';
-import 'utils/focus_rows.dart';
-import 'utils/home_layout.dart';
-import 'utils/playback_settings.dart';
-import 'utils/sync_play_controller.dart';
+import 'theme/font_controller.dart';
+import 'theme/theme.dart';
+import 'theme/theme_controller.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -34,6 +30,7 @@ Future<void> main() async {
   iconController = await IconController.load();
   playbackSettings = await PlaybackSettings.load();
   homeLayout = await HomeLayoutController.load();
+  await detectTv(); // before the first frame, which already picks phone or TV layout
 
   jellyfin = JellyfinController();
   await jellyfin.load();
@@ -45,87 +42,11 @@ Future<void> main() async {
   // Clean up in the background so it doesn't delay startup.
   unawaited(pruneFontCache([fontController.display, fontController.body, playbackSettings.subtitleFont]));
 
-  syncPlay.openPlayer = (itemId) => _router.push('/play/$itemId?syncplay=1');
+  syncPlay.openPlayer = (itemId) => appRouter.push('/play/$itemId?syncplay=1');
 
   runApp(const Application());
   WidgetsBinding.instance.addPostFrameCallback((_) => AppOrientation.init());
 }
-
-// Router configuration
-final GoRouter _router = GoRouter(
-  initialLocation: '/home',
-  refreshListenable: jellyfin, // re-checks the redirect when you sign in or out
-  redirect: (context, state) {
-    final loc = state.matchedLocation;
-    final atLogin = loc == '/login';
-    final atProfiles = loc == '/profiles';
-
-    // Changing user: wait on "Who's watching?" so no page shows the old user's things.
-    if (jellyfin.switching) return atProfiles ? null : '/profiles';
-
-    if (!jellyfin.isConnected) {
-      if (atLogin || atProfiles) return null;
-      // Others are saved on this device: let them pick. Nobody yet: sign in.
-      return jellyfin.accounts.isEmpty ? '/login' : '/profiles';
-    }
-
-    // Signed in. Login is still allowed when adding another account (/login?add=1).
-    if (atLogin && state.uri.queryParameters['add'] == '1') return null;
-    if (atLogin || atProfiles) return '/home';
-    return null;
-  },
-  routes: [
-    GoRoute(
-      path: '/login',
-      pageBuilder: (context, state) => const NoTransitionPage(child: LoginScreen()),
-    ),
-    GoRoute(
-      path: '/profiles',
-      pageBuilder: (context, state) => const NoTransitionPage(child: ProfilePickerScreen()),
-    ),
-    GoRoute(
-      path: '/play/:id',
-      builder: (context, state) => PlayerScreen(
-        itemId: state.pathParameters['id']!,
-        queue: state.uri.queryParameters['queue']?.split(',') ?? const [],
-        fromGroup: state.uri.queryParameters['syncplay'] == '1',
-      ),
-    ),
-    StatefulShellRoute(
-      // No animation in or out: when switching users, the shell is taken down and put back
-      // up in quick succession, and two copies animating at once would share its key.
-      pageBuilder: (context, state, navigationShell) => NoTransitionPage(
-        child: AppShell(
-          navigationShell: navigationShell,
-          location: state.uri.path,
-          tab: state.uri.queryParameters['tab'],
-        ),
-      ),
-      navigatorContainerBuilder: (context, navigationShell, children) => IndexedStack(
-        index: navigationShell.currentIndex,
-        children: [
-          for (final (i, child) in children.indexed)
-            ExcludeFocus(
-              excluding: i != navigationShell.currentIndex,
-              child: TickerMode(enabled: i == navigationShell.currentIndex, child: child),
-            ),
-        ],
-      ),
-      branches: [
-        for (final d in destinations)
-          StatefulShellBranch(
-            routes: [
-              GoRoute(
-                path: d.path,
-                builder: (context, state) => d.screen(state),
-                routes: d.routes,
-              ),
-            ],
-          ),
-      ],
-    ),
-  ],
-);
 
 class Application extends StatelessWidget {
   const Application({super.key});
@@ -159,7 +80,7 @@ class Application extends StatelessWidget {
             ),
           ),
         ),
-        routerConfig: _router,
+        routerConfig: appRouter,
       );
     },
   );

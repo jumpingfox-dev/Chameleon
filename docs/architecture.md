@@ -6,22 +6,36 @@ How the app is laid out, how routing and the shell work, and where state lives.
 
 ```
 lib/
-  main.dart            entry point, go_router setup, the top-level MaterialApp.router
-  screens/             one widget per route (and its route-only helpers)
-  widgets/             reusable pieces shared across screens
-  utils/               controllers, settings stores, formatting helpers -- no UI
-  theme/               forui theme, app icons, the forui-CLI-generated styles
+  main.dart            entry point: loads the controllers, then the top-level MaterialApp.router
+  app/                 the router, the shell around every page (sidebar / bottom bar), UI scaling
+  core/                no UI, shared by every feature
+    jellyfin/          the session and server calls, library cache, playback reporting
+    cast/              Chromecast and SyncPlay
+    focus/             D-pad / remote navigation (see remote-navigation.md)
+    platform/          TV and phone detection, orientation, caches, insets
+    format/            durations, sizes, item labels
+  features/            one folder per part of the app, with its screens, widgets and settings
+    auth/              sign-in, "Who's watching?", Quick Connect
+    home/              Home and its modules
+    library/           a library, a genre, all genres, favorites, poster cards
+    detail/            movie / series / season / episode / collection / person pages
+    player/            the player and its controls, tracks, segments, playback settings
+    settings/          Settings and its pages
+    search/            Search
+  theme/               forui theme, app icons, theme / font / icon controllers, styles
+  widgets/             small pieces used across features (logo, nav button, hover lift)
 ```
 
-A screen is anything `main.dart` routes to directly. Everything else — a poster card, the
+A screen is anything the router routes to directly. Everything else — a poster card, the
 detail page's info cards, the sidebar — is a widget, even if it's only used from one screen.
+Both live in their feature's folder; only widgets used across features go in `widgets/`.
 
 ## Routing
 
-`main.dart` builds one `GoRouter`. `/login`, `/profiles` and `/play/:id` are plain routes
+`lib/app/router.dart` builds one `GoRouter`, `appRouter`. `/login`, `/profiles` and `/play/:id` are plain routes
 outside the shell (playback and signing in take over the whole screen). Everything else sits
 inside a `StatefulShellRoute` with four branches — Home, Search, Settings, Profile — defined
-by the `destinations` list in `lib/widgets/app_shell.dart`:
+by the `destinations` list in `lib/app/app_shell.dart`:
 
 ```dart
 final destinations = <AppDestination>[
@@ -42,31 +56,31 @@ the bottom nav bar (phones) or the sidebar (everything else — see
 [remote-navigation.md](remote-navigation.md)). Settings reads its tab from `?tab=`
 (`SettingsScreen(initialTab: ...)`); Search reads its query from `?q=`.
 
-`redirect` in `main.dart` is the only gate: it sends you to `/login` or `/profiles` when
+`redirect` in `app/router.dart` is the only gate: it sends you to `/login` or `/profiles` when
 nothing is signed in, and to `/home` once something is.
 
 ## Where state lives
 
 Nothing here uses a state-management package. Long-lived state is a handful of global
-singletons in `lib/utils/`, each a `ChangeNotifier` or `ValueNotifier` instantiated once at
+singletons (in `core/`, `theme/` and the features that own them), each a `ChangeNotifier` or `ValueNotifier` instantiated once at
 the bottom of its own file and read anywhere with `jellyfin.foo`, no `Provider`/`context.watch`
 needed. Widgets that need to rebuild on a change wrap themselves in a `ListenableBuilder` (or
 `ValueListenableBuilder`) around that global.
 
 | Global | File | What it holds |
 | --- | --- | --- |
-| `jellyfin` | `utils/jellyfin_controller.dart` | The signed-in session, saved accounts, libraries, genres. The one controller nearly everything else needs. |
-| `syncPlay` | `utils/sync_play_controller.dart` | SyncPlay (watch-together) group state and the server's play/pause/seek commands. |
-| `playbackSettings` | `utils/playback_settings.dart` | Playback preferences saved on this device (skip modes, quality, subtitle style, ...). |
-| `homeLayout` | `utils/home_layout.dart` | The home screen's sections, in order. |
-| `themeController` | `utils/theme_controller.dart` | The chosen theme preset, or the custom one. |
-| `fontController` | `utils/font_controller.dart` | The chosen display and body fonts. |
+| `jellyfin` | `core/jellyfin/jellyfin_controller.dart` | The signed-in session, saved accounts, libraries, genres. The one controller nearly everything else needs. |
+| `syncPlay` | `core/cast/sync_play_controller.dart` | SyncPlay (watch-together) group state and the server's play/pause/seek commands. |
+| `playbackSettings` | `features/player/playback_settings.dart` | Playback preferences saved on this device (skip modes, quality, subtitle style, ...). |
+| `homeLayout` | `features/home/home_layout.dart` | The home screen's sections, in order. |
+| `themeController` | `theme/theme_controller.dart` | The chosen theme preset, or the custom one. |
+| `fontController` | `theme/font_controller.dart` | The chosen display and body fonts. |
 | `iconController` | `theme/app_icons.dart` | The chosen icon style (Material Symbols, Phosphor, ...). |
-| `castController` | `utils/cast_controller.dart` | Chromecast discovery and the active cast session. |
+| `castController` | `core/cast/cast_controller.dart` | Chromecast discovery and the active cast session. |
 
 Smaller, page-local state (a library's loaded items, a search's results) lives in that
-screen's own `State`, often backed by a simple in-memory cache (`utils/app_cache.dart`,
-`utils/library_cache.dart`) so switching tabs and back doesn't re-fetch everything.
+screen's own `State`, often backed by a simple in-memory cache (`core/platform/app_cache.dart`,
+`core/jellyfin/library_cache.dart`) so switching tabs and back doesn't re-fetch everything.
 
 `main.dart` loads every controller before `runApp`:
 

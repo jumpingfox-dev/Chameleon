@@ -6,7 +6,7 @@ How D-pad focus works, and what to do to make a new screen remote-friendly.
 
 Flutter's built-in directional focus picks "the nearest focusable widget in that direction,"
 which falls apart on a TV: pressing ↓ from a poster can land on a button three rows down just
-because it happens to be closer than the row directly below. `lib/utils/focus_rows.dart`
+because it happens to be closer than the row directly below. `lib/core/focus/focus_rows.dart`
 replaces that entirely for everything under `RowFocusNavigation`, installed once near the top
 of the app in `main.dart`:
 
@@ -35,12 +35,12 @@ FocusRow(
 )
 ```
 
-Used throughout `widgets/home_modules.dart` (each section's row), `widgets/detail_cards.dart`
-(the cast row), and the player's transport and option rows (`screens/player_controls.dart`).
+Used throughout `features/home/home_modules.dart` (each section's row), `features/detail/detail_cards.dart`
+(the cast row), and the player's transport and option rows (`features/player/player_controls.dart`).
 
 **`FocusColumn`** is the opposite: a side column, kept apart from the rest of the page, where
 ↑/↓ stay inside it and stop at its ends, and ↑/↓ from elsewhere never land in it. ←/→ move in
-and out as normal. The only user today is the A–Z rail in `screens/library.dart`:
+and out as normal. The only user today is the A–Z rail in `features/library/library.dart`:
 
 ```dart
 SizedBox(
@@ -58,7 +58,7 @@ per-screen.
 **`moveFocus(TraversalDirection)`** is what both of the above call into, and it's also the
 one to call directly when a widget wants to handle its own keys instead of letting Flutter's
 focus traversal do it — the player does this for its own D-pad scrubbing
-(`screens/player.dart`'s `_onKey`), and the shell does it for ←/→ at a page's edge (below).
+(`features/player/player.dart`'s `_onKey`), and the shell does it for ←/→ at a page's edge (below).
 
 **`firstFocusable(scope, {mainOnly})`** finds the item a newly-opened page should focus: the
 first one, in the order the page lists them, that's actually laid out. Text fields and a
@@ -71,7 +71,7 @@ positions (`StatefulShellRoute`'s branches, and popouts underneath another popou
 
 ## The shell's two scopes
 
-`widgets/app_shell.dart`'s `_AppShellState` owns two `FocusScopeNode`s: `_navScope` (the
+`app/app_shell.dart`'s `_AppShellState` owns two `FocusScopeNode`s: `_navScope` (the
 sidebar) and `_pageScope` (the current page). On wide screens, ← at a page's left edge enters
 the sidebar and → from the sidebar returns to the page — handled by `_onPageKey` and
 `_onNavKey`, attached as `onKeyEvent` on each `FocusScope`:
@@ -121,9 +121,16 @@ loaded.
    `states.contains(FTappableVariant.focused)` too (or use the shared `isHighlighted(states)`
    helper in `theme/tappable_states.dart`, which already checks both).
 
-## What you can't check without a TV
+## Nothing focused yet
 
-Everything above is reasoned from the code and from the desktop build (arrow keys work the
-same way on desktop as on a TV remote, since both go through the same `RowFocusNavigation`).
-Trickplay thumbnails, the exact feel of D-pad scrubbing, and anything timing-sensitive on a
-real remote still want a hands-on check on the device.
+When a page opens with nothing focused (sign-in, say), the first arrow press focuses the
+page's first item, text fields included, via `moveFocus`. A remote has no mouse to click in
+with, so without this you'd be stuck.
+
+## Testing on a TV
+
+Arrow keys on desktop go through the same `RowFocusNavigation` as a TV remote, so most of this
+can be checked on Linux (`--dart-define=TV=true` gives the TV layout). For a TV emulator or a
+real TV, see [building.md](building.md#android-tv). Trickplay thumbnails, the exact feel of
+D-pad scrubbing, and anything timing-sensitive on a real remote still want a hands-on check on
+the device.

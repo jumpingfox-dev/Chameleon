@@ -4,14 +4,14 @@ How a home-screen section works, and how to add a new kind.
 
 ## The pieces
 
-A section is a `HomeModule` (`utils/home_layout.dart`): a `HomeModuleType`, an id (unique
+A section is a `HomeModule` (`features/home/home_layout.dart`): a `HomeModuleType`, an id (unique
 within the layout, so two Genre sections can be told apart), and optionally a `param`
 (a collection's id, a genre's name), a `label` (display name for that param) and a `view`
 override (poster or thumbnail). The home screen's whole layout is just
 `List<HomeModule>`, held by `homeLayout` and saved as JSON.
 
 What a section *shows* is separate from the module itself: `homeModuleSpecs` in
-`widgets/home_modules.dart` maps each `HomeModuleType` to a `HomeModuleSpec` — its title,
+`features/home/home_modules.dart` maps each `HomeModuleType` to a `HomeModuleSpec` — its title,
 description, icon and a `load` function:
 
 ```dart
@@ -30,7 +30,7 @@ the featured carousel, for `HomeModuleType.carousel`).
 
 ## Adding a new kind of section
 
-1. **Add the type** to `HomeModuleType` in `utils/home_layout.dart`:
+1. **Add the type** to `HomeModuleType` in `features/home/home_layout.dart`:
 
    ```dart
    enum HomeModuleType {
@@ -44,7 +44,7 @@ the featured carousel, for `HomeModuleType.carousel`).
    If more than one of this type can exist at once (like Collection and Genre), add it to
    `allowsMultiple` too.
 
-2. **Write the loader** and add the spec entry in `widgets/home_modules.dart`:
+2. **Write the loader** and add the spec entry in `features/home/home_modules.dart`:
 
    ```dart
    HomeModuleType.topRated: HomeModuleSpec(

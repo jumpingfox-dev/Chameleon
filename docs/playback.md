@@ -2,7 +2,7 @@
 
 The player, direct play vs. transcode, the playback reporter, subtitles, and SyncPlay.
 
-All of this lives in `lib/screens/player.dart` and its parts — `player_controls.dart` (the
+All of this lives in `lib/features/player/player.dart` and its parts — `player_controls.dart` (the
 on-screen controls, seek bar, clock), `player_segments.dart` (trickplay, skip segments, the
 rating-badge intro, Up Next) and `player_tracks.dart` (audio/subtitle track choices,
 transcoding). They share `player.dart`'s private names — see
@@ -12,7 +12,7 @@ transcoding). They share `player.dart`'s private names — see
 
 `PlayerScreen(itemId, queue, fromGroup)` is pushed at `/play/:id`. `queue` carries the rest of
 a collection or shuffle when playing through a list (set by `playQueue` in
-`widgets/detail_page.dart`); `fromGroup` is true when SyncPlay opened the player, not you.
+`features/detail/detail_page.dart`); `fromGroup` is true when SyncPlay opened the player, not you.
 `_start()` loads the item, works out where to resume from (`_resumePosition`, governed by the
 `ResumeMode` setting), and either opens it directly or hands it to the cast controller if a
 Chromecast is already connected.
@@ -33,7 +33,7 @@ audio-track switch during direct play doesn't need that.
 
 ## Reporting progress
 
-`PlaybackReporter` (`utils/playback_reporter.dart`) is the one thing that tells Jellyfin
+`PlaybackReporter` (`core/jellyfin/playback_reporter.dart`) is the one thing that tells Jellyfin
 what's playing, so Continue Watching, Next Up and progress stay correct in every Jellyfin
 client, not just this one:
 
@@ -51,7 +51,7 @@ the two don't fight over who's authoritative.
 
 Rendering is entirely custom — `media_kit`'s own subtitle view is turned off
 (`subtitleViewConfiguration: SubtitleViewConfiguration(visible: false)`) and `SubtitleText`
-(`utils/playback_settings.dart`) draws the current line itself, styled by
+(`features/player/playback_settings.dart`) draws the current line itself, styled by
 `playbackSettings.subtitleStyle()`: font, size, color and background (shadow, outline or a
 dark box) all come from Settings → Playback. The outline style is drawn as two overlaid
 `Text`s (a thick stroke underneath, the filled text on top) since a single `TextStyle` can't
@@ -87,7 +87,7 @@ been hit, in which case it asks "Are you still watching?" instead of autoplaying
 
 ## SyncPlay (watch together)
 
-`SyncPlayController` (`utils/sync_play_controller.dart`) is the controller — never call it
+`SyncPlayController` (`core/cast/sync_play_controller.dart`) is the controller — never call it
 "Watch Together" in code or comments, only in the UI isn't even used; the class, variable and
 everything else is `SyncPlay`. The player hooks into it with `syncPlay.attach(onSwitch)` in
 `initState` (so the group can switch what's playing in place rather than opening a second
@@ -99,4 +99,4 @@ the group (`syncPlay.requestPause()`, etc.) instead of touching the player direc
 player reports buffering/ready so the group waits for slow members (`_reportBuffering`).
 
 Group management (create/join/leave, the groups list with what each is watching) is the
-SyncPlay tab in Settings — see `screens/sync_play_settings.dart`.
+SyncPlay tab in Settings — see `features/settings/sync_play_settings.dart`.

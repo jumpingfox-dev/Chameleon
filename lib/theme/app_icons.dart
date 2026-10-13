@@ -74,12 +74,14 @@ class AppIconSet {
       CupertinoIcons.person_fill,
       FluentIcons.person_24_filled
   );
+  // The comedy/tragedy masks. Cupertino and Fluent have no masks of their own, so they borrow
+  // Material's, and Phosphor only has them one at a time.
   IconData get genres => _pick(
-      Symbols.label_rounded,
-      FPhosphorFillIcons.tag,
-      FLucideIcons.tag,
-      CupertinoIcons.tag_fill,
-      FluentIcons.tag_24_filled
+      Symbols.theater_comedy_rounded,
+      FPhosphorFillIcons.maskHappy,
+      FLucideIcons.drama,
+      Symbols.theater_comedy_rounded,
+      Symbols.theater_comedy_rounded
   );
   IconData get back => _pick(
       Symbols.arrow_back_ios_new_rounded,

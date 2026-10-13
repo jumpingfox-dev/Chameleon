@@ -24,12 +24,38 @@ flutter devices        # confirm the device shows up
 flutter run -d <device id>
 ```
 
-For a release build you can install:
+For a build you can install:
 
 ```bash
-flutter build apk --debug    # quick, unsigned, for testing
-flutter build apk --release  # needs signing set up in android/ to install on most devices
+flutter build apk --debug    # quick, for testing
+flutter build apk --release  # signed with the upload key (see below)
 ```
+
+### Release builds for publishing
+
+Release builds are signed with the upload key named in `android/key.properties`. That file
+and the keystore are kept out of git. Without the file, release builds fall back to the debug
+key, which is fine for testing but can't be published.
+
+```properties
+storePassword=…
+keyPassword=…
+keyAlias=upload
+storeFile=/path/to/chameleon-upload.jks
+```
+
+To make a new key, run `keytool -genkey -v -keystore ~/keys/chameleon-upload.jks
+-storetype JKS -keyalg RSA -keysize 2048 -validity 10000 -alias upload`, after creating
+`~/keys`. Back up the keystore and its passwords.
+
+Raise the number after `+` in `pubspec.yaml`'s `version` before every upload. Then:
+
+| For | Command | Output |
+|---|---|---|
+| Google Play (phone and TV) | `flutter build appbundle --release` | `build/app/outputs/bundle/release/app-release.aab` |
+| Sideloading, GitHub releases | `flutter build apk --release --split-per-abi` | `build/app/outputs/flutter-apk/app-<abi>-release.apk` |
+
+Most phones need `arm64-v8a`. Many Google TV sticks are 32-bit and need `armeabi-v7a`.
 
 ## Android TV
 

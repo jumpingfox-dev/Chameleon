@@ -4,7 +4,7 @@ Where a setting lives depends on what it's for, and that decides which store it 
 
 | Kind | Store | Saved | Tab |
 | --- | --- | --- | --- |
-| Playback (quality, subtitles, skip, ...) | `features/player/playback_settings.dart` | This device (SharedPreferences) | Playback |
+| Playback (quality, subtitles, skip, ...) | `features/player/playback_settings.dart` | This device (the database's `settings` table) | Playback |
 | Appearance (theme, fonts, icon style) | `theme/theme_controller.dart`, `font_controller.dart`, `theme/app_icons.dart` | This device | Appearance |
 | Account (language, subtitle mode, Quick Connect) | `core/jellyfin/account_settings.dart` | The Jellyfin server, on the account | Account |
 

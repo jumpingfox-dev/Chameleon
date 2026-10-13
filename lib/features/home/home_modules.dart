@@ -12,6 +12,7 @@ import 'home_layout.dart';
 import '../../core/format/item_format.dart';
 import '../../core/jellyfin/jellyfin_controller.dart';
 import '../../core/platform/page_insets.dart';
+import '../../core/storage/app_cache.dart';
 import '../../core/platform/orientation.dart';
 import '../detail/detail_page.dart';
 import '../library/poster_card.dart';
@@ -26,6 +27,13 @@ class HomeModuleContent {
 
   final List<JellyfinItem> items;
   final String? title;
+
+  static Object? toJson(HomeModuleContent c) => {'items': itemsToJson(c.items), 'title': c.title};
+
+  static HomeModuleContent fromJson(Object? json) {
+    final map = json! as Map<String, dynamic>;
+    return HomeModuleContent(itemsFromJson(map['items']), title: map['title'] as String?);
+  }
 }
 
 /// Loads a section's content. [module] says what it shows (e.g. which collection).
@@ -292,26 +300,15 @@ Future<HomeModuleContent> _genre(
 
 // ─── Cache ───────────────────────────────────────────────────────────────────
 
-/// How long a section's content is reused before it refreshes.
-const homeCacheDuration = Duration(minutes: 10);
-
-class _CachedContent {
-  _CachedContent(this.content) : fetchedAt = DateTime.now();
-
-  final HomeModuleContent content;
-  final DateTime fetchedAt;
-
-  bool get isFresh => DateTime.now().difference(fetchedAt) < homeCacheDuration;
-}
-
-/// Keyed by section id, since two Genre sections show different things.
-final _homeCache = <String, _CachedContent>{};
+/// A section's content in [appCache], by section id (two Genre sections show different things).
+/// Saved, so Home opens with what it showed last time and refreshes from there.
+String _cacheKey(String moduleId) => 'home:$moduleId';
 
 /// Bumped when Home becomes visible again, so stale sections can refresh.
 final homeVisible = ValueNotifier<int>(0);
 
 /// Forgets every section's content, e.g. on sign-out.
-void clearHomeCache() => _homeCache.clear();
+void clearHomeCache() => appCache.invalidateWhere((key) => key.startsWith('home:'));
 
 // ─── Section view ────────────────────────────────────────────────────────────
 
@@ -360,9 +357,8 @@ class _HomeModuleViewState extends State<HomeModuleView>
     favoritesChanged.addListener(_load);
     homeVisible.addListener(_refreshIfStale);
 
-    final cached = _homeCache[widget.module.id];
-    _content = cached?.content;
-    if (cached == null || !cached.isFresh) _load();
+    _content = appCache.peek(_cacheKey(widget.module.id), fromJson: HomeModuleContent.fromJson);
+    if (!appCache.isFresh(_cacheKey(widget.module.id))) _load();
   }
 
   @override
@@ -373,8 +369,7 @@ class _HomeModuleViewState extends State<HomeModuleView>
   }
 
   void _refreshIfStale() {
-    final cached = _homeCache[widget.module.id];
-    if (cached == null || !cached.isFresh) _load();
+    if (!appCache.isFresh(_cacheKey(widget.module.id))) _load();
   }
 
   Future<void> _load() async {
@@ -382,7 +377,7 @@ class _HomeModuleViewState extends State<HomeModuleView>
     if (client == null) return;
     try {
       final content = await _spec.load(client, widget.module);
-      _homeCache[widget.module.id] = _CachedContent(content);
+      appCache.put(_cacheKey(widget.module.id), content, toJson: HomeModuleContent.toJson);
       if (mounted) {
         setState(() {
           _content = content;

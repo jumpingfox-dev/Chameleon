@@ -7,7 +7,7 @@ import 'package:material_ui/material_ui.dart';
 
 import '../../theme/app_icons.dart';
 import '../../theme/tappable_states.dart';
-import '../../core/platform/app_cache.dart';
+import '../../core/storage/app_cache.dart';
 import '../../core/focus/focus_rows.dart';
 import '../../core/format/format.dart';
 import '../../core/format/item_format.dart';
@@ -230,6 +230,15 @@ class DetailData {
   final JellyfinItem item;
   final List<JellyfinItem> children;
   final Map<String, Object?> extra;
+
+  /// As saved in [appCache]. [extra] isn't saved: pages that use it aren't saved at all.
+  static Object? toJson(DetailData d) =>
+      {'item': itemToJson(d.item), 'children': itemsToJson(d.children)};
+
+  static DetailData fromJson(Object? json) {
+    final map = json! as Map<String, dynamic>;
+    return DetailData(item: itemFromJson(map['item']), children: itemsFromJson(map['children']));
+  }
 }
 
 // ─── Loaders ─────────────────────────────────────────────────────────────────
@@ -487,7 +496,7 @@ class _DetailPageState extends State<DetailPage> {
 
     // Show cached data straight away; refresh quietly if it's old.
     final key = widget.cacheKey;
-    final cached = key == null ? null : appCache.peek<DetailData>(key);
+    final cached = key == null ? null : appCache.peek(key, fromJson: DetailData.fromJson);
     if (cached != null) {
       _data = cached;
       _loading = false;
@@ -513,7 +522,9 @@ class _DetailPageState extends State<DetailPage> {
     }
     try {
       final data = await widget.load(client);
-      if (widget.cacheKey case final key?) appCache.put(key, data);
+      if (widget.cacheKey case final key?) {
+        appCache.put(key, data, toJson: data.extra.isEmpty ? DetailData.toJson : null);
+      }
       if (mounted) setState(() => _data = data);
     } on JellyfinException catch (e) {
       if (mounted && !silent) setState(() => _error = describeJellyfinError(e)); // keep cached content on failure

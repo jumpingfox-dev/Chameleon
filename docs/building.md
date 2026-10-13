@@ -104,6 +104,30 @@ images:
 dart run flutter_launcher_icons
 ```
 
+## Splash screens
+
+`flutter_native_splash`, configured in `pubspec.yaml`, generates the Android splash: the icon
+on `#0a0d18` before Android 12 (`assets/icon/icon_foreground.png`), and on Android 12+ the
+same icon inside the system's circle, whose background is set to the same color so the
+circle doesn't show (`assets/icon/splash_android12.png`, 1152 px with the icon inside the
+middle 768 px). After changing either:
+
+```bash
+dart run flutter_native_splash:create
+```
+
+The app keeps the system splash up until its first page is ready (`FlutterNativeSplash.preserve`
+in `main.dart`).
+
+TVs get the full wordmark instead, which the generator can't do, so it's set up by hand and
+the generator leaves it alone:
+
+- `android/app/src/main/res/values-television-v31/styles.xml`: Android 12+ TVs, whose system
+  splash can only show a small icon, show just the background, and the app's first frame
+  draws the wordmark (`lib/app/splash.dart`) while it loads.
+- `android/app/src/main/res/drawable-television/launch_background.xml`: older TVs show
+  `tv_banner.png`, and `TvSplash` draws the wordmark in the same place and size.
+
 ## Checking everything still compiles
 
 ```bash

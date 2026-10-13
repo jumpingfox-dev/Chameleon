@@ -29,10 +29,26 @@ Chameleon is a deeply customizable [Jellyfin](https://jellyfin.org) client built
 
 ## Screenshots
 
-<!-- Add screenshots to docs/screenshots/ and reference them here, e.g.: -->
-<!-- ![Home screen](docs/screenshots/home.png) -->
-<!-- ![Movie detail](docs/screenshots/detail.png) -->
-<!-- ![Settings](docs/screenshots/settings.png) -->
+**Android TV**
+
+<p>
+  <img src="docs/screenshots/tv/01-home.png" width="49%" alt="Home on a TV">
+  <img src="docs/screenshots/tv/05-detail.png" width="49%" alt="A movie's details">
+  <img src="docs/screenshots/tv/03-sidebar.png" width="49%" alt="The sidebar, opened with the remote">
+  <img src="docs/screenshots/tv/04-library.png" width="49%" alt="A library, with the A–Z rail">
+</p>
+
+**Phone**
+
+<p>
+  <img src="docs/screenshots/phone/01-home.png" width="24%" alt="Home">
+  <img src="docs/screenshots/phone/02-detail.png" width="24%" alt="A movie's details">
+  <img src="docs/screenshots/phone/05-themes.png" width="24%" alt="Theme presets">
+  <img src="docs/screenshots/phone/06-home-theme.png" width="24%" alt="Home in the Emerald theme">
+</p>
+
+All screenshots, at store sizes (TV 1920 × 1080, phone 1080 × 2160), are in
+[docs/screenshots](docs/screenshots). Titles shown are public-domain or Creative Commons films.
 
 ## Supported platforms
 
@@ -78,7 +94,7 @@ how the server verifies you behind the scenes.
 - **[media_kit](https://pub.dev/packages/media_kit)** (mpv) for playback
 - **[dart_jellyfin](https://pub.dev/packages/dart_jellyfin)**, plus direct `http` calls for
   the handful of Jellyfin endpoints the package doesn't wrap yet
-- **SharedPreferences** for on-device settings
+- **[Drift](https://pub.dev/packages/drift)** (SQLite) for settings, accounts and saved pages
 
 ## Project layout
 

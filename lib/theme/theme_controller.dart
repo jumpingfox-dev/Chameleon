@@ -1,9 +1,9 @@
 import 'package:flutter/foundation.dart';
 import 'package:forui/forui.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import 'custom_colors.dart';
 import 'theme_presets.dart';
+import '../core/storage/storage.dart';
 
 const customThemeId = 'custom';
 const defaultSeed = ThemeSeed(270, 280, 8, 1);
@@ -44,15 +44,14 @@ class ThemeController extends ValueNotifier<ThemePreset> {
       ThemePreset(id: customThemeId, label: 'Custom', colors: colors);
 
   static Future<ThemeController> load() async {
-    final prefs = await SharedPreferences.getInstance();
 
     final seed =
-        ThemeSeed.parse(prefs.getString(_seedKey) ?? '') ?? defaultSeed;
-    final ini = prefs.getString(_iniKey);
-    final advanced = prefs.getBool(_advancedKey) ?? false;
+        ThemeSeed.parse(storage.getString(_seedKey) ?? '') ?? defaultSeed;
+    final ini = storage.getString(_iniKey);
+    final advanced = storage.getBool(_advancedKey) ?? false;
     final custom = _preset(_resolve(seed, ini, advanced));
 
-    final savedId = prefs.getString(_key);
+    final savedId = storage.getString(_key);
     final selected = [
       ...themePresets,
       custom,
@@ -62,26 +61,23 @@ class ThemeController extends ValueNotifier<ThemePreset> {
 
   Future<void> select(ThemePreset preset) async {
     value = preset;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_key, preset.id);
+    await storage.setString(_key, preset.id);
   }
 
   /// Simple mode: build the whole theme from a seed.
   Future<void> applySeed(ThemeSeed seed) async {
     _seed = seed;
     _activate();
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_seedKey, seed.code);
-    await prefs.setString(_key, customThemeId);
+    await storage.setString(_seedKey, seed.code);
+    await storage.setString(_key, customThemeId);
   }
 
   /// Switches between the seed steppers and the INI editor.
   Future<void> setAdvanced(bool on) async {
     _advanced = on;
     _activate();
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_advancedKey, on);
-    await prefs.setString(_key, customThemeId);
+    await storage.setBool(_advancedKey, on);
+    await storage.setString(_key, customThemeId);
   }
 
   /// Advanced mode: applies INI text on top of the current seed. Returns errors, or an empty list.
@@ -92,10 +88,9 @@ class ThemeController extends ValueNotifier<ThemePreset> {
     _customIni = text;
     _advanced = true;
     _activate();
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_iniKey, text);
-    await prefs.setBool(_advancedKey, true);
-    await prefs.setString(_key, customThemeId);
+    await storage.setString(_iniKey, text);
+    await storage.setBool(_advancedKey, true);
+    await storage.setString(_key, customThemeId);
     return const [];
   }
 

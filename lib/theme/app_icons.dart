@@ -4,7 +4,7 @@ import 'package:forui_lucide/forui_lucide.dart';
 import 'package:forui_phosphor/forui_phosphor.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:material_ui/material_ui.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import '../core/storage/storage.dart';
 
 /// Which family of icons the app uses.
 enum IconStyle {
@@ -501,16 +501,14 @@ class IconController extends ValueNotifier<IconStyle> {
   static const _key = 'icon_style';
 
   static Future<IconController> load() async {
-    final prefs = await SharedPreferences.getInstance();
-    final saved = IconStyle.values.asNameMap()[prefs.getString(_key)];
+    final saved = IconStyle.values.asNameMap()[storage.getString(_key)];
     return IconController._(saved ?? IconStyle.materialSymbols);
   }
 
   Future<void> select(IconStyle style) async {
     value = style;
     _redrawEverything();
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_key, style.name);
+    await storage.setString(_key, style.name);
   }
 }
 

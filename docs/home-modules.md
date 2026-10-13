@@ -24,8 +24,8 @@ class HomeModuleSpec {
 ```
 
 `HomeModuleView` (same file) is the widget that actually renders one section: it loads via
-the spec, caches the result for 10 minutes (`_homeCache`, keyed by the module's *id*, not its
-type — so two Genre sections cache separately), and shows a `FocusRow` of `PosterCard`s (or
+the spec, caches the result in `appCache` under `home:<module id>` (the id, not the type, so
+two Genre sections cache separately), and shows a `FocusRow` of `PosterCard`s (or
 the featured carousel, for `HomeModuleType.carousel`).
 
 ## Adding a new kind of section
@@ -79,7 +79,9 @@ remove, toggle view) work on it the same as every other section without extra co
 
 ## Caching and refresh
 
-Each section's content is cached for `homeCacheDuration` (10 minutes) in `_homeCache`.
+Each section's content is cached in `appCache` and counts as fresh for 10 minutes. It's also
+saved to the database, so Home opens with what it showed last time and refreshes from there
+(see [architecture.md](architecture.md#storage)).
 `homeVisible` is bumped whenever you navigate back to `/home` (`HomeScreen._onNavigate`),
 which every `HomeModuleView` listens for to refresh if its own cache has gone stale —
 sections don't all refresh at once, only the ones that need it. `favoritesChanged` similarly

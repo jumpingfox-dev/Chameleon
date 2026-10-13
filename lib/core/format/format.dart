@@ -24,3 +24,16 @@ String randomHexId([int bytes = 16]) {
   final random = Random.secure();
   return List.generate(bytes, (_) => random.nextInt(256).toRadixString(16).padLeft(2, '0')).join();
 }
+
+/// A size in bytes, readably: `512 B`, `3.4 KB`, `12.8 MB`.
+String formatBytes(int bytes) {
+  if (bytes < 1024) return '$bytes B';
+  const units = ['KB', 'MB', 'GB'];
+  var size = bytes / 1024;
+  var unit = 0;
+  while (size >= 1024 && unit < units.length - 1) {
+    size /= 1024;
+    unit++;
+  }
+  return '${size.toStringAsFixed(size < 10 ? 1 : 0)} ${units[unit]}';
+}

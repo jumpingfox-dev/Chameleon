@@ -49,8 +49,11 @@ abstract final class AppOrientation {
   static Future<void> init() => menus();
 
   /// Everything outside the player: upright on phones, with the status and navigation bars.
+  /// TVs have no use for system bars, so they stay hidden there, as in other TV apps.
   static Future<void> menus() async {
-    await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    await SystemChrome.setEnabledSystemUIMode(
+      isTv ? SystemUiMode.immersiveSticky : SystemUiMode.edgeToEdge,
+    );
     await SystemChrome.setPreferredOrientations(
       _isPhone ? const [DeviceOrientation.portraitUp] : const [],
     );

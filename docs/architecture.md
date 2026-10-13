@@ -12,7 +12,8 @@ lib/
     jellyfin/          the session and server calls, library cache, playback reporting
     cast/              Chromecast and SyncPlay
     focus/             D-pad / remote navigation (see remote-navigation.md)
-    platform/          TV and phone detection, orientation, caches, insets
+    platform/          TV and phone detection, orientation, insets
+    storage/           the database (Drift): settings, accounts, saved pages; appCache
     format/            durations, sizes, item labels
   features/            one folder per part of the app, with its screens, widgets and settings
     auth/              sign-in, "Who's watching?", Quick Connect
@@ -79,12 +80,40 @@ needed. Widgets that need to rebuild on a change wrap themselves in a `Listenabl
 | `castController` | `core/cast/cast_controller.dart` | Chromecast discovery and the active cast session. |
 
 Smaller, page-local state (a library's loaded items, a search's results) lives in that
-screen's own `State`, often backed by a simple in-memory cache (`core/platform/app_cache.dart`,
-`core/jellyfin/library_cache.dart`) so switching tabs and back doesn't re-fetch everything.
+screen's own `State`, often backed by `appCache` (below) so switching tabs and back doesn't
+re-fetch everything.
 
-`main.dart` loads every controller before `runApp`:
+## Storage
+
+Everything kept on the device is in one SQLite database, through
+[Drift](https://pub.dev/packages/drift) (`core/storage/database.dart`, with the generated
+`database.g.dart` next to it; regenerate with `dart run build_runner build` after changing a
+table). `storage` (`core/storage/storage.dart`) is the only thing that talks to it:
+
+| Table | Holds | Read |
+| --- | --- | --- |
+| `settings` | Key/value settings: theme, fonts, icon style, home layout, playback settings, the device id. JSON where structured. | Once, at startup, into memory: `storage.getString(...)` needs no `await`. Writes go straight through. |
+| `accounts` | Every account signed in on this device, in order, with its token. | When the session starts or changes. |
+| `cache_entries` | Pages loaded from the server (Home sections, favorites, detail pages, seasons, libraries), as JSON, per account. | When that account's session starts (`appCache.open`). |
+
+`appCache` (`core/storage/app_cache.dart`) is the in-memory cache pages read and write. An
+entry put with a `toJson` is also saved, under the signed-in account, so it shows straight
+away next time (counting as stale, so the page refreshes it too); reading it back takes the
+matching `fromJson`. Items are saved as the server's own JSON (`itemsToJson` /
+`itemsFromJson`). Changing user only empties memory, so switching back is instant; removing
+an account deletes its saved pages. Pages unused for 30 days are deleted at startup, and
+Settings → About shows the total and can clear it.
+
+The first run after updating from a version that used shared_preferences copies everything
+across (`_importSharedPreferences`), once. The old values are left in place, which is the
+only reason `shared_preferences` is still a dependency.
+
+## Startup
+
+`main.dart` opens storage, then loads every controller before `runApp`:
 
 ```dart
+storage = await Storage.open();
 themeController = await ThemeController.load();
 fontController = await FontController.load();
 iconController = await IconController.load();

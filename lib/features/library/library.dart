@@ -6,6 +6,7 @@ import '../../theme/tappable_states.dart';
 import '../../core/focus/focus_rows.dart';
 import '../../core/jellyfin/jellyfin_controller.dart';
 import '../../core/jellyfin/library_cache.dart';
+import '../../core/storage/app_cache.dart';
 import '../detail/detail_page.dart';
 import 'poster_card.dart';
 
@@ -40,12 +41,31 @@ class _LibraryScreenState extends State<LibraryScreen> {
   int? get _total => _cache.total;
   Set<String>? get _availableLetters => _cache.letters;
 
-  /// This page's cache entry, replaced with an empty one if it's missing or stale.
+  String _keyFor(LibraryScreen w) => w.genre != null ? 'genre:${w.genre}' : 'library:${w.libraryId}';
+
+  /// This page's cache entry: what's already loaded (in this run or saved from the last), or
+  /// a new empty one.
   LibraryCacheEntry _entryFor(LibraryScreen w) {
-    final key = w.genre != null ? 'genre:${w.genre}' : 'library:${w.libraryId}';
-    final existing = libraryCache[key];
-    if (existing != null && existing.isFresh) return existing;
-    return libraryCache[key] = LibraryCacheEntry();
+    final key = _keyFor(w);
+    final existing = appCache.peek(key, fromJson: LibraryCacheEntry.fromJson);
+    if (existing != null) return existing;
+    final entry = LibraryCacheEntry();
+    appCache.put(key, entry);
+    return entry;
+  }
+
+  /// Saves what's loaded so far, for next time.
+  void _save() => appCache.put(_keyFor(widget), _cache, toJson: LibraryCacheEntry.toJson);
+
+  /// Loads what this page needs: the first titles if there are none yet, or, if what's here is
+  /// old, a fresh copy of it (swapped in place, so nothing jumps).
+  void _loadOrRefresh() {
+    if (_items.isEmpty) {
+      _loadMore();
+    } else if (!appCache.isFresh(_keyFor(widget))) {
+      _refresh();
+    }
+    if (_availableLetters == null || !appCache.isFresh(_keyFor(widget))) _loadLetterCounts();
   }
 
   JellyfinLibrary? get _library =>
@@ -110,8 +130,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
       _cache.scrollOffset = _scroll.offset;
       if (_scroll.position.extentAfter < 600) _loadMore();
     });
-    if (_items.isEmpty) _loadMore();
-    if (_availableLetters == null) _loadLetterCounts();
+    _loadOrRefresh();
   }
 
   @override
@@ -121,8 +140,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
       _cache = _entryFor(widget);
       _error = null;
       if (_scroll.hasClients) _scroll.jumpTo(_cache.scrollOffset);
-      if (_items.isEmpty) _loadMore();
-      if (_availableLetters == null) _loadLetterCounts();
+      _loadOrRefresh();
     }
   }
 
@@ -156,10 +174,43 @@ class _LibraryScreenState extends State<LibraryScreen> {
         _cache.total = page.totalRecordCount;
         _error = null;
       });
+      _save();
     } on JellyfinException catch (e) {
       if (mounted) setState(() => _error = describeJellyfinError(e));
     } finally {
       if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  /// Reloads the titles already shown (up to [LibraryCacheEntry.refreshLimit]) and swaps them
+  /// in, keeping the page where it is. Titles past that load again as you scroll.
+  Future<void> _refresh() async {
+    final client = jellyfin.client;
+    if (_loading || client == null) return;
+    final entry = _cache;
+    _loading = true;
+    try {
+      final page = await client.items.list(
+        parentId: widget.libraryId,
+        genres: widget.genre == null ? const [] : [widget.genre!],
+        includeItemTypes: _itemTypes,
+        recursive: true,
+        sortBy: const ['SortName'],
+        fields: const ['SortName'],
+        limit: entry.items.length.clamp(_pageSize, LibraryCacheEntry.refreshLimit),
+      );
+      if (!mounted || !identical(entry, _cache)) return; // moved to another library meanwhile
+      setState(() {
+        _items
+          ..clear()
+          ..addAll(page.items);
+        _cache.total = page.totalRecordCount;
+      });
+      _save();
+    } on JellyfinException {
+      // Keep showing what was saved; it's still the best there is.
+    } finally {
+      _loading = false;
     }
   }
 
@@ -202,6 +253,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
             if (results[i]) _letters[i],
         },
       );
+      _save();
     } on JellyfinException {
       // If counting fails, leave every letter enabled.
     }

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android TV before Android 12: the TV banner (the full wordmark), centered. The app's own
+     splash (lib/app/splash.dart) draws the wordmark at the same size, so nothing jumps. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@color/ic_launcher_background" />
+    <item>
+        <bitmap android:gravity="center" android:src="@drawable/tv_banner" />
+    </item>
+</layer-list>

@@ -478,18 +478,17 @@ class _SeriesInfoCardState extends State<_SeriesInfoCard> {
     if (_episodes.containsKey(season.id)) return; // already loaded: switching back is instant
 
     final cacheKey = 'episodes:${season.id}';
-    if (appCache.isFresh(cacheKey)) {
-      setState(
-            () =>
-        _episodes[season.id] = appCache.peek<List<JellyfinItem>>(cacheKey)!,
-      );
-      return;
+    // Saved from before: show it now, and refresh quietly if it's old.
+    final cached = appCache.peek(cacheKey, fromJson: itemsFromJson);
+    if (cached != null) {
+      setState(() => _episodes[season.id] = cached);
+      if (appCache.isFresh(cacheKey)) return;
+    } else {
+      setState(() {
+        _loadingSeasonId = season.id;
+        _error = null;
+      });
     }
-
-    setState(() {
-      _loadingSeasonId = season.id;
-      _error = null;
-    });
     try {
       final page = await jellyfin.client!.tvShows.episodes(
         seriesId: widget.series.id,
@@ -497,9 +496,9 @@ class _SeriesInfoCardState extends State<_SeriesInfoCard> {
         fields: const ['Overview'],
       );
       if (mounted) setState(() => _episodes[season.id] = page.items);
-      appCache.put(cacheKey, page.items);
+      appCache.put(cacheKey, page.items, toJson: itemsToJson);
     } on JellyfinException catch (e) {
-      if (mounted) setState(() => _error = describeJellyfinError(e));
+      if (mounted && cached == null) setState(() => _error = describeJellyfinError(e));
     } finally {
       if (mounted && _loadingSeasonId == season.id) setState(() => _loadingSeasonId = null);
     }

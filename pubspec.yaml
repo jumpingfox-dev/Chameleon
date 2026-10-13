@@ -68,6 +68,8 @@ dependencies:
   flutter_svg: ^2.3.0
   device_info_plus: ^13.2.0
   flutter_native_splash: ^2.4.8
+
+  # Storage
   drift: ^2.35.2
   drift_flutter: ^0.3.1
 
@@ -135,10 +137,16 @@ flutter_launcher_icons:
   image_path_ios_tinted_grayscale: "assets/icon/icon_tinted.png"
 
 flutter_native_splash:
+  # Before Android 12: the icon, centered on the app's background.
   color: "#0a0d18"
-  color_dark: "#0a0d18"
   image: assets/icon/icon_foreground.png
-  image_dark: assets/icon/icon_foreground.png
+  # Android 12+: the system draws the icon inside a circle, so its background is set to the
+  # same color as the screen's, and the circle disappears. (TVs get the full wordmark instead,
+  # from android/app/src/main/res/values-television-v31 and lib/app/splash.dart.)
+  android_12:
+    image: assets/icon/splash_android12.png
+    color: "#0a0d18"
+    icon_background_color: "#0a0d18"
   android: true
   ios: false
   web: false

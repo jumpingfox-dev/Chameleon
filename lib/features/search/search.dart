@@ -4,7 +4,7 @@ import 'package:dart_jellyfin/dart_jellyfin.dart';
 import 'package:forui/forui.dart';
 import 'package:material_ui/material_ui.dart';
 
-import '../../core/platform/app_cache.dart';
+import '../../core/storage/app_cache.dart';
 import '../../core/jellyfin/jellyfin_controller.dart';
 import '../detail/detail_page.dart';
 import '../detail/person_tile.dart';

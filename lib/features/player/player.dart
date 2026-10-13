@@ -16,7 +16,7 @@ import 'package:sensors_plus/sensors_plus.dart';
 import 'package:http/http.dart' as http;
 
 import '../../theme/tappable_states.dart';
-import '../../core/platform/app_cache.dart';
+import '../../core/storage/app_cache.dart';
 import '../../core/cast/cast_controller.dart';
 import '../../core/focus/focus_rows.dart';
 import '../../core/format/format.dart';

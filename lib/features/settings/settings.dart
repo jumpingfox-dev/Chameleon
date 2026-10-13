@@ -24,6 +24,9 @@ import 'choice_picker.dart';
 import '../../widgets/app_logo.dart';
 import '../auth/profile_actions.dart';
 import '../../core/focus/focus_reveal.dart';
+import '../../core/format/format.dart';
+import '../../core/storage/app_cache.dart';
+import '../../core/storage/storage.dart';
 import 'switch_setting.dart';
 
 part 'sync_play_settings.dart';
@@ -879,6 +882,14 @@ class _AboutCardState extends State<_AboutCard> {
   // Fetched once when the tab opens, not on every rebuild.
   late final Future<PackageInfo> _app = PackageInfo.fromPlatform();
   late final Future<({String name, String version})?> _server = _serverInfo();
+  late Future<int> _cacheSize = storage.cacheSize();
+
+  /// Deletes every account's saved pages. They load again from the server as you go.
+  Future<void> _clearCache() async {
+    appCache.invalidateWhere((_) => true);
+    await storage.clearAllCache();
+    if (mounted) setState(() => _cacheSize = storage.cacheSize());
+  }
 
   /// The server's public info. Needs no sign-in, so it works even if the session expired.
   static Future<({String name, String version})?> _serverInfo() async {
@@ -921,6 +932,24 @@ class _AboutCardState extends State<_AboutCard> {
           label: 'Version',
           value: snap.hasData ? '${snap.data!.version} (${snap.data!.buildNumber})' : '…',
         ),
+      ),
+
+      // ── Storage ──
+      const _SectionTitle(
+        'Storage',
+        description: 'Pages are saved on this device so they open instantly, then refresh.',
+      ),
+      FutureBuilder(
+        future: _cacheSize,
+        builder: (context, snap) =>
+            _InfoRow(label: 'Saved pages', value: snap.hasData ? formatBytes(snap.data!) : '…'),
+      ),
+      const SizedBox(height: 4),
+      FButton(
+        variant: .outline,
+        mainAxisSize: .min,
+        onPress: _clearCache,
+        child: const Text('Clear saved pages'),
       ),
 
       // ── Server ──

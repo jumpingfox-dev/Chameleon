@@ -3,7 +3,7 @@ import 'package:forui/forui.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../../theme/app_icons.dart';
-import '../../core/platform/app_cache.dart';
+import '../../core/storage/app_cache.dart';
 import '../../core/jellyfin/jellyfin_controller.dart';
 import '../detail/detail_page.dart';
 import 'poster_card.dart';
@@ -32,16 +32,19 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
       _load,
     ); // refresh when a favorite changes anywhere
 
-    final cached = appCache.peek<(List<JellyfinItem>, List<JellyfinItem>, List<JellyfinItem>)>(
-      _cacheKey,
-    );
+    final cached = appCache.peek(_cacheKey, fromJson: itemsFromJson); // saved, from last time
     if (cached != null) {
-      _movies = cached.$1; // a record's positional fields are $1, $2, ...
-      _series = cached.$2;
-      _collections = cached.$3;
+      _show(cached);
       _loading = false;
     }
     if (!appCache.isFresh(_cacheKey)) _load();
+  }
+
+  /// Sorts [items] into the three sections.
+  void _show(List<JellyfinItem> items) {
+    _movies = items.where((i) => i.type == JellyfinItemKind.movie).toList();
+    _series = items.where((i) => i.type == JellyfinItemKind.series).toList();
+    _collections = items.where((i) => i.type == 'BoxSet').toList();
   }
 
   @override
@@ -66,21 +69,10 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
         limit: 500,
         fields: const ['RecursiveItemCount'],
       );
-      final movies = page.items
-          .where((i) => i.type == JellyfinItemKind.movie)
-          .toList();
-      final series = page.items
-          .where((i) => i.type == JellyfinItemKind.series)
-          .toList();
-      final collections = page.items
-          .where((i) => i.type == 'BoxSet')
-          .toList();
-      appCache.put(_cacheKey, (movies, series, collections));
+      appCache.put(_cacheKey, page.items, toJson: itemsToJson);
       if (!mounted) return;
       setState(() {
-        _movies = movies;
-        _series = series;
-        _collections = collections;
+        _show(page.items);
         _error = null;
       });
     } on JellyfinException catch (e) {

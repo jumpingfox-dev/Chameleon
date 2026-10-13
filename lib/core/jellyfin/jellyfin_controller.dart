@@ -1,15 +1,16 @@
 import 'dart:convert';
 
 import 'package:dart_jellyfin/dart_jellyfin.dart';
+import 'package:drift/drift.dart' show Value;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/painting.dart';
 import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../features/home/home_modules.dart';
-import '../platform/app_cache.dart';
+import '../storage/app_cache.dart';
+import '../storage/database.dart';
+import '../storage/storage.dart';
 import '../format/format.dart';
-import 'library_cache.dart';
 
 class JellyfinLibrary {
   const JellyfinLibrary({
@@ -90,28 +91,24 @@ class SavedAccount {
 
   bool isSame(String server, String userId) => this.server == server && this.userId == userId;
 
-  Map<String, dynamic> toJson() => {
-    'server': server,
-    'userId': userId,
-    'token': token,
-    'deviceId': deviceId,
-    'name': name,
-    'imageTag': imageTag,
-  };
+  AccountsCompanion toRow() => AccountsCompanion.insert(
+    server: server,
+    userId: userId,
+    token: token,
+    deviceId: deviceId,
+    name: name,
+    imageTag: Value(imageTag),
+    position: 0, // set from the list's order when saved
+  );
 
-  static SavedAccount? fromJson(Object? json) {
-    if (json is! Map) return null;
-    final server = json['server'], userId = json['userId'], token = json['token'];
-    if (server is! String || userId is! String || token is! String) return null;
-    return SavedAccount(
-      server: server,
-      userId: userId,
-      token: token,
-      deviceId: json['deviceId'] as String? ?? '',
-      name: json['name'] as String? ?? 'User',
-      imageTag: json['imageTag'] as String?,
-    );
-  }
+  factory SavedAccount.fromRow(Account row) => SavedAccount(
+    server: row.server,
+    userId: row.userId,
+    token: row.token,
+    deviceId: row.deviceId,
+    name: row.name,
+    imageTag: row.imageTag,
+  );
 }
 
 /// A user the server lists on its login screen (not hidden by an admin).
@@ -167,7 +164,6 @@ class JellyfinController extends ChangeNotifier {
   static const _kToken = 'jf_token';
   static const _kUserId = 'jf_user_id';
   static const _kDeviceId = 'jf_device_id';
-  static const _kAccounts = 'jf_accounts';
 
   JellyfinClient? client;
   String? serverName;
@@ -228,53 +224,44 @@ class JellyfinController extends ChangeNotifier {
   }
 
   /// A random id for this install. Jellyfin tracks sessions by it, so it must stay stable.
-  Future<String> _deviceId(SharedPreferences prefs) async {
-    var id = prefs.getString(_kDeviceId);
+  Future<String> _deviceId() async {
+    var id = storage.getString(_kDeviceId);
     if (id == null) {
       id = randomHexId();
-      await prefs.setString(_kDeviceId, id);
+      await storage.setString(_kDeviceId, id);
     }
     return id;
   }
 
   /// This install's id, made unique per user. Jellyfin keeps one session per device id
   /// and user, so without this, signing in a second user could sign out the first.
-  Future<String> _deviceIdFor(String username, SharedPreferences prefs) async {
+  Future<String> _deviceIdFor(String username) async {
     final hash = username.trim().toLowerCase().codeUnits.fold<int>(7, (h, c) => (h * 31 + c) & 0x7fffffff);
-    return '${await _deviceId(prefs)}-${hash.toRadixString(16)}';
+    return '${await _deviceId()}-${hash.toRadixString(16)}';
   }
 
   Future<JellyfinClient> _createClient(
-      String url,
-      SharedPreferences prefs, {
+      String url, {
         String? deviceId, // defaults to this install's plain id
       }) async => JellyfinClient(
     baseUrl: url,
     credentials: JellyfinCredentials(
       client: _clientName,
       device: defaultTargetPlatform.name,
-      deviceId: deviceId == null || deviceId.isEmpty ? await _deviceId(prefs) : deviceId,
+      deviceId: deviceId == null || deviceId.isEmpty ? await _deviceId() : deviceId,
       version: _clientVersion,
     ),
   );
 
   // ─── Saved accounts ────────────────────────────────────────────────────────
 
-  List<SavedAccount> _readAccounts(SharedPreferences prefs) {
-    final raw = prefs.getString(_kAccounts);
-    if (raw == null) return const [];
-    try {
-      return [for (final j in jsonDecode(raw) as List) ?SavedAccount.fromJson(j)];
-    } catch (_) {
-      return const [];
-    }
-  }
+  Future<List<SavedAccount>> _readAccounts() async =>
+      [for (final a in await storage.accounts()) SavedAccount.fromRow(a)];
 
-  Future<void> _writeAccounts(SharedPreferences prefs) =>
-      prefs.setString(_kAccounts, jsonEncode([for (final a in accounts) a.toJson()]));
+  Future<void> _writeAccounts() => storage.saveAccounts([for (final a in accounts) a.toRow()]);
 
   /// Adds or updates [account], keeping its place in the list.
-  Future<void> _rememberAccount(SavedAccount account, SharedPreferences prefs) async {
+  Future<void> _rememberAccount(SavedAccount account) async {
     final i = accounts.indexWhere((a) => a.isSame(account.server, account.userId));
     accounts = [...accounts];
     if (i == -1) {
@@ -282,12 +269,14 @@ class JellyfinController extends ChangeNotifier {
     } else {
       accounts[i] = account;
     }
-    await _writeAccounts(prefs);
+    await _writeAccounts();
   }
 
-  Future<void> _forgetAccount(String server, String userId, SharedPreferences prefs) async {
+  /// Removes an account from this device, with everything cached for it.
+  Future<void> _forgetAccount(String server, String userId) async {
     accounts = [for (final a in accounts) if (!a.isSame(server, userId)) a];
-    await _writeAccounts(prefs);
+    await _writeAccounts();
+    await appCache.forget(cacheScope(server, userId));
   }
 
   /// The users [server] shows on its login screen. Needs no sign-in.
@@ -317,8 +306,7 @@ class JellyfinController extends ChangeNotifier {
   /// Throws [AccountExpiredException] if its token has stopped working.
   Future<void> switchTo(SavedAccount account) async {
     if (currentAccount?.isSame(account.server, account.userId) ?? false) return;
-    final prefs = await SharedPreferences.getInstance();
-    final newClient = await _createClient(account.server, prefs, deviceId: account.deviceId)
+    final newClient = await _createClient(account.server, deviceId: account.deviceId)
       ..setSession(token: account.token, userId: account.userId);
 
     // Check the token before leaving the current user, so a dead one doesn't strand you.
@@ -326,36 +314,36 @@ class JellyfinController extends ChangeNotifier {
       await newClient.user.currentUser();
     } on JellyfinException catch (e) {
       if (e.isAuthError) {
-        await _forgetAccount(account.server, account.userId, prefs);
+        await _forgetAccount(account.server, account.userId);
         notifyListeners();
         throw const AccountExpiredException();
       }
       rethrow; // offline: let the caller say so
     }
-    await _switchSession(newClient, account.server, account.token, account.userId, account.deviceId, prefs);
+    await _switchSession(newClient, account.server, account.token, account.userId, account.deviceId);
   }
 
   /// Restores a saved session at startup. With more than one account on this device,
   /// it stays signed out so the app opens on "Who's watching?".
   Future<void> load() async {
-    final prefs = await SharedPreferences.getInstance();
-    lastServer = prefs.getString(_kServer);
-    accounts = _readAccounts(prefs);
+    lastServer = storage.getString(_kServer);
+    accounts = await _readAccounts();
     if (accounts.length > 1) return;
 
-    final token = prefs.getString(_kToken);
-    final userId = prefs.getString(_kUserId);
+    final token = storage.getString(_kToken);
+    final userId = storage.getString(_kUserId);
     if (lastServer == null || token == null || userId == null) return;
 
     final saved = accounts.where((a) => a.isSame(lastServer!, userId)).firstOrNull;
-    client = await _createClient(lastServer!, prefs, deviceId: saved?.deviceId)
+    client = await _createClient(lastServer!, deviceId: saved?.deviceId)
       ..setSession(token: token, userId: userId);
+    await appCache.open(cacheScope(lastServer!, userId)); // pages from last time, while this loads
 
     try {
       await _refresh(); // also saves this account, for installs from before accounts existed
     } on JellyfinException catch (e) {
       if (e.isAuthError) {
-        await _forgetAccount(lastServer!, userId, prefs);
+        await _forgetAccount(lastServer!, userId);
         await _clearSession(); // token revoked or expired: back to login
       }
       // Connection errors (server offline) keep the session, so you stay signed in.
@@ -367,10 +355,9 @@ class JellyfinController extends ChangeNotifier {
     required String username,
     required String password,
   }) async {
-    final prefs = await SharedPreferences.getInstance();
     final url = normalizeServerUrl(server);
-    final deviceId = await _deviceIdFor(username, prefs);
-    final newClient = await _createClient(url, prefs, deviceId: deviceId);
+    final deviceId = await _deviceIdFor(username);
+    final newClient = await _createClient(url, deviceId: deviceId);
 
     // Confirms the address is a Jellyfin server before sending credentials.
     final name = (await newClient.system.publicInfo()).serverName;
@@ -380,7 +367,7 @@ class JellyfinController extends ChangeNotifier {
       password: password,
     );
     serverName = name;
-    await _switchSession(newClient, url, auth.accessToken, auth.user.id, deviceId, prefs);
+    await _switchSession(newClient, url, auth.accessToken, auth.user.id, deviceId);
   }
 
   /// Starts [token]'s session. If someone else is signed in, passes through [switching]
@@ -390,8 +377,7 @@ class JellyfinController extends ChangeNotifier {
       String url,
       String token,
       String userId,
-      String deviceId,
-      SharedPreferences prefs,
+      String deviceId
       ) async {
     final changingUser = isConnected && !(client!.baseUrl == url && client!.userId == userId);
     if (changingUser) {
@@ -400,7 +386,7 @@ class JellyfinController extends ChangeNotifier {
       _clearCaches();
     }
     try {
-      await _startSession(newClient, url, token, userId, deviceId, prefs);
+      await _startSession(newClient, url, token, userId, deviceId);
     } finally {
       if (switching) {
         switching = false;
@@ -415,16 +401,16 @@ class JellyfinController extends ChangeNotifier {
       String url,
       String token,
       String userId,
-      String deviceId,
-      SharedPreferences prefs,
+      String deviceId
       ) async {
     newClient.setSession(token: token, userId: userId);
 
     client = newClient;
     lastServer = url;
-    await prefs.setString(_kServer, url);
-    await prefs.setString(_kToken, token);
-    await prefs.setString(_kUserId, userId);
+    await appCache.open(cacheScope(url, userId)); // this account's pages from last time
+    await storage.setString(_kServer, url);
+    await storage.setString(_kToken, token);
+    await storage.setString(_kUserId, userId);
     // Save (or refresh) this account. A new account gets a placeholder name until
     // _refresh below fills in the real name and picture.
     final existing = currentAccount;
@@ -437,7 +423,6 @@ class JellyfinController extends ChangeNotifier {
         name: existing?.name ?? 'User',
         imageTag: existing?.imageTag,
       ),
-      prefs,
     );
 
     await _refresh();
@@ -449,18 +434,17 @@ class JellyfinController extends ChangeNotifier {
   // or this app's Account tab). The package doesn't wrap these yet, so they use http.
 
   /// Identifies this app and device to the server, before anyone is signed in.
-  Future<Map<String, String>> _clientHeaders(SharedPreferences prefs) async => {
+  Future<Map<String, String>> _clientHeaders() async => {
     'Authorization':
     'MediaBrowser Client="$_clientName", Device="${defaultTargetPlatform.name}", '
-        'DeviceId="${await _deviceId(prefs)}", Version="$_clientVersion"',
+        'DeviceId="${await _deviceId()}", Version="$_clientVersion"',
   };
 
   /// Step 1: asks the server for a code to show on screen.
   /// Throws a [QuickConnectException] with a readable message if it can't.
   Future<QuickConnectRequest> startQuickConnect(String server) async {
-    final prefs = await SharedPreferences.getInstance();
     final url = normalizeServerUrl(server);
-    final headers = await _clientHeaders(prefs);
+    final headers = await _clientHeaders();
 
     final http.Response enabled;
     try {
@@ -485,10 +469,9 @@ class JellyfinController extends ChangeNotifier {
   /// Step 2: whether the code has been approved yet. Call every few seconds.
   /// Throws once the code has expired (the server forgets it after a few minutes).
   Future<bool> isQuickConnectApproved(QuickConnectRequest request) async {
-    final prefs = await SharedPreferences.getInstance();
     final res = await http.get(
       Uri.parse('${request.url}/QuickConnect/Connect?secret=${Uri.encodeQueryComponent(request.secret)}'),
-      headers: await _clientHeaders(prefs),
+      headers: await _clientHeaders(),
     );
     if (res.statusCode == 404) throw QuickConnectException('This code has expired. Get a new one.');
     if (res.statusCode != 200) return false; // a blip; try again next time
@@ -498,10 +481,9 @@ class JellyfinController extends ChangeNotifier {
 
   /// Step 3: signs in with an approved code.
   Future<void> finishQuickConnect(QuickConnectRequest request) async {
-    final prefs = await SharedPreferences.getInstance();
     final res = await http.post(
       Uri.parse('${request.url}/Users/AuthenticateWithQuickConnect'),
-      headers: {...await _clientHeaders(prefs), 'Content-Type': 'application/json'},
+      headers: {...await _clientHeaders(), 'Content-Type': 'application/json'},
       body: jsonEncode({'Secret': request.secret}),
     );
     if (res.statusCode != 200) {
@@ -511,10 +493,10 @@ class JellyfinController extends ChangeNotifier {
     final token = json['AccessToken'] as String;
     final userId = (json['User'] as Map<String, dynamic>)['Id'] as String;
 
-    final deviceId = await _deviceId(prefs); // the id Quick Connect was started with
-    final newClient = await _createClient(request.url, prefs, deviceId: deviceId);
+    final deviceId = await _deviceId(); // the id Quick Connect was started with
+    final newClient = await _createClient(request.url, deviceId: deviceId);
     serverName = (await newClient.system.publicInfo()).serverName;
-    await _switchSession(newClient, request.url, token, userId, deviceId, prefs);
+    await _switchSession(newClient, request.url, token, userId, deviceId);
   }
 
   Future<void> _refresh() async {
@@ -545,7 +527,6 @@ class JellyfinController extends ChangeNotifier {
           name: me.name,
           imageTag: tag,
         ),
-        await SharedPreferences.getInstance(),
       );
     } else if (saved == null && c.token != null && c.baseUrl != null) {
       // An install from before saved accounts: remember the restored session.
@@ -558,7 +539,6 @@ class JellyfinController extends ChangeNotifier {
           name: me.name,
           imageTag: tag,
         ),
-        await SharedPreferences.getInstance(),
       );
     }
 
@@ -588,15 +568,14 @@ class JellyfinController extends ChangeNotifier {
       // Signing out locally still works if the server is unreachable.
     }
     if (server != null && userId != null) {
-      await _forgetAccount(server, userId, await SharedPreferences.getInstance());
+      await _forgetAccount(server, userId, );
     }
     await _clearSession();
   }
 
   Future<void> _clearSession() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_kToken);
-    await prefs.remove(
+    await storage.remove(_kToken);
+    await storage.remove(
       _kUserId,
     ); // the server address is kept to pre-fill login
     client?.clearSession();
@@ -610,7 +589,6 @@ class JellyfinController extends ChangeNotifier {
   }
 
   void _clearCaches() {
-    libraryCache.clear(); // another account may see different libraries
     clearHomeCache(); // another account sees different recommendations and progress
     appCache.clear();
   }

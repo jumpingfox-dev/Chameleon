@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/widgets.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import '../../core/storage/storage.dart';
 
 // ─── Choices ─────────────────────────────────────────────────────────────────
 
@@ -191,8 +191,7 @@ class PlaybackSettings extends ChangeNotifier {
   static Future<PlaybackSettings> load() async {
     final settings = PlaybackSettings._();
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final raw = prefs.getString(_key);
+      final raw = storage.getString(_key);
       if (raw != null) settings._read(jsonDecode(raw) as Map<String, dynamic>);
     } catch (e) {
       debugPrint('PlaybackSettings.load: $e'); // unreadable: keep the defaults
@@ -257,8 +256,7 @@ class PlaybackSettings extends ChangeNotifier {
 
   Future<void> _save() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_key, jsonEncode(_write()));
+      await storage.setString(_key, jsonEncode(_write()));
     } catch (e) {
       debugPrint('PlaybackSettings._save: $e');
     }

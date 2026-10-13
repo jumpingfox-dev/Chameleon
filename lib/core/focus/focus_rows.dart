@@ -396,7 +396,8 @@ bool scrollToStartIfFits(
 
 /// Lets ↑/↓ leave one-line text fields (search boxes, sign-in fields) for whatever is above
 /// or below, as a remote expects. A text field normally keeps those keys to move its cursor
-/// to the start or end. Multi-line fields still move between lines.
+/// to the start or end. Multi-line fields still move between lines. ←/→ leave a field too,
+/// once the cursor is already at that end.
 ///
 /// Install once near the top of the app (next to [RowFocusNavigation]).
 class TextFieldArrowEscape extends StatelessWidget {
@@ -406,9 +407,32 @@ class TextFieldArrowEscape extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Actions(
-    actions: {ExtendSelectionVerticallyToAdjacentLineIntent: _LeaveTextField()},
+    actions: {
+      ExtendSelectionVerticallyToAdjacentLineIntent: _LeaveTextField(),
+      ExtendSelectionByCharacterIntent: _LeaveTextFieldSideways(),
+    },
     child: child,
   );
+}
+
+/// ←/→ out of a text field once the cursor is already at that end (and nothing's selected),
+/// so a remote can reach a field beside it, like the port next to the host on sign-in.
+class _LeaveTextFieldSideways extends ContextAction<ExtendSelectionByCharacterIntent> {
+  @override
+  bool isEnabled(ExtendSelectionByCharacterIntent intent, [BuildContext? context]) {
+    final field = _LeaveTextField._field;
+    if (field == null || !intent.collapseSelection) return false; // shift+arrow still selects
+    final value = field.textEditingValue;
+    final selection = value.selection;
+    if (!selection.isValid || !selection.isCollapsed) return false;
+    return intent.forward ? selection.baseOffset >= value.text.length : selection.baseOffset <= 0;
+  }
+
+  @override
+  Object? invoke(ExtendSelectionByCharacterIntent intent, [BuildContext? context]) {
+    moveFocus(intent.forward ? TraversalDirection.right : TraversalDirection.left);
+    return null;
+  }
 }
 
 class _LeaveTextField extends ContextAction<ExtendSelectionVerticallyToAdjacentLineIntent> {

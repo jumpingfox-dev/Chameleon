@@ -2,8 +2,8 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:path_provider/path_provider.dart';
+import '../core/storage/storage.dart';
 
 /// Every Google Fonts family, alphabetical.
 final allFonts = GoogleFonts.asMap().keys.toList()..sort();
@@ -114,29 +114,26 @@ class FontController extends ChangeNotifier {
   String get body => _body;
 
   static Future<FontController> load() async {
-    final prefs = await SharedPreferences.getInstance();
     String pick(String? saved, String fallback) =>
         saved != null && GoogleFonts.asMap().containsKey(saved)
         ? saved
         : fallback;
     return FontController._(
-      pick(prefs.getString(_displayKey), defaultDisplay),
-      pick(prefs.getString(_bodyKey), defaultBody),
+      pick(storage.getString(_displayKey), defaultDisplay),
+      pick(storage.getString(_bodyKey), defaultBody),
     );
   }
 
   Future<void> setDisplay(String font) async {
     _display = font;
     notifyListeners();
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_displayKey, font);
+    await storage.setString(_displayKey, font);
   }
 
   Future<void> setBody(String font) async {
     _body = font;
     notifyListeners();
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_bodyKey, font);
+    await storage.setString(_bodyKey, font);
   }
 }
 

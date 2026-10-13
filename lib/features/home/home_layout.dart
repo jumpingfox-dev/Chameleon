@@ -1,7 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import '../../core/storage/storage.dart';
 
 /// Every kind of section the home screen can show. Add new ones here.
 enum HomeModuleType {
@@ -91,10 +91,9 @@ class HomeLayoutController extends ValueNotifier<List<HomeModule>> {
   ];
 
   static Future<HomeLayoutController> load() async {
-    final prefs = await SharedPreferences.getInstance();
 
     List<HomeModule>? modules;
-    final raw = prefs.getString(_key);
+    final raw = storage.getString(_key);
     if (raw != null) {
       try {
         modules = [
@@ -105,18 +104,18 @@ class HomeLayoutController extends ValueNotifier<List<HomeModule>> {
         // Unreadable: fall back below.
       }
     }
-    modules ??= _migrateOldLayout(prefs) ?? _defaults;
+    modules ??= _migrateOldLayout() ?? _defaults;
     return HomeLayoutController._(List.unmodifiable(modules));
   }
 
   /// Carries over a layout saved by the earlier version: a list of type names, plus "type=view" entries.
-  static List<HomeModule>? _migrateOldLayout(SharedPreferences prefs) {
-    final names = prefs.getStringList('home_modules');
+  static List<HomeModule>? _migrateOldLayout() {
+    final names = storage.getStringList('home_modules');
     if (names == null) return null;
     final byName = HomeModuleType.values.asNameMap();
     final views = <String, String>{
       for (final entry
-          in prefs.getStringList('home_module_views') ?? const <String>[])
+          in storage.getStringList('home_module_views') ?? const <String>[])
         if (entry.split('=') case [final name, final view]) name: view,
     };
     return [
@@ -163,8 +162,7 @@ class HomeLayoutController extends ValueNotifier<List<HomeModule>> {
 
   Future<void> _save(List<HomeModule> modules) async {
     value = List.unmodifiable(modules);
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(
+    await storage.setString(
       _key,
       jsonEncode([for (final m in modules) m.toJson()]),
     );

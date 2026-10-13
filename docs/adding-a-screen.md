@@ -65,7 +65,8 @@ class RecommendationsScreen extends StatelessWidget {
 
 If it needs to load something, follow the pattern in `features/library/favorites.dart` or
 `features/library/library.dart`: a `StatefulWidget`, a cache check in `initState` (see
-`core/platform/app_cache.dart`), and a `_load()` that calls into `jellyfin.client`.
+`core/storage/app_cache.dart`; pass `toJson`/`fromJson` to keep it across launches), and a
+`_load()` that calls into `jellyfin.client`.
 
 ## 3. The sidebar entry (wide screens)
 

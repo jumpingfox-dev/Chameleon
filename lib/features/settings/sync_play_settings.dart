@@ -68,8 +68,8 @@ class _SyncPlayCardState extends State<_SyncPlayCard> {
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: syncPlay,
     builder: (context, _) {
-      final theme = context.theme;
-      final muted = theme.typography.body.sm.copyWith(color: theme.colors.mutedForeground);
+      final theme = Theme.of(context);
+      final muted = theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant);
       final message = _error ?? syncPlay.message;
 
       return _SettingsCard(
@@ -95,17 +95,15 @@ class _SyncPlayCardState extends State<_SyncPlayCard> {
                 child: Row(
                   spacing: 10,
                   children: [
-                    Icon(appIcons.profile, size: 18, fill: 1, color: theme.colors.mutedForeground),
+                    Icon(appIcons.profile, size: 18, fill: 1, color: theme.colorScheme.onSurfaceVariant),
                     Expanded(child: Text(member)),
                     if (member == jellyfin.userName) Text('You', style: muted),
                   ],
                 ),
               ),
             const SizedBox(height: 16),
-            FButton(
-              variant: .outline,
-              mainAxisSize: .min,
-              onPress: _busy
+            OutlinedButton(
+              onPressed: _busy
                   ? null
                   : () => _run(() async {
                 await syncPlay.leave();
@@ -124,7 +122,7 @@ class _SyncPlayCardState extends State<_SyncPlayCard> {
             if (_loading)
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 16),
-                child: Center(child: FCircularProgress()),
+                child: Center(child: CircularProgressIndicator()),
               )
             else if (_groups.isEmpty)
               Text('No groups right now. Start one below, or ask someone to.', style: muted)
@@ -147,9 +145,14 @@ class _SyncPlayCardState extends State<_SyncPlayCard> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               spacing: 8,
               children: [
-                FTextField(control: .managed(controller: _name), hint: 'Group name'),
-                FButton(
-                  onPress: _busy
+                TextField(
+                  controller: _name,
+                  decoration: InputDecoration(
+                    hintText: 'Group name',
+                  ),
+                ),
+                FilledButton(
+                  onPressed: _busy
                       ? null
                       : () => _run(() => syncPlay.create(
                         _name.text.trim().isEmpty ? 'SyncPlay group' : _name.text.trim(),
@@ -162,7 +165,7 @@ class _SyncPlayCardState extends State<_SyncPlayCard> {
 
           if (message != null) ...[
             const SizedBox(height: 12),
-            Text(message, style: muted.copyWith(color: _error != null ? theme.colors.error : null)),
+            Text(message, style: muted?.copyWith(color: _error != null ? theme.colorScheme.error : null)),
           ],
         ],
       );
@@ -285,10 +288,10 @@ class _SyncPlayTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = context.theme;
-    final muted = theme.typography.body.sm.copyWith(color: theme.colors.mutedForeground);
+    final theme = Theme.of(context);
+    final muted = theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant);
 
-    return FTappable(
+    return Tappable(
       autofocus: autofocus,
       onPress: onPress,
       builder: (context, states, _) {
@@ -297,9 +300,9 @@ class _SyncPlayTile extends StatelessWidget {
           duration: const Duration(milliseconds: 120),
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
-            color: highlighted ? theme.colors.secondary : theme.colors.card,
+            color: highlighted ? theme.colorScheme.secondaryContainer : theme.colorScheme.surfaceContainer,
             borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: highlighted ? theme.colors.primary : theme.colors.border),
+            border: Border.all(color: highlighted ? theme.colorScheme.primary : theme.colorScheme.outlineVariant),
           ),
           child: Row(
             spacing: 12,
@@ -311,14 +314,14 @@ class _SyncPlayTile extends StatelessWidget {
                   height: 63,
                   child: imageUrl == null
                       ? ColoredBox(
-                    color: theme.colors.muted,
-                    child: Icon(appIcons.play, color: theme.colors.mutedForeground, fill: 1),
+                    color: theme.colorScheme.surfaceContainerHighest,
+                    child: Icon(appIcons.play, color: theme.colorScheme.onSurfaceVariant, fill: 1),
                   )
                       : Image.network(
                     imageUrl!,
                     headers: jellyfin.authHeaders,
                     fit: BoxFit.cover,
-                    errorBuilder: (_, _, _) => ColoredBox(color: theme.colors.muted),
+                    errorBuilder: (_, _, _) => ColoredBox(color: theme.colorScheme.surfaceContainerHighest),
                   ),
                 ),
               ),
@@ -331,7 +334,7 @@ class _SyncPlayTile extends StatelessWidget {
                       title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: theme.typography.body.md.copyWith(fontWeight: FontWeight.w600),
+                      style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600),
                     ),
                     for (final line in lines)
                       Text(line, maxLines: 1, overflow: TextOverflow.ellipsis, style: muted),
@@ -341,8 +344,8 @@ class _SyncPlayTile extends StatelessWidget {
               if (action != null)
                 Text(
                   action!,
-                  style: theme.typography.body.sm.copyWith(
-                    color: theme.colors.primary,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.primary,
                     fontWeight: FontWeight.w600,
                   ),
                 ),

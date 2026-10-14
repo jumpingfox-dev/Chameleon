@@ -298,7 +298,10 @@ class _Transcode {
         'PlaySessionId': session,
         'api_key': client.token ?? '',
         'VideoCodec': 'h264',
-        'AudioCodec': s.passthrough ? 'aac,ac3,eac3,dts,truehd,mp3' : 'aac,ac3,eac3,mp3',
+        // The first one listed is what other audio is converted to: Dolby Digital Plus keeps
+        // surround for passthrough. No TrueHD: it doesn't fit the stream's container, so the
+        // server converts it to Dolby Digital Plus instead of copying it.
+        'AudioCodec': s.passthrough ? 'eac3,ac3,dts,aac,mp3' : 'aac,ac3,eac3,mp3',
         // Copy what already fits instead of converting it again.
         'AllowVideoStreamCopy': 'true',
         'AllowAudioStreamCopy': 'true',

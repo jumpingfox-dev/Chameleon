@@ -1,10 +1,10 @@
 import 'dart:math' as math;
 
 import 'package:flutter/services.dart';
-import 'package:forui/forui.dart';
 import 'package:material_ui/material_ui.dart';
 
 import 'focus_rows.dart';
+import '../../theme/theme.dart';
 
 /// Scrolls the page so this widget sits comfortably in view whenever keyboard or remote focus
 /// arrives inside it: about a third of the way down, rather than Flutter's default of
@@ -182,7 +182,7 @@ class _KeyboardReadableState extends State<KeyboardReadable> {
             child: Container(
               width: 3,
               decoration: BoxDecoration(
-                color: context.theme.colors.primary,
+                color: context.colors.primary,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),

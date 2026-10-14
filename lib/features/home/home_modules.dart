@@ -3,7 +3,6 @@ import 'dart:math' as math;
 
 import 'package:dart_jellyfin/dart_jellyfin.dart';
 import 'package:flutter/services.dart';
-import 'package:forui/forui.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../../theme/app_icons.dart';
@@ -17,6 +16,7 @@ import '../../core/platform/orientation.dart';
 import '../detail/detail_page.dart';
 import '../library/poster_card.dart';
 import '../../core/focus/scroll_into_view.dart';
+import '../../theme/theme.dart';
 
 // ─── Definitions ─────────────────────────────────────────────────────────────
 
@@ -392,9 +392,8 @@ class _HomeModuleViewState extends State<HomeModuleView>
   /// View toggle, move up, move down and remove: shown next to the title in edit mode.
   List<Widget> _editControls(BuildContext context) => [
     if (widget.module.type != HomeModuleType.carousel)
-      FButton.icon(
-        variant: .ghost,
-        onPress: () => homeLayout.setView(
+      IconButton(
+        onPressed: () => homeLayout.setView(
           widget.module.id,
           (_viewFor(context) == LibraryView.poster
               ? LibraryView.thumbnail
@@ -402,30 +401,27 @@ class _HomeModuleViewState extends State<HomeModuleView>
               .name,
         ),
         // Shows the view you'll switch *to*, like the library pages.
-        child: _viewFor(context) == LibraryView.poster
+        icon: _viewFor(context) == LibraryView.poster
             ? const AspectIcon(width: 18, height: 10)
             : const AspectIcon(width: 11, height: 16),
       ),
-    FButton.icon(
-      variant: .ghost,
-      onPress: widget.isFirst
+    IconButton(
+      onPressed: widget.isFirst
           ? null
           : () => homeLayout.move(widget.module.id, -1),
-      child: Icon(appIcons.moveUp, fill: 1),
+      icon: Icon(appIcons.moveUp, fill: 1),
     ),
-    FButton.icon(
-      variant: .ghost,
-      onPress: widget.isLast
+    IconButton(
+      onPressed: widget.isLast
           ? null
           : () => homeLayout.move(widget.module.id, 1),
-      child: Icon(appIcons.moveDown, fill: 1),
+      icon: Icon(appIcons.moveDown, fill: 1),
     ),
-    FButton.icon(
-      variant: .ghost,
-      onPress: () => homeLayout.remove(widget.module.id),
-      child: Icon(
+    IconButton(
+      onPressed: () => homeLayout.remove(widget.module.id),
+      icon: Icon(
           appIcons.remove,
-          color: context.theme.colors.destructive,
+          color: context.colors.error,
           fill: 1
       ),
     ),
@@ -470,7 +466,7 @@ class _HomeModuleViewState extends State<HomeModuleView>
                     Expanded(
                       child: Text(
                         title,
-                        style: context.theme.typography.display.lg,
+                        style: context.text.titleLarge,
                       ),
                     ),
                     if (widget.editing)
@@ -497,15 +493,15 @@ class _HomeModuleViewState extends State<HomeModuleView>
   Widget _carousel(BuildContext context) {
     final isPhone = isPhoneLayout(context);
     final items = _content?.items;
-    final muted = context.theme.typography.body.sm.copyWith(
-      color: context.theme.colors.mutedForeground,
+    final muted = context.text.bodyMedium?.copyWith(
+      color: context.colors.onSurfaceVariant,
     );
 
     final Widget content;
     if (_error != null) {
       content = Center(child: Text(_error!, style: muted));
     } else if (items == null) {
-      content = const Center(child: FCircularProgress());
+      content = const Center(child: CircularProgressIndicator());
     } else if (items.isEmpty) {
       content = Center(child: Text('Nothing to feature yet', style: muted));
     } else {
@@ -516,14 +512,19 @@ class _HomeModuleViewState extends State<HomeModuleView>
   }
 
   Widget _row(BuildContext context, LibraryView view, {bool captions = false}) {
-    final tileWidth = view == LibraryView.poster ? 150.0 : 280.0;
+    // Bigger on wider screens (a TV is watched from across the room); phones keep theirs.
+    final isPhone = isPhoneLayout(context);
+    final tileWidth = switch (view) {
+      LibraryView.poster => isPhone ? 150.0 : 180.0,
+      LibraryView.thumbnail => isPhone ? 280.0 : 340.0,
+    };
     final imageHeight = view == LibraryView.poster
         ? tileWidth * 3 / 2
         : tileWidth * 9 / 16;
     const captionHeight = 44.0;
     final rowHeight = imageHeight + (captions ? captionHeight : 0);
-    final muted = context.theme.typography.body.sm.copyWith(
-      color: context.theme.colors.mutedForeground,
+    final muted = context.text.bodyMedium?.copyWith(
+      color: context.colors.onSurfaceVariant,
     );
     final items = _content?.items;
 
@@ -537,7 +538,7 @@ class _HomeModuleViewState extends State<HomeModuleView>
         ),
       );
     } else if (items == null) {
-      content = const Center(child: FCircularProgress());
+      content = const Center(child: CircularProgressIndicator());
     } else if (items.isEmpty) {
       content = Align(
         alignment: Alignment.center,
@@ -632,16 +633,14 @@ class AddHomeModules extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       spacing: 8,
       children: [
-        Text('Add a section', style: context.theme.typography.display.lg),
+        Text('Add a section', style: context.text.titleLarge),
         Wrap(
           spacing: 8,
           runSpacing: 8,
           children: [
             for (final type in available)
-              FButton(
-                variant: .outline,
-                mainAxisSize: .min,
-                onPress: () => _add(context, type),
+              OutlinedButton(
+                onPressed: () => _add(context, type),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   spacing: 8,
@@ -653,10 +652,8 @@ class AddHomeModules extends StatelessWidget {
               ),
           ],
         ),
-        FButton(
-          variant: .ghost,
-          mainAxisSize: .min,
-          onPress: () => homeLayout.reset(),
+        TextButton(
+          onPressed: () => homeLayout.reset(),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             spacing: 8,
@@ -681,7 +678,7 @@ Future<(String, String)?> _showOptionPicker(
     context: context,
     barrierDismissible: true,
     barrierLabel: 'Close',
-    barrierColor: context.theme.colors.barrier,
+    barrierColor: context.colors.scrim,
     transitionDuration: const Duration(milliseconds: 150),
     pageBuilder: (context, _, _) => Center(
       child: _OptionPicker(title: title, options: options),
@@ -729,8 +726,8 @@ class _OptionPickerState extends State<_OptionPicker> {
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.sizeOf(context);
-    final muted = context.theme.typography.body.sm.copyWith(
-      color: context.theme.colors.mutedForeground,
+    final muted = context.text.bodyMedium?.copyWith(
+      color: context.colors.onSurfaceVariant,
     );
     final query = _search.text.trim().toLowerCase();
     final shown = _all
@@ -741,18 +738,18 @@ class _OptionPickerState extends State<_OptionPicker> {
     if (_error != null) {
       list = Center(child: Text(_error!, style: muted));
     } else if (shown == null) {
-      list = const Center(child: FCircularProgress());
+      list = const Center(child: CircularProgressIndicator());
     } else if (shown.isEmpty) {
       list = Center(child: Text('Nothing found', style: muted));
     } else {
       list = ListView.builder(
         padding: EdgeInsets.zero,
         itemCount: shown.length,
-        itemBuilder: (context, i) => FButton(
-          variant: .ghost,
-          mainAxisAlignment: .start,
-          onPress: () => Navigator.of(context).pop(shown[i]),
-          child: Text(
+        itemBuilder: (context, i) => ListTile(
+          dense: true,
+          shape: const StadiumBorder(),
+          onTap: () => Navigator.of(context).pop(shown[i]),
+          title: Text(
             shown[i].$2,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
@@ -764,33 +761,31 @@ class _OptionPickerState extends State<_OptionPicker> {
     return SizedBox(
       width: math.min(420, size.width - 32),
       height: math.min(560, size.height * 0.8),
-      child: FCard(
-        builder: (context, style, _) => Padding(
-          padding: style.padding,
+      child: Card(child: Padding(
+          padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             spacing: 12,
             children: [
-              Text(widget.title, style: context.theme.typography.display.lg),
-              FTextField(
-                control: .managed(controller: _search),
-                hint: 'Search',
+              Text(widget.title, style: context.text.titleLarge),
+              TextField(
+                controller: _search,
                 autofocus: true,
+                decoration: InputDecoration(
+                  hintText: 'Search',
+                ),
               ),
               Expanded(child: list),
               Align(
                 alignment: Alignment.centerRight,
-                child: FButton(
-                  variant: .outline,
-                  mainAxisSize: .min,
-                  onPress: () => Navigator.of(context).pop(),
+                child: OutlinedButton(
+                  onPressed: () => Navigator.of(context).pop(),
                   child: const Text('Cancel'),
                 ),
               ),
             ],
           ),
-        ),
-      ),
+        )),
     );
   }
 }
@@ -1009,7 +1004,7 @@ class _CarouselSlide extends StatelessWidget {
               fit: BoxFit.cover,
               alignment: Alignment.topCenter,
               errorBuilder: (_, _, _) =>
-                  ColoredBox(color: context.theme.colors.muted),
+                  ColoredBox(color: context.colors.surfaceContainerHighest),
             ),
             const DecoratedBox(
               decoration: BoxDecoration(
@@ -1062,14 +1057,14 @@ class _CarouselSlide extends StatelessWidget {
                         item.name,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        style: context.theme.typography.display.xl2
-                            .copyWith(color: white),
+                        style: context.text.headlineSmall
+                            ?.copyWith(color: white),
                       ),
                     ),
                     if (facts.isNotEmpty)
                       Text(
                         facts,
-                        style: context.theme.typography.body.sm.copyWith(
+                        style: context.text.bodyMedium?.copyWith(
                           color: const Color(0xCCFFFFFF),
                         ),
                       ),
@@ -1078,7 +1073,7 @@ class _CarouselSlide extends StatelessWidget {
                         overview,
                         maxLines: 3,
                         overflow: TextOverflow.ellipsis,
-                        style: context.theme.typography.body.md.copyWith(
+                        style: context.text.bodyLarge?.copyWith(
                           color: const Color(0xE6FFFFFF),
                         ),
                       ),
@@ -1088,21 +1083,18 @@ class _CarouselSlide extends StatelessWidget {
                           mainAxisSize: MainAxisSize.min,
                           spacing: 8,
                           children: [
-                            FButton(
+                            FilledButton(
                               focusNode: playFocus,
-                              mainAxisSize: .min,
-                              onPress: () => playItem(context, item),
+                              onPressed: () => playItem(context, item),
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 spacing: 8,
                                 children: [Icon(appIcons.play, size: 18, fill: 1), const Text('Play')],
                               ),
                             ),
-                            FButton(
+                            FilledButton.tonal(
                               focusNode: infoFocus,
-                              variant: .secondary,
-                              mainAxisSize: .min,
-                              onPress: () => openItem(context, item),
+                              onPressed: () => openItem(context, item),
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 spacing: 8,
@@ -1152,7 +1144,7 @@ class _TileCaption extends StatelessWidget {
             title,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: context.theme.typography.body.sm.copyWith(
+            style: context.text.bodyMedium?.copyWith(
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -1161,8 +1153,8 @@ class _TileCaption extends StatelessWidget {
               subtitle,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: context.theme.typography.body.xs.copyWith(
-                color: context.theme.colors.mutedForeground,
+              style: context.text.bodySmall?.copyWith(
+                color: context.colors.onSurfaceVariant,
               ),
             ),
         ],

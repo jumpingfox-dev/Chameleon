@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:forui/forui.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../../core/jellyfin/jellyfin_controller.dart';
@@ -10,14 +9,12 @@ import '../../core/jellyfin/jellyfin_controller.dart';
 ///
 /// After it returns true, do whatever your login screen does after a normal sign-in.
 Future<bool> showQuickConnect(BuildContext context, {required String server}) async {
-  final result = await showFDialog<bool>(
-    context: context,
-    barrierDismissible: false, // only Cancel or success closes it, so polling always stops
-    builder: (context, style, animation) => FDialog(
-      animation: animation,
-      builder: (context, _) => _QuickConnectBody(server: server),
-    ),
-  );
+  final result = await showDialog<bool>(
+context: context,
+barrierDismissible: false,
+// only Cancel or success closes it, so polling always stops
+builder: (context) => Dialog(child: _QuickConnectBody(server: server)),
+);
   return result ?? false;
 }
 
@@ -89,8 +86,8 @@ class _QuickConnectBodyState extends State<_QuickConnectBody> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = context.theme;
-    final muted = theme.typography.body.sm.copyWith(color: theme.colors.mutedForeground);
+    final theme = Theme.of(context);
+    final muted = theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant);
     final request = _request;
 
     return Padding(
@@ -100,14 +97,14 @@ class _QuickConnectBodyState extends State<_QuickConnectBody> {
         crossAxisAlignment: .stretch,
         spacing: 12,
         children: [
-          Text('Quick Connect', style: theme.typography.display.lg),
+          Text('Quick Connect', style: theme.textTheme.titleLarge),
 
           if (_error != null) ...[
-            Text(_error!, style: muted.copyWith(color: theme.colors.error)),
+            Text(_error!, style: muted?.copyWith(color: theme.colorScheme.error)),
           ] else if (request == null || _signingIn) ...[
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 24),
-              child: Center(child: FCircularProgress()),
+              child: Center(child: CircularProgressIndicator()),
             ),
             if (_signingIn) Text('Signing in…', textAlign: TextAlign.center, style: muted),
           ] else ...[
@@ -119,10 +116,10 @@ class _QuickConnectBodyState extends State<_QuickConnectBody> {
             Center(
               child: Text(
                 request.code,
-                style: theme.typography.display.xl4.copyWith(
+                style: theme.textTheme.headlineLarge?.copyWith(
                   fontWeight: FontWeight.w700,
                   letterSpacing: 8,
-                  color: theme.colors.primary,
+                  color: theme.colorScheme.primary,
                 ),
               ),
             ),
@@ -140,19 +137,18 @@ class _QuickConnectBodyState extends State<_QuickConnectBody> {
             spacing: 8,
             children: [
               if (_error != null)
-                FButton(
-                  variant: .outline,
-                  mainAxisSize: .min,
-                  onPress: _start,
+                OutlinedButton(
+                  onPressed: _start,
                   child: const Text('Get a new code'),
                 ),
-              FButton(
-                variant: _error != null ? .ghost : .outline,
-                mainAxisSize: .min,
-                autofocus: true, // so a remote can cancel straight away
-                onPress: () => Navigator.of(context).pop(false),
-                child: const Text('Cancel'),
-              ),
+              if (_error != null)
+                TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancel'))
+              else
+                OutlinedButton(
+                  autofocus: true, // so a remote can cancel straight away
+                  onPressed: () => Navigator.of(context).pop(false),
+                  child: const Text('Cancel'),
+                ),
             ],
           ),
         ],

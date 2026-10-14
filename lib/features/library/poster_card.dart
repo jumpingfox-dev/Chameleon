@@ -1,11 +1,12 @@
 import 'package:dart_jellyfin/dart_jellyfin.dart';
-import 'package:forui/forui.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../../theme/app_icons.dart';
 import '../../core/jellyfin/jellyfin_controller.dart';
 import '../../core/platform/orientation.dart';
 import '../../widgets/hover_lift.dart';
+import '../../theme/theme.dart';
+import '../../widgets/tappable.dart';
 
 enum LibraryView { poster, thumbnail }
 
@@ -113,7 +114,7 @@ class WatchedBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.theme.colors;
+    final colors = context.colors;
     return Container(
       width: size,
       height: size,
@@ -127,7 +128,7 @@ class WatchedBadge extends StatelessWidget {
       child: Icon(
         appIcons.check,
         size: size * 0.6,
-        color: colors.primaryForeground,
+        color: colors.onPrimary,
         fill: 1
       ),
     );
@@ -154,7 +155,7 @@ class WatchProgressBar extends StatelessWidget {
           FractionallySizedBox(
             alignment: Alignment.centerLeft,
             widthFactor: value,
-            child: ColoredBox(color: context.theme.colors.primary),
+            child: ColoredBox(color: context.colors.primary),
           ),
         ],
       ),
@@ -217,13 +218,13 @@ class PosterCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final client = jellyfin.client; // null for a moment right after sign-out
     final url = client == null ? null : _imageUrl(client);
-    final colors = context.theme.colors;
+    final colors = context.colors;
 
     return Semantics(
       label: item.name,
       button: true,
       child: HoverLift(
-        builder: (context, active) => FTappable(
+        builder: (context, active) => Tappable(
           onPress: onPress,
           child: AnimatedScale(
             scale: active ? 1.0 : 0.94,
@@ -234,7 +235,7 @@ class PosterCard extends StatelessWidget {
               // Hovered or focused: a border drawn over the artwork's edge (it takes up no space).
               foregroundDecoration: BoxDecoration(
                 border: Border.all(
-                  color: active ? context.theme.colors.primary : const Color(0x00000000),
+                  color: active ? context.colors.primary : const Color(0x00000000),
                   width: 2.5,
                 ),
                 borderRadius: BorderRadius.circular(8),
@@ -273,8 +274,8 @@ class PosterCard extends StatelessWidget {
     );
   }
 
-  Widget _placeholder(BuildContext context, FColors colors) => ColoredBox(
-    color: colors.muted,
+  Widget _placeholder(BuildContext context, ColorScheme colors) => ColoredBox(
+    color: colors.surfaceContainerHighest,
     child: Center(
       child: Padding(
         padding: const EdgeInsets.all(8),
@@ -283,8 +284,8 @@ class PosterCard extends StatelessWidget {
           textAlign: TextAlign.center,
           maxLines: 3,
           overflow: TextOverflow.ellipsis,
-          style: context.theme.typography.body.sm.copyWith(
-            color: colors.mutedForeground,
+          style: context.text.bodyMedium?.copyWith(
+            color: colors.onSurfaceVariant,
           ),
         ),
       ),

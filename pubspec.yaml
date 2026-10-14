@@ -42,7 +42,6 @@ dependencies:
 
   # Theming
   google_fonts: ^9.0.0
-  forui: ^0.27.0
   forui_phosphor: ^0.27.0
   forui_lucide: ^0.27.0
   fluentui_system_icons: ^1.1.273
@@ -85,7 +84,6 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
-  forui_cli: ^0.27.0
   drift_dev: ^2.35.1
   build_runner: ^2.16.2
 

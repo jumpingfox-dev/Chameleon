@@ -1,10 +1,10 @@
-import 'package:forui/forui.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../../theme/theme_controller.dart';
 import '../../theme/theme_presets.dart';
 import '../../theme/app_icons.dart';
 import 'switch_setting.dart';
+import '../../theme/theme.dart';
 
 String _pad3(int n) => n.toString().padLeft(3, '0');
 
@@ -50,8 +50,8 @@ class _CustomThemeEditorState extends State<CustomThemeEditor> {
           if (advanced) ...[
             _AdvancedEditor(controller: _ini, errors: _errors),
             const SizedBox(height: 12),
-            FButton(
-              onPress: _apply,
+            FilledButton(
+              onPressed: _apply,
               child: const Text('Apply'),
             ),
           ] else
@@ -158,21 +158,23 @@ class _SeedEditorState extends State<_SeedEditor> {
               ),
             ],
           ),
-          style: context.theme.typography.body.sm,
+          style: context.text.bodyMedium,
         ),
         const SizedBox(height: 8),
         Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           spacing: 8,
           children: [
-            FTextField(
-              control: .managed(controller: _code),
-              hint: 'Enter a code, e.g. 28533082',
+            TextField(
+              controller: _code,
               keyboardType: TextInputType.number,
-              error: _codeError == null ? null : Text(_codeError!),
+              decoration: InputDecoration(
+                hintText: 'Enter a code, e.g. 28533082',
+                error: _codeError == null ? null : Text(_codeError!),
+              ),
             ),
-            FButton(
-              onPress: _loadCode,
+            FilledButton(
+              onPressed: _loadCode,
               child: const Text('Load'),
             ),
           ],
@@ -206,7 +208,7 @@ class _Stepper extends StatelessWidget {
     final isPhone = MediaQuery
         .sizeOf(context)
         .width < 600;
-    final buttonSize = isPhone ? FButtonSizeVariant.lg : FButtonSizeVariant.sm;
+    final density = isPhone ? VisualDensity.standard : VisualDensity.compact;
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
@@ -220,19 +222,17 @@ class _Stepper extends StatelessWidget {
               margin: const EdgeInsets.only(right: 8),
               decoration: BoxDecoration(color: swatch, shape: BoxShape.circle),
             ),
-          FButton.icon(
-            variant: .ghost,
-            size: buttonSize,
-            onPress: onPrev,
-            child: Icon(appIcons.stepBack, fill: 1),
+          IconButton(
+            visualDensity: density,
+            onPressed: onPrev,
+            icon: Icon(appIcons.stepBack, fill: 1),
           ),
           SizedBox(width: isPhone ? 48 : 40,
               child: Text(value, textAlign: TextAlign.center)),
-          FButton.icon(
-            variant: .ghost,
-            size: buttonSize,
-            onPress: onNext,
-            child: Icon(appIcons.stepForward, fill: 1),
+          IconButton(
+            visualDensity: density,
+            onPressed: onNext,
+            icon: Icon(appIcons.stepForward, fill: 1),
           ),
         ],
       ),
@@ -249,11 +249,15 @@ class _AdvancedEditor extends StatelessWidget {
   final List<String> errors;
 
   @override
-  Widget build(BuildContext context) => FTextField.multiline(
-    control: .managed(controller: controller),
-    label: const Text('Custom Colors'),
-    hint: 'One "name = color" per line: #RRGGBB, #AARRGGBB, or hsl(h, s%, l%).',
-    error: errors.isEmpty ? null : Text(errors.join('\n')),
+  Widget build(BuildContext context) => TextField(
+    controller: controller,
     minLines: 5,
+    keyboardType: TextInputType.multiline,
+    maxLines: null,
+    decoration: InputDecoration(
+      label: const Text('Custom Colors'),
+      hintText: 'One "name = color" per line: #RRGGBB, #AARRGGBB, or hsl(h, s%, l%).',
+      error: errors.isEmpty ? null : Text(errors.join('\n')),
+    ),
   );
 }

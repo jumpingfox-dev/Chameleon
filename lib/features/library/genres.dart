@@ -1,9 +1,9 @@
-import 'package:forui/forui.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../../core/jellyfin/jellyfin_controller.dart';
 import '../../theme/app_icons.dart';
+import '../../theme/theme.dart';
 
 IconData _iconFor(String genre) {
   final name = genre.toLowerCase();
@@ -17,8 +17,10 @@ class GenresScreen extends StatelessWidget {
   const GenresScreen({super.key});
 
   @override
-  Widget build(BuildContext context) => FScaffold(
-    child: ListenableBuilder(
+  Widget build(BuildContext context) => Scaffold(
+    body: Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      child: ListenableBuilder(
       listenable: jellyfin,
       builder: (context, _) {
         final genres = jellyfin.genres;
@@ -26,7 +28,7 @@ class GenresScreen extends StatelessWidget {
           return Center(
             child: Text(
               'No genres found',
-              style: context.theme.typography.body.md,
+              style: context.text.bodyLarge,
             ),
           );
         }
@@ -43,9 +45,8 @@ class GenresScreen extends StatelessWidget {
           itemCount: genres.length,
           itemBuilder: (context, i) {
             final genre = genres[i];
-            return FButton(
-              variant: .outline,
-              onPress: () =>
+            return OutlinedButton(
+              onPressed: () =>
                   context.go('/home/genre/${Uri.encodeComponent(genre)}'),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -54,7 +55,7 @@ class GenresScreen extends StatelessWidget {
                   Icon(
                     _iconFor(genre),
                     size: 32,
-                    color: context.theme.colors.primary,
+                    color: context.colors.primary,
                     fill: 1,
                   ),
                   Text(
@@ -69,6 +70,7 @@ class GenresScreen extends StatelessWidget {
           },
         );
       },
+    ),
     ),
   );
 }

@@ -1,4 +1,3 @@
-import 'package:forui/forui.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -9,6 +8,7 @@ import '../../core/platform/page_insets.dart';
 import '../../core/platform/orientation.dart';
 import '../../widgets/nav_button.dart';
 import 'home_modules.dart';
+import '../../theme/theme.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -43,10 +43,9 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   @override
-  Widget build(BuildContext context) => FScaffold(
+  Widget build(BuildContext context) => Scaffold(
     // No side padding here: each part adds its own (pageSides), so rows can scroll to the edge.
-    childPad: false,
-    child: Stack(
+    body: Stack(
       children: [
         ListenableBuilder(
           listenable: Listenable.merge([jellyfin, homeLayout, homeEditing]),
@@ -57,7 +56,9 @@ class _HomeScreenState extends State<HomeScreen> {
             return ListView(
               // Extra space at the bottom so the last module isn't hidden behind the Edit button.
               // No side padding: rows scroll edge to edge, everything else adds pageSides.
-              padding: const EdgeInsets.fromLTRB(0, 12, 0, 48),
+              // More room at the top on wider screens, where a TV can crop the edge; the
+              // sidebar's logo lines up with it.
+              padding: EdgeInsets.fromLTRB(0, isPhone ? 12 : 32, 0, 48),
               children: [
                 // Library links: phones only, since wider screens have them in the top bar.
                 if (isPhone &&
@@ -113,8 +114,8 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: Center(
                       child: Text(
                         'Your home screen is empty. Select the pencil to add sections.',
-                        style: context.theme.typography.body.md.copyWith(
-                          color: context.theme.colors.mutedForeground,
+                        style: context.text.bodyLarge?.copyWith(
+                          color: context.colors.onSurfaceVariant,
                         ),
                       ),
                     ),
@@ -154,11 +155,10 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
                 child: editing
-                    ? FButton(
-                  key: const ValueKey('done'),
-                  mainAxisSize: .min,
-                  onPress: _toggleEditing,
-                  child: Row(
+                    ? FilledButton(
+                      key: const ValueKey('done'),
+                      onPressed: _toggleEditing,
+                      child: Row(
                     mainAxisSize: MainAxisSize.min,
                     spacing: 8,
                     children: [
@@ -166,14 +166,14 @@ class _HomeScreenState extends State<HomeScreen> {
                       Text('Done'),
                     ],
                   ),
-                )
+                    )
                     : Semantics(
                   key: const ValueKey('edit'),
                   label: 'Edit home screen',
                   button: true,
-                  child: FButton.icon(
-                    onPress: _toggleEditing,
-                    child: Icon(appIcons.edit, fill: 1),
+                  child: IconButton.filled(
+                    onPressed: _toggleEditing,
+                    icon: Icon(appIcons.edit, fill: 1),
                   ),
                 ),
               ),
@@ -190,7 +190,7 @@ class _EditModeBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.theme.colors;
+    final colors = context.colors;
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
       child: DecoratedBox(
@@ -211,12 +211,12 @@ class _EditModeBanner extends StatelessWidget {
                   children: [
                     Text(
                       'Editing your home screen',
-                      style: context.theme.typography.body.md,
+                      style: context.text.bodyLarge,
                     ),
                     Text(
                       'Add, remove and rearrange sections. Select Done when you\'re finished.',
-                      style: context.theme.typography.body.sm.copyWith(
-                        color: colors.mutedForeground,
+                      style: context.text.bodyMedium?.copyWith(
+                        color: colors.onSurfaceVariant,
                       ),
                     ),
                   ],

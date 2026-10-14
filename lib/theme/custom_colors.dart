@@ -1,97 +1,48 @@
-import 'package:flutter/services.dart';
-import 'package:forui/forui.dart';
 import 'package:material_ui/material_ui.dart';
 
-typedef ColorToken = ({
-  String label,
-  Color Function(FColors c) get,
-  FColors Function(FColors c, Color v) set,
-});
+import 'palette.dart';
+
+typedef ColorToken = ({String label, Color Function(Palette c) get, Palette Function(Palette c, Color v) set});
 
 final colorTokens = <String, ColorToken>{
-  'background': (
-    label: 'Background',
-    get: (c) => c.background,
-    set: (c, v) => c.copyWith(background: v),
-  ),
-  'foreground': (
-    label: 'Foreground',
-    get: (c) => c.foreground,
-    set: (c, v) => c.copyWith(foreground: v),
-  ),
-  'primary': (
-    label: 'Primary',
-    get: (c) => c.primary,
-    set: (c, v) => c.copyWith(primary: v),
-  ),
+  'background': (label: 'Background', get: (c) => c.background, set: (c, v) => c.copyWith(background: v)),
+  'foreground': (label: 'Foreground', get: (c) => c.foreground, set: (c, v) => c.copyWith(foreground: v)),
+  'primary': (label: 'Primary', get: (c) => c.primary, set: (c, v) => c.copyWith(primary: v)),
   'primaryForeground': (
     label: 'Primary text',
     get: (c) => c.primaryForeground,
     set: (c, v) => c.copyWith(primaryForeground: v),
   ),
-  'secondary': (
-    label: 'Secondary',
-    get: (c) => c.secondary,
-    set: (c, v) => c.copyWith(secondary: v),
-  ),
+  'secondary': (label: 'Secondary', get: (c) => c.secondary, set: (c, v) => c.copyWith(secondary: v)),
   'secondaryForeground': (
     label: 'Secondary text',
     get: (c) => c.secondaryForeground,
     set: (c, v) => c.copyWith(secondaryForeground: v),
   ),
-  'muted': (
-    label: 'Muted',
-    get: (c) => c.muted,
-    set: (c, v) => c.copyWith(muted: v),
-  ),
+  'muted': (label: 'Muted', get: (c) => c.muted, set: (c, v) => c.copyWith(muted: v)),
   'mutedForeground': (
     label: 'Muted text',
     get: (c) => c.mutedForeground,
     set: (c, v) => c.copyWith(mutedForeground: v),
   ),
-  'destructive': (
-    label: 'Destructive',
-    get: (c) => c.destructive,
-    set: (c, v) => c.copyWith(destructive: v),
-  ),
+  'destructive': (label: 'Destructive', get: (c) => c.destructive, set: (c, v) => c.copyWith(destructive: v)),
   'destructiveForeground': (
     label: 'Destructive text',
     get: (c) => c.destructiveForeground,
     set: (c, v) => c.copyWith(destructiveForeground: v),
   ),
-  'error': (
-    label: 'Error',
-    get: (c) => c.error,
-    set: (c, v) => c.copyWith(error: v),
-  ),
+  'error': (label: 'Error', get: (c) => c.error, set: (c, v) => c.copyWith(error: v)),
   'errorForeground': (
     label: 'Error text',
     get: (c) => c.errorForeground,
     set: (c, v) => c.copyWith(errorForeground: v),
   ),
-  'card': (
-    label: 'Card',
-    get: (c) => c.card,
-    set: (c, v) => c.copyWith(card: v),
-  ),
-  'border': (
-    label: 'Border',
-    get: (c) => c.border,
-    set: (c, v) => c.copyWith(border: v),
-  ),
-  'barrier': (
-    label: 'Barrier',
-    get: (c) => c.barrier,
-    set: (c, v) => c.copyWith(barrier: v),
-  ),
+  'card': (label: 'Card', get: (c) => c.card, set: (c, v) => c.copyWith(card: v)),
+  'border': (label: 'Border', get: (c) => c.border, set: (c, v) => c.copyWith(border: v)),
+  'barrier': (label: 'Barrier', get: (c) => c.barrier, set: (c, v) => c.copyWith(barrier: v)),
 };
 
-FColors withBrightness(FColors c, bool light) => c.copyWith(
-  brightness: light ? Brightness.light : Brightness.dark,
-  systemOverlayStyle: light
-      ? SystemUiOverlayStyle.dark
-      : SystemUiOverlayStyle.light,
-);
+Palette withBrightness(Palette c, bool light) => c.copyWith(brightness: light ? Brightness.light : Brightness.dark);
 
 final _hexPattern = RegExp(r'^#?([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$');
 final _hslPattern = RegExp(
@@ -106,9 +57,7 @@ Color? parseColor(String input) {
   final hex = _hexPattern.firstMatch(v);
   if (hex != null) {
     final digits = hex.group(1)!;
-    return Color(
-      int.parse(digits.length == 6 ? 'FF$digits' : digits, radix: 16),
-    );
+    return Color(int.parse(digits.length == 6 ? 'FF$digits' : digits, radix: 16));
   }
 
   final hsl = _hslPattern.firstMatch(v);
@@ -116,9 +65,7 @@ Color? parseColor(String input) {
     final h = double.parse(hsl.group(1)!) % 360;
     final s = (double.parse(hsl.group(2)!) / 100).clamp(0.0, 1.0);
     final l = (double.parse(hsl.group(3)!) / 100).clamp(0.0, 1.0);
-    final a = hsl.group(4) == null
-        ? 1.0
-        : double.parse(hsl.group(4)!).clamp(0.0, 1.0);
+    final a = hsl.group(4) == null ? 1.0 : double.parse(hsl.group(4)!).clamp(0.0, 1.0);
     return HSLColor.fromAHSL(a, h, s, l).toColor();
   }
 
@@ -128,14 +75,12 @@ Color? parseColor(String input) {
 String _toHex(Color c) {
   final argb = c.toARGB32();
   final opaque = (argb >> 24) == 0xFF;
-  final digits = opaque
-      ? (argb & 0xFFFFFF).toRadixString(16).padLeft(6, '0')
-      : argb.toRadixString(16).padLeft(8, '0');
+  final digits = opaque ? (argb & 0xFFFFFF).toRadixString(16).padLeft(6, '0') : argb.toRadixString(16).padLeft(8, '0');
   return '#${digits.toUpperCase()}';
 }
 
 /// Writes colors out as INI text, used to pre-fill the editor.
-String colorsToIni(FColors c) {
+String colorsToIni(Palette c) {
   final out = StringBuffer('[theme]\nbrightness = ${c.brightness.name}\n');
   for (final e in colorTokens.entries) {
     out.writeln('${e.key} = ${_toHex(e.value.get(c))}');
@@ -144,10 +89,7 @@ String colorsToIni(FColors c) {
 }
 
 /// Parses INI text on top of [base]. Returns the colors, or the errors if any line is invalid.
-({FColors? colors, List<String> errors}) parseColorIni(
-  String text,
-  FColors base,
-) {
+({Palette? colors, List<String> errors}) parseColorIni(String text, Palette base) {
   final keys = {for (final k in colorTokens.keys) k.toLowerCase(): k};
   final errors = <String>[];
   var colors = base;
@@ -190,7 +132,5 @@ String colorsToIni(FColors c) {
     colors = colorTokens[key]!.set(colors, color);
   }
 
-  return errors.isEmpty
-      ? (colors: colors, errors: const [])
-      : (colors: null, errors: errors);
+  return errors.isEmpty ? (colors: colors, errors: const []) : (colors: null, errors: errors);
 }

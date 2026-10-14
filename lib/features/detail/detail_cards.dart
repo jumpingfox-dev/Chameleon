@@ -12,7 +12,7 @@ class _BackdropBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final client = jellyfin.client!;
-    final colors = context.theme.colors;
+    final colors = context.colors;
     final isPhone = isPhoneLayout(context);
 
     final backdrops = item.raw['BackdropImageTags'] as List?;
@@ -24,7 +24,7 @@ class _BackdropBanner extends StatelessWidget {
     return _TapShield(
       child: Container(
         foregroundDecoration: BoxDecoration(
-          border: Border.all(color: colors.border),
+          border: Border.all(color: colors.outlineVariant),
           borderRadius: BorderRadius.circular(12),
         ),
         child: ClipRRect(
@@ -48,11 +48,11 @@ class _BackdropBanner extends StatelessWidget {
                       fit: BoxFit.cover,
                       alignment: Alignment.topCenter, // crop from the bottom, keep the top of the image
                       errorBuilder: (_, _, _) =>
-                          ColoredBox(color: colors.muted),
+                          ColoredBox(color: colors.surfaceContainerHighest),
                     ),
                   )
                 else
-                  ColoredBox(color: colors.muted),
+                  ColoredBox(color: colors.surfaceContainerHighest),
 
                 // Darkens the bottom so the logo stands out on any backdrop.
                 const DecoratedBox(
@@ -90,8 +90,8 @@ class _BackdropBanner extends StatelessWidget {
                       item.name,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: context.theme.typography.display.xl2
-                          .copyWith(
+                      style: context.text.headlineSmall
+                          ?.copyWith(
                         color: const Color(0xFFFFFFFF),
                         shadows: const [
                           Shadow(
@@ -246,10 +246,10 @@ class _CollectionInfoCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.theme.colors;
+    final colors = context.colors;
     final isPhone = isPhoneLayout(context);
-    final muted = context.theme.typography.body.sm.copyWith(
-      color: colors.mutedForeground,
+    final muted = context.text.bodyMedium?.copyWith(
+      color: colors.onSurfaceVariant,
     );
     final description = (collection.raw['Overview'] as String?)?.trim();
     final years = _years;
@@ -279,9 +279,8 @@ class _CollectionInfoCard extends StatelessWidget {
               spacing: 8,
               runSpacing: 8,
               children: [
-                FButton(
-                  mainAxisSize: .min,
-                  onPress: items.isEmpty
+                FilledButton(
+                  onPressed: items.isEmpty
                       ? null
                       : () => playQueue(GoRouter.of(context), collectionQueue(items)),
                   child: Row(
@@ -290,10 +289,8 @@ class _CollectionInfoCard extends StatelessWidget {
                     children: [Icon(appIcons.play, size: 18, fill: 1), const Text('Play')],
                   ),
                 ),
-                FButton(
-                  variant: .outline,
-                  mainAxisSize: .min,
-                  onPress: items.length < 2
+                OutlinedButton(
+                  onPressed: items.length < 2
                       ? null
                       : () => playQueue(GoRouter.of(context), collectionQueue(items, shuffle: true)),
                   child: Row(
@@ -312,7 +309,7 @@ class _CollectionInfoCard extends StatelessWidget {
             ExpandableText(
               description,
               limit: isPhone ? 150 : 400,
-              style: context.theme.typography.body.md,
+              style: context.text.bodyLarge,
             ),
 
           // ── Genres ──
@@ -321,7 +318,7 @@ class _CollectionInfoCard extends StatelessWidget {
           // ── Movies ──
           if (items.isNotEmpty) ...[
             const _CardDivider(),
-            Text('Movies', style: context.theme.typography.display.lg),
+            Text('Movies', style: context.text.titleLarge),
             _InlineItemGrid(items),
           ],
         ],
@@ -347,10 +344,10 @@ class _MovieInfoCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.theme.colors;
+    final colors = context.colors;
     final isPhone = isPhoneLayout(context);
-    final muted = context.theme.typography.body.sm.copyWith(
-      color: colors.mutedForeground,
+    final muted = context.text.bodyMedium?.copyWith(
+      color: colors.onSurfaceVariant,
     );
 
     final year = movie.raw['ProductionYear'];
@@ -391,9 +388,8 @@ class _MovieInfoCard extends StatelessWidget {
               spacing: 8,
               runSpacing: 8,
               children: [
-                FButton(
-                  mainAxisSize: .min,
-                  onPress: () => context.push('/play/${movie.id}'),
+                FilledButton(
+                  onPressed: () => context.push('/play/${movie.id}'),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     spacing: 8,
@@ -413,7 +409,7 @@ class _MovieInfoCard extends StatelessWidget {
             ExpandableText(
               description,
               limit: isPhone ? 150 : 400,
-              style: context.theme.typography.body.md,
+              style: context.text.bodyLarge,
             ),
 
           // ── Genres ──
@@ -422,7 +418,7 @@ class _MovieInfoCard extends StatelessWidget {
           // ── Cast ──
           if (cast.isNotEmpty) ...[
             const _CardDivider(),
-            Text('Cast', style: context.theme.typography.display.lg),
+            Text('Cast', style: context.text.titleLarge),
             _EdgeToEdge(
               // Runs to the card's edges, so the cast scrolls all the way across.
               builder: (padding) => ScrollIntoViewOnFocus(
@@ -518,10 +514,10 @@ class _SeriesInfoCardState extends State<_SeriesInfoCard> {
   @override
   Widget build(BuildContext context) {
     final series = widget.series;
-    final colors = context.theme.colors;
+    final colors = context.colors;
     final isPhone = isPhoneLayout(context);
-    final muted = context.theme.typography.body.sm.copyWith(
-      color: colors.mutedForeground,
+    final muted = context.text.bodyMedium?.copyWith(
+      color: colors.onSurfaceVariant,
     );
 
     final years = _years;
@@ -578,7 +574,7 @@ class _SeriesInfoCardState extends State<_SeriesInfoCard> {
             ExpandableText(
               description,
               limit: isPhone ? 150 : 400,
-              style: context.theme.typography.body.md,
+              style: context.text.bodyLarge,
             ),
 
           // ── Genres ──
@@ -587,21 +583,23 @@ class _SeriesInfoCardState extends State<_SeriesInfoCard> {
           // ── Seasons and episodes ──
           if (season != null) ...[
             const _CardDivider(),
-            // ── Seasons: a compact dropdown on phones (touch only); buttons elsewhere, which work
+            // ── Seasons: a compact dropdown on phones (touch only); chips elsewhere, which work
             // with a remote (a dropdown traps the arrow keys) ──
             if (isPhone)
               SizedBox(
                 width: 240,
-                child: FSelect<JellyfinItem>(
-                  items: {for (final s in widget.seasons) s.name: s},
-                  control: FSelectControl.lifted(
-                    value: season,
-                    onChange: (picked) {
-                      if (picked == null || picked.id == season.id) return;
-                      setState(() => _season = picked);
-                      _loadEpisodes(picked);
-                    },
-                  ),
+                child: DropdownMenu<JellyfinItem>(
+                  initialSelection: season,
+                  expandedInsets: EdgeInsets.zero,
+                  requestFocusOnTap: false, // a short list: no keyboard
+                  onSelected: (picked) {
+                    if (picked == null || picked.id == season.id) return;
+                    setState(() => _season = picked);
+                    _loadEpisodes(picked);
+                  },
+                  dropdownMenuEntries: [
+                    for (final s in widget.seasons) DropdownMenuEntry(value: s, label: s.name),
+                  ],
                 ),
               )
             else
@@ -611,18 +609,14 @@ class _SeriesInfoCardState extends State<_SeriesInfoCard> {
                   runSpacing: 8, // many seasons flow onto more lines instead of scrolling sideways
                   children: [
                     for (final s in widget.seasons)
-                      FButton(
-                        variant: s.id == season.id
-                            ? .primary
-                            : .outline, // the current season stands out
-                        size: .sm,
-                        mainAxisSize: .min,
-                        onPress: () {
+                      ChoiceChip(
+                        label: Text(s.name),
+                        selected: s.id == season.id, // the current season stands out
+                        onSelected: (_) {
                           if (s.id == season.id) return;
                           setState(() => _season = s);
                           _loadEpisodes(s);
                         },
-                        child: Text(s.name),
                       ),
                   ],
                 ),
@@ -630,7 +624,7 @@ class _SeriesInfoCardState extends State<_SeriesInfoCard> {
             if (_loadingSeasonId == season.id && episodes == null)
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 24),
-                child: Center(child: FCircularProgress()),
+                child: Center(child: CircularProgressIndicator()),
               )
             else if (_error != null && episodes == null)
               Text(_error!, style: muted)
@@ -685,7 +679,7 @@ class _EpisodeTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.theme.colors;
+    final colors = context.colors;
     final isPhone = isPhoneLayout(context);
     final number = episode.raw['IndexNumber'];
     final tag = episode.imageTags['Primary']; // an episode's Primary image is its 16:9 thumbnail
@@ -696,7 +690,7 @@ class _EpisodeTile extends StatelessWidget {
     return ScrollIntoViewOnFocus(
       alignment: 0.4, // episodes are tall rows: settle a little lower so the previous one stays visible
       child: HoverLift(
-        builder: (context, active) => FTappable(
+        builder: (context, active) => Tappable(
           onPress: () => context.push('/play/${episode.id}'),
           child: AnimatedScale(
             scale: active ? 1.0 : 0.98, // a gentle lift: rows are wide, so a small scale is plenty
@@ -727,10 +721,10 @@ class _EpisodeTile extends StatelessWidget {
                           children: [
                             tag == null
                                 ? ColoredBox(
-                              color: colors.muted,
+                              color: colors.surfaceContainerHighest,
                               child: Icon(
                                 appIcons.play,
-                                color: colors.mutedForeground,
+                                color: colors.onSurfaceVariant,
                                 fill: 1,
                               ),
                             )
@@ -776,15 +770,15 @@ class _EpisodeTile extends StatelessWidget {
                             : episode.name,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        style: context.theme.typography.body.md.copyWith(
+                        style: context.text.bodyLarge?.copyWith(
                           fontWeight: FontWeight.w600,
                         ),
                       ),
                       if (details.isNotEmpty)
                         Text(
                           details,
-                          style: context.theme.typography.body.xs.copyWith(
-                            color: colors.mutedForeground,
+                          style: context.text.bodySmall?.copyWith(
+                            color: colors.onSurfaceVariant,
                           ),
                         ),
                       if (overview != null && overview.isNotEmpty)
@@ -792,7 +786,7 @@ class _EpisodeTile extends StatelessWidget {
                           overview,
                           maxLines: isPhone ? 2 : 3,
                           overflow: TextOverflow.ellipsis,
-                          style: context.theme.typography.body.sm,
+                          style: context.text.bodyMedium,
                         ),
                     ],
                   ),
@@ -814,7 +808,7 @@ class _CastTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.theme.colors;
+    final colors = context.colors;
     final id = person['Id'] as String;
     final name = (person['Name'] as String?) ?? '';
     final role = person['Role'] as String?;
@@ -822,7 +816,7 @@ class _CastTile extends StatelessWidget {
     final initials = initialsOf(name);
 
     return HoverLift(
-      builder: (context, active) => FTappable(
+      builder: (context, active) => Tappable(
         onPress: () => openPerson(context, id),
         child: SizedBox(
           width: 110,
@@ -848,11 +842,11 @@ class _CastTile extends StatelessWidget {
                       dimension: 96,
                       child: tag == null
                           ? ColoredBox(
-                        color: colors.muted,
+                        color: colors.surfaceContainerHighest,
                         child: Center(
                           child: Text(
                             initials,
-                            style: TextStyle(color: colors.mutedForeground),
+                            style: TextStyle(color: colors.onSurfaceVariant),
                           ),
                         ),
                       )
@@ -875,7 +869,7 @@ class _CastTile extends StatelessWidget {
                 textAlign: TextAlign.center,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: context.theme.typography.body.xs,
+                style: context.text.bodySmall,
               ),
               if (role != null && role.isNotEmpty)
                 Text(
@@ -883,8 +877,8 @@ class _CastTile extends StatelessWidget {
                   textAlign: TextAlign.center,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: context.theme.typography.body.xs.copyWith(
-                    color: colors.mutedForeground,
+                  style: context.text.bodySmall?.copyWith(
+                    color: colors.onSurfaceVariant,
                   ),
                 ),
             ],
@@ -935,24 +929,18 @@ class _FavoriteButtonState extends State<_FavoriteButton> {
   }
 
   @override
-  Widget build(BuildContext context) => FButton(
-    variant: _favorite ? .secondary : .outline,
-    mainAxisSize: .min,
-    onPress: _toggle,
-    child: Row(
-      mainAxisSize: MainAxisSize.min,
-      spacing: 8,
-      children: [
-        Icon(
-          _favorite ? appIcons.favorite : appIcons.favoriteOutline,
-          size: 18,
-          color: _favorite ? context.theme.colors.primary : null,
-          fill: _favorite ? 1 : 0,
-        ),
-        Text(_favorite ? 'Favorited' : 'Favorite'),
-      ],
-    ),
-  );
+  Widget build(BuildContext context) {
+    final icon = Icon(
+      _favorite ? appIcons.favorite : appIcons.favoriteOutline,
+      size: 18,
+      color: _favorite ? context.colors.primary : null,
+      fill: _favorite ? 1 : 0,
+    );
+    final label = Text(_favorite ? 'Favorited' : 'Favorite');
+    return _favorite
+        ? FilledButton.tonalIcon(onPressed: _toggle, icon: icon, label: label)
+        : OutlinedButton.icon(onPressed: _toggle, icon: icon, label: label);
+  }
 }
 
 /// Plays the series from where you left off: the next unwatched episode,
@@ -1007,9 +995,8 @@ class _SeriesPlayButtonState extends State<_SeriesPlayButton> {
     final se = next == null ? null : seasonEpisode(next.raw['ParentIndexNumber'], next.raw['IndexNumber']);
     final label = se == null ? 'Play' : 'Play $se';
 
-    return FButton(
-      mainAxisSize: .min,
-      onPress: next == null
+    return FilledButton(
+      onPressed: next == null
           ? null
           : () => context.push('/play/${next.id}'), // disabled until found
       child: Row(

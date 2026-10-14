@@ -2,11 +2,11 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/services.dart';
-import 'package:forui/forui.dart';
 import 'package:material_ui/material_ui.dart';
 
-import '../../theme/tappable_states.dart';
 import '../../core/focus/focus_rows.dart';
+import '../../theme/theme.dart';
+import '../../widgets/tappable.dart';
 
 /// A form-style field showing the current choice; selecting it opens [showChoicePicker].
 /// Works with a remote, unlike a dropdown (which keeps the arrow keys to itself).
@@ -23,54 +23,18 @@ class ChoiceField extends StatelessWidget {
   final VoidCallback onPress;
 
   @override
-  Widget build(BuildContext context) {
-    final colors = context.theme.colors;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      spacing: 6,
-      children: [
-        if (label != null)
-          Text(
-            label!,
-            style: context.theme.typography.body.sm.copyWith(
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        FTappable(
-          onPress: onPress,
-          builder: (context, states, _) {
-            final active = isHighlighted(states);
-            return Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              decoration: BoxDecoration(
-                color: active ? colors.muted : const Color(0x00000000),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                  color: active ? colors.primary : colors.secondary,
-                ),
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      value,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  Icon(
-                    Icons.unfold_more_rounded,
-                    size: 18,
-                    color: colors.mutedForeground,
-                  ),
-                ],
-              ),
-            );
-          },
-        ),
-      ],
-    );
-  }
+  Widget build(BuildContext context) => Tappable(
+    onPress: onPress,
+    // Drawn like Material's outlined dropdown, so it matches the DropdownMenus on phones.
+    builder: (context, states, _) => InputDecorator(
+      isFocused: isHighlighted(states),
+      decoration: InputDecoration(
+        labelText: label,
+        suffixIcon: const Icon(Icons.arrow_drop_down),
+      ),
+      child: Text(value, maxLines: 1, overflow: TextOverflow.ellipsis),
+    ),
+  );
 }
 
 /// A centered list to pick one value from, built for remotes as well as pointers:
@@ -88,7 +52,7 @@ Future<T?> showChoicePicker<T>({
   context: context,
   barrierDismissible: true,
   barrierLabel: 'Close',
-  barrierColor: context.theme.colors.barrier,
+  barrierColor: context.colors.scrim,
   transitionDuration: const Duration(milliseconds: 150),
   transitionBuilder: (context, animation, _, child) =>
       FadeTransition(opacity: animation, child: child),
@@ -176,9 +140,9 @@ class _ChoicePickerState<T> extends State<_ChoicePicker<T>> {
 
     final Widget list;
     if (options == null) {
-      list = message(const FCircularProgress());
+      list = message(const CircularProgressIndicator());
     } else if (options.isEmpty) {
-      list = message(Text('Nothing found', style: TextStyle(color: context.theme.colors.mutedForeground)));
+      list = message(Text('Nothing found', style: TextStyle(color: context.colors.onSurfaceVariant)));
     } else {
       list = ListView.separated(
         shrinkWrap: true, // only as tall as its options, up to the card's maximum
@@ -206,15 +170,14 @@ class _ChoicePickerState<T> extends State<_ChoicePicker<T>> {
         height: widget.searchable ? maxHeight : null,
         child: ConstrainedBox(
           constraints: BoxConstraints(maxHeight: maxHeight),
-          child: FCard(
-            builder: (context, style, _) => Padding(
-              padding: style.padding,
+          child: Card(child: Padding(
+              padding: const EdgeInsets.all(16),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 spacing: 12,
                 children: [
-                  Text(widget.title, style: context.theme.typography.display.lg),
+                  Text(widget.title, style: context.text.titleLarge),
                   if (widget.searchable)
                   // ↓ from the search box goes into the results (a text field would otherwise keep it).
                     CallbackShortcuts(
@@ -222,13 +185,17 @@ class _ChoicePickerState<T> extends State<_ChoicePicker<T>> {
                         const SingleActivator(LogicalKeyboardKey.arrowDown): () =>
                             moveFocus(TraversalDirection.down),
                       },
-                      child: FTextField(control: .managed(controller: _query), hint: widget.searchHint),
+                      child: TextField(
+                        controller: _query,
+                        decoration: InputDecoration(
+                          hintText: widget.searchHint,
+                        ),
+                      ),
                     ),
                   if (widget.searchable) Expanded(child: list) else Flexible(child: list),
                 ],
               ),
-            ),
-          ),
+            )),
         ),
       ),
     );
@@ -261,7 +228,7 @@ class _ChoiceOptionState extends State<_ChoiceOption> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.theme.colors;
+    final colors = context.colors;
     return FocusableActionDetector(
       autofocus: widget.autofocus,
       mouseCursor: SystemMouseCursors.click,
@@ -284,7 +251,7 @@ class _ChoiceOptionState extends State<_ChoiceOption> {
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           decoration: BoxDecoration(
             color: _focused || _hovered
-                ? colors.muted
+                ? colors.surfaceContainerHighest
                 : const Color(0x00000000),
             borderRadius: BorderRadius.circular(8),
           ),

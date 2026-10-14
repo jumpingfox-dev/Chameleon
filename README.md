@@ -88,7 +88,7 @@ how the server verifies you behind the scenes.
 
 ## Tech stack
 
-- **Flutter**, using [forui](https://forui.dev) as the UI kit
+- **Flutter**, with Material 3
 - **[go_router](https://pub.dev/packages/go_router)** for routing, with a `StatefulShellRoute`
   for the four main tabs
 - **[media_kit](https://pub.dev/packages/media_kit)** (mpv) for playback
@@ -104,7 +104,7 @@ lib/
   app/                 routing and the shell (sidebar / bottom bar)
   core/                Jellyfin session, casting, remote focus, platform helpers -- no UI
   features/            auth, home, library, detail, player, settings, search
-  theme/               forui theme, app icons, theme controllers, styles
+  theme/               Material theme, palettes, app icons, theme controllers
   widgets/             small widgets shared across features
 ```
 

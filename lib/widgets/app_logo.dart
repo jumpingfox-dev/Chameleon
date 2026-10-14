@@ -1,9 +1,9 @@
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:forui/forui.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../theme/theme_controller.dart';
 import '../theme/theme_presets.dart';
+import '../theme/theme.dart';
 
 /// Which version of the logo to show.
 enum AppLogoVariant {
@@ -58,8 +58,8 @@ class AppLogo extends StatelessWidget {
         blendMode: BlendMode.srcIn,
         shaderCallback: (bounds) => LinearGradient(
           colors: [
-            context.theme.colors.primary,
-            context.theme.colors.border,
+            context.colors.primary,
+            context.colors.outlineVariant,
           ],
         ).createShader(bounds),
         child: SvgPicture.asset(asset, height: height),

@@ -1,10 +1,11 @@
 import 'package:dart_jellyfin/dart_jellyfin.dart';
-import 'package:forui/forui.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../../core/format/format.dart';
 import '../../core/jellyfin/jellyfin_controller.dart';
 import '../../widgets/hover_lift.dart';
+import '../../theme/theme.dart';
+import '../../widgets/tappable.dart';
 
 /// A round photo with the person's name underneath. Lifts on hover or remote focus.
 class PersonTile extends StatelessWidget {
@@ -21,7 +22,7 @@ class PersonTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => HoverLift(
-    builder: (context, active) => FTappable(
+    builder: (context, active) => Tappable(
       onPress: onPress,
       child: SizedBox(
         width: size + 14,
@@ -41,7 +42,7 @@ class PersonTile extends StatelessWidget {
                 textAlign: TextAlign.center,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: context.theme.typography.body.xs,
+                style: context.text.bodySmall,
               ),
             ),
           ],
@@ -60,7 +61,7 @@ class PersonPhoto extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.theme.colors;
+    final colors = context.colors;
     final tag = person.imageTags['Primary'];
     final initials = initialsOf(person.name);
 
@@ -69,11 +70,11 @@ class PersonPhoto extends StatelessWidget {
       child: ClipOval(
         child: tag == null
             ? ColoredBox(
-                color: colors.muted,
+                color: colors.surfaceContainerHighest,
                 child: Center(
                   child: Text(
                     initials,
-                    style: TextStyle(color: colors.mutedForeground),
+                    style: TextStyle(color: colors.onSurfaceVariant),
                   ),
                 ),
               )

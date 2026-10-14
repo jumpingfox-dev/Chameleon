@@ -1,14 +1,14 @@
 import 'package:dart_jellyfin/dart_jellyfin.dart';
-import 'package:forui/forui.dart';
 import 'package:material_ui/material_ui.dart';
 
-import '../../theme/tappable_states.dart';
 import '../../core/focus/focus_rows.dart';
 import '../../core/jellyfin/jellyfin_controller.dart';
 import '../../core/jellyfin/library_cache.dart';
 import '../../core/storage/app_cache.dart';
 import '../detail/detail_page.dart';
 import 'poster_card.dart';
+import '../../theme/theme.dart';
+import '../../widgets/tappable.dart';
 
 /// Shows one library's movies/shows/albums, or everything in one genre.
 class LibraryScreen extends StatefulWidget {
@@ -297,10 +297,12 @@ class _LibraryScreenState extends State<LibraryScreen> {
     listenable: libraryViewOverride,
     builder: (context, _) {
       final view = libraryViewFor(context);
-      return FScaffold(
-        header: FHeader(title: Text(_title)),
+      return Scaffold(
+        appBar: AppBar(title: Text(_title), automaticallyImplyLeading: false),
         // The posters on the left, and the view toggle and A–Z down the right-hand side.
-        child: Row(
+        body: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Row(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Expanded(child: _buildBody(context, view)),
@@ -315,13 +317,14 @@ class _LibraryScreenState extends State<LibraryScreen> {
             ),
           ],
         ),
+        ),
       );
     },
   );
 
   Widget _buildBody(BuildContext context, LibraryView view) {
     if (_items.isEmpty && _loading) {
-      return const Center(child: FCircularProgress());
+      return const Center(child: CircularProgressIndicator());
     }
     if (_items.isEmpty && _error != null) {
       return Center(
@@ -330,9 +333,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
           spacing: 12,
           children: [
             Text(_error!),
-            FButton(
-              mainAxisSize: .min,
-              onPress: _loadMore,
+            FilledButton(
+              onPressed: _loadMore,
               child: const Text('Try again'),
             ),
           ],
@@ -343,7 +345,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
       return Center(
         child: Text(
           'Nothing here yet',
-          style: context.theme.typography.body.md,
+          style: context.text.bodyLarge,
         ),
       );
     }
@@ -365,7 +367,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
                       padding: const EdgeInsets.only(bottom: 8),
                       child: Text(
                         letter,
-                        style: context.theme.typography.display.xl,
+                        style: context.text.titleLarge,
                       ),
                     ),
                   ),
@@ -385,7 +387,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
               const SliverToBoxAdapter(
                 child: Padding(
                   padding: EdgeInsets.symmetric(vertical: 24),
-                  child: Center(child: FCircularProgress()),
+                  child: Center(child: CircularProgressIndicator()),
                 ),
               ),
             const SliverToBoxAdapter(child: SizedBox(height: 16)),
@@ -429,10 +431,9 @@ class _LetterRail extends StatelessWidget {
         child: Column(
           children: [
             // Shows the view you'll switch *to*: a tall rectangle for posters, a wide one for thumbnails.
-            FButton.icon(
-              variant: .ghost,
-              onPress: onToggleView,
-              child: view == LibraryView.poster
+            IconButton(
+              onPressed: onToggleView,
+              icon: view == LibraryView.poster
                   ? const AspectIcon(width: 18, height: 10) // 16:9 → thumbnails
                   : const AspectIcon(width: 11, height: 16), // 2:3 → posters
             ),
@@ -475,8 +476,8 @@ class _LetterButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = context.theme;
-    return FTappable(
+    final theme = Theme.of(context);
+    return Tappable(
       onPress: onPress,
       semanticsLabel: 'Jump to $letter',
       builder: (context, states, _) {
@@ -487,18 +488,18 @@ class _LetterButton extends StatelessWidget {
           height: height,
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: highlighted ? theme.colors.secondary : null,
+            color: highlighted ? theme.colorScheme.secondaryContainer : null,
             borderRadius: BorderRadius.circular(6),
           ),
           child: Text(
             letter,
-            style: theme.typography.body.xs.copyWith(
+            style: theme.textTheme.bodySmall?.copyWith(
               fontWeight: FontWeight.w600,
               color: onPress == null
-                  ? theme.colors.mutedForeground.withValues(alpha: 0.5)
+                  ? theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5)
                   : highlighted
-                  ? theme.colors.foreground
-                  : theme.colors.mutedForeground,
+                  ? theme.colorScheme.onSurface
+                  : theme.colorScheme.onSurfaceVariant,
             ),
           ),
         );

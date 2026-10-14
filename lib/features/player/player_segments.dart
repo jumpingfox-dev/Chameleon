@@ -167,12 +167,12 @@ class _ScrubPreview extends StatelessWidget {
                                 chapter!,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: context.theme.typography.body.xs
-                                    .copyWith(color: _dimWhite),
+                                style: context.text.bodySmall
+                                    ?.copyWith(color: _dimWhite),
                               ),
                             Text(
                               formatDuration(position),
-                              style: context.theme.typography.body.sm.copyWith(
+                              style: context.text.bodyMedium?.copyWith(
                                 color: _white,
                                 fontWeight: FontWeight.w600,
                               ),
@@ -358,7 +358,7 @@ class _RatingIntro extends StatelessWidget {
                   width: 4,
                   height: 52,
                   decoration: BoxDecoration(
-                    color: _ratingColor(rating) ?? context.theme.colors.primary,
+                    color: _ratingColor(rating) ?? context.colors.primary,
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -368,14 +368,14 @@ class _RatingIntro extends StatelessWidget {
                   children: [
                     Text(
                       'RATED',
-                      style: context.theme.typography.body.xs.copyWith(
+                      style: context.text.bodySmall?.copyWith(
                         color: _dimWhite,
                         letterSpacing: 2,
                       ),
                     ),
                     Text(
                       rating,
-                      style: context.theme.typography.display.xl2.copyWith(
+                      style: context.text.headlineSmall?.copyWith(
                         color: _white,
                         fontWeight: FontWeight.w700,
                       ),
@@ -613,7 +613,7 @@ class _UpNextCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final typography = context.theme.typography;
+    final typography = context.text;
     final imageWidth = compact ? 104.0 : 140.0;
 
     return TweenAnimationBuilder<double>(
@@ -664,14 +664,14 @@ class _UpNextCard extends StatelessWidget {
                       Text(
                         stillWatching ? 'Are you still watching?' : 'UP NEXT · $countdown',
                         style: stillWatching
-                            ? typography.body.md.copyWith(color: _white, fontWeight: FontWeight.w600)
-                            : typography.body.xs.copyWith(color: _dimWhite, letterSpacing: 1.5),
+                            ? typography.bodyLarge?.copyWith(color: _white, fontWeight: FontWeight.w600)
+                            : typography.bodySmall?.copyWith(color: _dimWhite, letterSpacing: 1.5),
                       ),
                       Text(
                         next.title,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        style: typography.body.sm.copyWith(color: _white, fontWeight: FontWeight.w600),
+                        style: typography.bodyMedium?.copyWith(color: _white, fontWeight: FontWeight.w600),
                       ),
                     ],
                   ),
@@ -683,18 +683,17 @@ class _UpNextCard extends StatelessWidget {
                 spacing: 8,
                 children: [
                   Expanded(
-                    child: FButton(
+                    child: FilledButton(
                       focusNode: playNode,
-                      size: .sm,
-                      onPress: onPlay,
+                      onPressed: onPlay,
+                      style: const ButtonStyle(visualDensity: VisualDensity.compact),
                       child: Text(stillWatching ? 'Continue watching' : 'Play now'),
                     ),
                   ),
                   Expanded(
-                    child: FButton(
-                      variant: .outline,
-                      size: .sm,
-                      onPress: onCancel,
+                    child: OutlinedButton(
+                      onPressed: onCancel,
+                      style: const ButtonStyle(visualDensity: VisualDensity.compact),
                       child: Text(stillWatching ? 'Stop' : 'Cancel'),
                     ),
                   ),
@@ -730,7 +729,7 @@ class _Notice extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           child: Text(
             text!,
-            style: context.theme.typography.body.sm.copyWith(color: _white, fontWeight: FontWeight.w500),
+            style: context.text.bodyMedium?.copyWith(color: _white, fontWeight: FontWeight.w500),
           ),
         ),
       ),

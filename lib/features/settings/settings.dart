@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:dart_jellyfin/dart_jellyfin.dart';
-import 'package:forui/forui.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -9,7 +8,6 @@ import 'package:visibility_detector/visibility_detector.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../theme/app_icons.dart';
-import '../../theme/tappable_states.dart';
 import '../../theme/font_controller.dart';
 import '../../core/format/item_format.dart';
 import '../../theme/theme_controller.dart';
@@ -28,13 +26,11 @@ import '../../core/format/format.dart';
 import '../../core/storage/app_cache.dart';
 import '../../core/storage/storage.dart';
 import 'switch_setting.dart';
+import '../../theme/theme.dart';
+import '../../widgets/tappable.dart';
 
 part 'sync_play_settings.dart';
 
-/// Phone dropdowns draw their list in the app's top-level layer. The page's own layer is
-/// clipped at the bottom nav bar, which cut lists off; the top-level one isn't. Together with
-/// the shell telling pages where the nav bar starts, lists flip upwards when there's no room.
-const _dropdownLayer = OverlayChildLocation.rootOverlay;
 
 /// One entry per settings tab. Add a line here to add a tab.
 typedef _SettingsTab = ({String label, Widget Function() build});
@@ -82,9 +78,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   @override
-  Widget build(BuildContext context) => FScaffold(
+  Widget build(BuildContext context) => Scaffold(
     // With the remote, keeps headings and the end of the page in view (see FocusReveal).
-    child: FocusReveal(
+    body: Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      child: FocusReveal(
       controller: _scroll,
       child: ListView(
         controller: _scroll,
@@ -98,13 +96,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 spacing: 8,
                 children: [
                   for (var i = 0; i < _tabs.length; i++)
-                    FButton(
-                      variant: i == _index ? .primary : .outline,
-                      size: .sm,
-                      mainAxisSize: .min,
+                    ChoiceChip(
+                      label: Text(_tabs[i].label),
+                      selected: i == _index,
                       // Through the address, so the sidebar shows the same page as selected.
-                      onPress: () => context.go('${GoRouterState.of(context).uri.path}?tab=${_tabs[i].label}'),
-                      child: Text(_tabs[i].label),
+                      onSelected: (_) => context.go('${GoRouterState.of(context).uri.path}?tab=${_tabs[i].label}'),
                     ),
                 ],
               ),
@@ -114,6 +110,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _tabs[_index].build(),
         ],
       ),
+    ),
     ),
   );
 }
@@ -125,16 +122,14 @@ class _SettingsCard extends StatelessWidget {
   final List<Widget> children;
 
   @override
-  Widget build(BuildContext context) => FCard(
-    builder: (context, style, _) => Padding(
-      padding: style.padding,
+  Widget build(BuildContext context) => Card(child: Padding(
+      padding: const EdgeInsets.all(16),
       child: Column(
         mainAxisSize: .min,
         crossAxisAlignment: .stretch,
         children: children,
       ),
-    ),
-  );
+    ));
 }
 
 class _FontPreview extends StatefulWidget {
@@ -180,14 +175,14 @@ class _FontPreviewState extends State<_FontPreview> {
           ? Text(
         widget.font,
         key: const ValueKey('placeholder'),
-        style: TextStyle(color: context.theme.colors.mutedForeground),
+        style: TextStyle(color: context.colors.onSurfaceVariant),
       )
           : Text(widget.font, key: const ValueKey('loaded'), style: _style),
     ),
   );
 }
 
-/// A font selector FSelect reusable widget
+/// A font setting: a field that opens a searchable list of Google Fonts.
 class _FontSelect extends StatelessWidget {
   const _FontSelect({
     required this.label,
@@ -201,29 +196,7 @@ class _FontSelect extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Phones: a compact dropdown (touch only). Elsewhere: a field that opens a remote-friendly list.
-    if (isPhoneLayout(context)) {
-      return FSelect<String>.searchBuilder(
-        label: Text(label),
-        contentOverlayLocation: _dropdownLayer,
-        format: (font) => font,
-        filter: searchFonts,
-        searchFieldProperties: const FSelectSearchFieldProperties(
-          hint: 'Search Google Fonts',
-        ),
-        contentBuilder: (context, _, fonts) => [
-          for (final font in fonts)
-                .item(title: _FontPreview(font), value: font),
-        ],
-        control: FSelectControl.lifted(
-          value: value,
-          onChange: (font) {
-            if (font != null) onChange(font);
-          },
-        ),
-      );
-    }
-
+    // Every font Google has is too many for a dropdown, so even phones get the searchable list.
     return ChoiceField(
       label: label,
       value: value,
@@ -357,8 +330,8 @@ class _AccountCardState extends State<_AccountCard> {
     listenable: Listenable.merge([jellyfin, _settings]),
     builder: (context, _) {
       final s = _settings;
-      final muted = context.theme.typography.body.sm.copyWith(
-        color: context.theme.colors.mutedForeground,
+      final muted = context.text.bodyMedium?.copyWith(
+        color: context.colors.onSurfaceVariant,
       );
 
       return _SettingsCard(
@@ -369,28 +342,22 @@ class _AccountCardState extends State<_AccountCard> {
           Text(
             jellyfin.userName ?? 'Not signed in',
             textAlign: TextAlign.center,
-            style: context.theme.typography.display.lg,
+            style: context.text.titleLarge,
           ),
           if (jellyfin.lastServer != null) ...[
             const SizedBox(height: 4),
             Text(jellyfin.lastServer!, textAlign: TextAlign.center, style: muted),
           ],
           const SizedBox(height: 8),
-          const FDivider(),
+          const Divider(height: 32),
 
           // ── Switch user / sign out ──
           for (final action in profileActions(context)) ...[
-            FButton(
-              variant: .outline,
-              mainAxisAlignment: .start,
-              onPress: action.onPress,
-              child: Row(
-                spacing: 12,
-                children: [
-                  Icon(action.icon, size: 20, fill: 1),
-                  Text(action.label),
-                ],
-              ),
+            OutlinedButton.icon(
+              style: const ButtonStyle(alignment: AlignmentDirectional.centerStart),
+              onPressed: action.onPress,
+              icon: Icon(action.icon, size: 20, fill: 1),
+              label: Text(action.label),
             ),
             const SizedBox(height: 8),
           ],
@@ -404,11 +371,11 @@ class _AccountCardState extends State<_AccountCard> {
           if (s.loading)
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 16),
-              child: Center(child: FCircularProgress()),
+              child: Center(child: CircularProgressIndicator()),
             )
           else ...[
             if (s.error != null) ...[
-              Text(s.error!, style: muted.copyWith(color: context.theme.colors.error)),
+              Text(s.error!, style: muted?.copyWith(color: context.colors.error)),
               const SizedBox(height: 8),
             ],
             _PickerSetting<Language>(
@@ -454,14 +421,16 @@ class _AccountCardState extends State<_AccountCard> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 spacing: 8,
                 children: [
-                  FTextField(
-                    control: .managed(controller: _code),
-                    hint: 'Code, e.g. 123456',
+                  TextField(
+                    controller: _code,
                     keyboardType: TextInputType.number,
-                    onSubmit: (_) => _authorize(),
+                    onSubmitted: (_) => _authorize(),
+                    decoration: InputDecoration(
+                      hintText: 'Code, e.g. 123456',
+                    ),
                   ),
-                  FButton(
-                    onPress: _authorize,
+                  FilledButton(
+                    onPressed: _authorize,
                     child: const Text('Sign in'),
                   ),
                 ],
@@ -470,8 +439,8 @@ class _AccountCardState extends State<_AccountCard> {
                 const SizedBox(height: 6),
                 Text(
                   _codeResult!,
-                  style: muted.copyWith(
-                    color: _codeOk ? context.theme.colors.primary : context.theme.colors.error,
+                  style: muted?.copyWith(
+                    color: _codeOk ? context.colors.primary : context.colors.error,
                   ),
                 ),
               ],
@@ -494,18 +463,18 @@ class _SectionTitle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = context.theme;
+    final theme = Theme.of(context);
     return Padding(
       padding: EdgeInsets.only(top: first ? 0 : 28, bottom: 12),
       child: Column(
         crossAxisAlignment: .start,
         spacing: 2,
         children: [
-          Text(text, style: theme.typography.display.md.copyWith(fontWeight: FontWeight.w600)),
+          Text(text, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600)),
           if (description != null)
             Text(
               description!,
-              style: theme.typography.body.sm.copyWith(color: theme.colors.mutedForeground),
+              style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant),
             ),
         ],
       ),
@@ -548,29 +517,20 @@ class _PickerSetting<T> extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (isPhoneLayout(context)) {
-      final control = FSelectControl<T>.lifted(
-        value: value,
-        onChange: (v) {
+      return DropdownMenu<T>(
+        label: label == null ? null : Text(label!),
+        initialSelection: value,
+        expandedInsets: EdgeInsets.zero, // as wide as the card
+        // Typing filters long lists; short ones open without the keyboard.
+        enableFilter: searchable,
+        requestFocusOnTap: searchable,
+        onSelected: (v) {
           if (v != null) onChange(v);
         },
-      );
-      if (searchable) {
-        return FSelect<T>.searchBuilder(
-          label: label == null ? null : Text(label!),
-          contentOverlayLocation: _dropdownLayer,
-          format: format,
-          filter: _filter,
-          contentBuilder: (context, _, items) => [
-            for (final item in items) .item(title: _item(context, item), value: item),
-          ],
-          control: control,
-        );
-      }
-      return FSelect<T>(
-        label: label == null ? null : Text(label!),
-        contentOverlayLocation: _dropdownLayer,
-        items: {for (final o in options) format(o): o},
-        control: control,
+        dropdownMenuEntries: [
+          for (final o in options)
+            DropdownMenuEntry(value: o, label: format(o), labelWidget: itemBuilder?.call(context, o)),
+        ],
       );
     }
     return ChoiceField(
@@ -748,7 +708,7 @@ class _PlaybackCard extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: c.color,
                     shape: BoxShape.circle,
-                    border: Border.all(color: context.theme.colors.border),
+                    border: Border.all(color: context.colors.outlineVariant),
                   ),
                 ),
                 Text(c.label),
@@ -922,7 +882,7 @@ class _AboutCardState extends State<_AboutCard> {
       ),
 
       const SizedBox(height: 8),
-      const FDivider(),
+      const Divider(height: 32),
 
       // ── App ──
       const _SectionTitle('App', first: true),
@@ -945,10 +905,8 @@ class _AboutCardState extends State<_AboutCard> {
             _InfoRow(label: 'Saved pages', value: snap.hasData ? formatBytes(snap.data!) : '…'),
       ),
       const SizedBox(height: 4),
-      FButton(
-        variant: .outline,
-        mainAxisSize: .min,
-        onPress: _clearCache,
+      OutlinedButton(
+        onPressed: _clearCache,
         child: const Text('Clear saved pages'),
       ),
 
@@ -974,10 +932,8 @@ class _AboutCardState extends State<_AboutCard> {
       const _SectionTitle('Licenses', description: 'The open-source packages this app is built on.'),
       FutureBuilder(
         future: _app,
-        builder: (context, snap) => FButton(
-          variant: .outline,
-          mainAxisSize: .min,
-          onPress: () => showLicensePage(
+        builder: (context, snap) => OutlinedButton(
+          onPressed: () => showLicensePage(
             context: context,
             applicationName: 'Chameleon',
             applicationVersion: snap.data?.version,
@@ -989,10 +945,10 @@ class _AboutCardState extends State<_AboutCard> {
       // ── Credits ──
       const _SectionTitle('Credits'),
       Text(
-        'Built with Flutter and forui. Plays media with media_kit.\n'
+        'Built with Flutter and Material 3. Plays media with media_kit.\n'
             'Icons: Material Symbols, Phosphor, Lucide, Cupertino and Fluent UI.\n'
             'Fonts from Google Fonts. Not affiliated with the Jellyfin project.',
-        style: context.theme.typography.body.sm.copyWith(color: context.theme.colors.mutedForeground),
+        style: context.text.bodyMedium?.copyWith(color: context.colors.onSurfaceVariant),
       ),
     ],
   );
@@ -1016,7 +972,7 @@ class _InfoRow extends StatelessWidget {
             value,
             textAlign: TextAlign.end,
             overflow: TextOverflow.ellipsis,
-            style: TextStyle(color: context.theme.colors.mutedForeground),
+            style: TextStyle(color: context.colors.onSurfaceVariant),
           ),
         ),
       ],

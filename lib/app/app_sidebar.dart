@@ -34,7 +34,6 @@ class _Sidebar extends StatelessWidget {
       final settingsTab = tab ?? settingsTabLabels.first;
       final editing = homeEditing.value;
 
-
       // Opens a page and closes the sidebar, moving into the page, even if you were already
       // somewhere in the same section (another settings page, say).
       void goTo(String path) {
@@ -45,23 +44,21 @@ class _Sidebar extends StatelessWidget {
       return AnimatedContainer(
         duration: const Duration(milliseconds: 180),
         curve: Curves.easeOutCubic,
+        // See-through: open, the shell darkens the page behind it with a gradient instead.
         width: inset + (open ? _openWidth : _railWidth),
-        // A shadow while open, since it's covering the page.
-        decoration: BoxDecoration(
-          boxShadow: [
-            if (open) const BoxShadow(color: Color(0x59000000), blurRadius: 24),
-          ],
-        ),
         // Only once it's fully open is there room for the Libraries and Settings pages
         // (indented, with an arrow). Showing them while it's still widening overflows.
         child: LayoutBuilder(
           builder: (context, constraints) {
             final roomy = open && constraints.maxWidth >= inset + _openWidth - 0.5;
-            return FSidebar(
+            return _SidebarFrame(
               header: Padding(
-                padding: EdgeInsets.fromLTRB(inset + _sidePadding, 4, _sidePadding, 4),
+                // Room above so the logo lines up with the top of the page's first section
+                // (see HomeScreen), and below to set it apart from the links. On the left, the
+                // room that centers the mark in the rail, where it stays as the sidebar opens.
+                padding: EdgeInsets.fromLTRB(inset + _SidebarLogo.railInset, 16, _sidePadding, 12),
                 child: Align(
-                  alignment: Alignment.center,
+                  alignment: Alignment.centerLeft,
                   child: _SidebarLogo(open: open, focusNode: nodeFor('Home'), onPress: () => goTo('/home')),
                 ),
               ),
@@ -74,108 +71,111 @@ class _Sidebar extends StatelessWidget {
                   padding: EdgeInsets.only(left: inset),
                   child: Column(
                     children: [
-                      FSidebarGroup(
-                        style: const .delta(padding: .value(EdgeInsets.symmetric(horizontal: _sidePadding))),
-                        children: [
-                          _SidebarSearch(
-                            open: open,
-                            focusNode: nodeFor('Search'),
-                            selected: loc.startsWith('/search'),
-                            onSearched: onLeave,
-                          ),
-                          _SidebarLink(
-                            label: 'Favorites',
-                            icon: appIcons.favorite,
-                            focusNode: nodeFor('Favorites'),
-                            open: open,
-                            selected: loc == '/home/favorites',
-                            onPress: () => goTo('/home/favorites'),
-                          ),
-                          // Libraries, Genres and Settings fold up under one icon each. While the
-                          // sidebar is closed only those icons show; open it and they list their pages.
-                          _SidebarSection(
-                            label: 'Libraries',
-                            icon: appIcons.folder,
-                            focusNode: nodeFor('Libraries'),
-                            open: open,
-                            closings: closings,
-                            forceOpen: forceOpen['Libraries'] ?? 0,
-                            active: loc.startsWith('/home/library'),
-                            showPages: roomy,
-                            children: [
-                              for (final lib in jellyfin.libraries)
-                                _SidebarLink(
-                                  label: lib.name,
-                                  focusNode: nodeFor('Libraries/${lib.id}'),
-                                  open: open,
-                                  selected: loc == '/home/library/${lib.id}',
-                                  onPress: () => goTo('/home/library/${lib.id}'),
-                                ),
-                            ],
-                          ),
-                          // Genres: its own section between Libraries and Settings, listing each genre.
-                          if (jellyfin.genres.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: _sidePadding),
+                        child: Column(
+                          spacing: 2,
+                          children: [
+                            _SidebarSearch(
+                              open: open,
+                              focusNode: nodeFor('Search'),
+                              selected: loc.startsWith('/search'),
+                              onSearched: onLeave,
+                            ),
+                            _SidebarLink(
+                              label: 'Favorites',
+                              icon: appIcons.favorite,
+                              focusNode: nodeFor('Favorites'),
+                              open: open,
+                              selected: loc == '/home/favorites',
+                              onPress: () => goTo('/home/favorites'),
+                            ),
+                            // Libraries, Genres and Settings fold up under one icon each. While the
+                            // sidebar is closed only those icons show; open it and they list their pages.
                             _SidebarSection(
-                              label: 'Genres',
-                              icon: appIcons.genres,
-                              focusNode: nodeFor('Genres'),
+                              label: 'Libraries',
+                              icon: appIcons.folder,
+                              focusNode: nodeFor('Libraries'),
                               open: open,
                               closings: closings,
-                              forceOpen: forceOpen['Genres'] ?? 0,
-                              active: loc.startsWith('/home/genre'),
+                              forceOpen: forceOpen['Libraries'] ?? 0,
+                              active: loc.startsWith('/home/library'),
                               showPages: roomy,
                               children: [
-                                _SidebarLink(
-                                  label: 'All genres',
-                                  focusNode: nodeFor('Genres/All'),
-                                  open: open,
-                                  selected: loc == '/home/genres',
-                                  onPress: () => goTo('/home/genres'),
-                                ),
-                                for (final genre in jellyfin.genres)
+                                for (final lib in jellyfin.libraries)
                                   _SidebarLink(
-                                    label: genre,
-                                    focusNode: nodeFor('Genres/${Uri.encodeComponent(genre)}'),
+                                    label: lib.name,
+                                    focusNode: nodeFor('Libraries/${lib.id}'),
                                     open: open,
-                                    selected: loc == '/home/genre/${Uri.encodeComponent(genre)}',
-                                    onPress: () => goTo('/home/genre/${Uri.encodeComponent(genre)}'),
+                                    selected: loc == '/home/library/${lib.id}',
+                                    onPress: () => goTo('/home/library/${lib.id}'),
                                   ),
                               ],
                             ),
-                          _SidebarSection(
-                            label: 'Settings',
-                            icon: appIcons.settings,
-                            focusNode: nodeFor('Settings'),
-                            open: open,
-                            closings: closings,
-                            forceOpen: forceOpen['Settings'] ?? 0,
-                            active: onSettings,
-                            showPages: roomy,
-                            children: [
-                              for (final label in settingsTabLabels)
-                                _SidebarLink(
-                                  label: label,
-                                  focusNode: nodeFor('Settings/$label'),
-                                  open: open,
-                                  selected: onSettings && settingsTab == label,
-                                  onPress: () => goTo('/settings?tab=$label'),
-                                ),
-                            ],
-                          ),
-                          // Edit mode for the home screen (phones have a button on Home instead).
-                          _SidebarLink(
-                            label: editing ? 'Done editing' : 'Edit home',
-                            icon: editing ? appIcons.check : appIcons.edit,
-                            focusNode: nodeFor('Edit'),
-                            open: open,
-                            selected: editing,
-                            onPress: () {
-                              homeEditing.value = !editing;
-                              if (loc != '/home') context.go('/home');
-                              onLeave(); // onto the home screen, to edit it
-                            },
-                          ),
-                        ],
+                            // Genres: its own section between Libraries and Settings, listing each genre.
+                            if (jellyfin.genres.isNotEmpty)
+                              _SidebarSection(
+                                label: 'Genres',
+                                icon: appIcons.genres,
+                                focusNode: nodeFor('Genres'),
+                                open: open,
+                                closings: closings,
+                                forceOpen: forceOpen['Genres'] ?? 0,
+                                active: loc.startsWith('/home/genre'),
+                                showPages: roomy,
+                                children: [
+                                  _SidebarLink(
+                                    label: 'All genres',
+                                    focusNode: nodeFor('Genres/All'),
+                                    open: open,
+                                    selected: loc == '/home/genres',
+                                    onPress: () => goTo('/home/genres'),
+                                  ),
+                                  for (final genre in jellyfin.genres)
+                                    _SidebarLink(
+                                      label: genre,
+                                      focusNode: nodeFor('Genres/${Uri.encodeComponent(genre)}'),
+                                      open: open,
+                                      selected: loc == '/home/genre/${Uri.encodeComponent(genre)}',
+                                      onPress: () => goTo('/home/genre/${Uri.encodeComponent(genre)}'),
+                                    ),
+                                ],
+                              ),
+                            _SidebarSection(
+                              label: 'Settings',
+                              icon: appIcons.settings,
+                              focusNode: nodeFor('Settings'),
+                              open: open,
+                              closings: closings,
+                              forceOpen: forceOpen['Settings'] ?? 0,
+                              active: onSettings,
+                              showPages: roomy,
+                              children: [
+                                for (final label in settingsTabLabels)
+                                  _SidebarLink(
+                                    label: label,
+                                    focusNode: nodeFor('Settings/$label'),
+                                    open: open,
+                                    selected: onSettings && settingsTab == label,
+                                    onPress: () => goTo('/settings?tab=$label'),
+                                  ),
+                              ],
+                            ),
+                            // Edit mode for the home screen (phones have a button on Home instead).
+                            _SidebarLink(
+                              label: editing ? 'Done editing' : 'Edit home',
+                              icon: editing ? appIcons.check : appIcons.edit,
+                              focusNode: nodeFor('Edit'),
+                              open: open,
+                              selected: editing,
+                              onPress: () {
+                                homeEditing.value = !editing;
+                                if (loc != '/home') context.go('/home');
+                                onLeave(); // onto the home screen, to edit it
+                              },
+                            ),
+                          ],
+                        ),
                       ),
                     ],
                   ),
@@ -198,7 +198,11 @@ class _SidebarLogo extends StatelessWidget {
   final VoidCallback onPress; // home
   final FocusNode? focusNode;
 
-  static const _height = 28.0;
+  static const _height = 34.0;
+  static const _padding = 8.0; // around the picture, filled in while focused
+
+  /// The room left of the logo that centers the mark in the closed rail.
+  static const railInset = (_railWidth - _markWidth - 2 * _padding) / 2;
 
   // From the SVGs' sizes: the mark is 89 × 101, the whole wordmark 553 × 101.
   static const _markWidth = _height * 89.02 / 101.24;
@@ -206,21 +210,20 @@ class _SidebarLogo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.theme.colors;
+    final colors = context.colors;
     return Semantics(
       label: 'Home',
       button: true,
-      // .static: no shrink when pressed.
-      child: FTappable.static(
+      child: Tappable(
         focusNode: focusNode,
         onPress: onPress,
         builder: (context, states, child) {
           final highlighted = isHighlighted(states);
           return AnimatedContainer(
             duration: const Duration(milliseconds: 120),
-            padding: const EdgeInsets.all(8),
+            padding: const EdgeInsets.all(_padding),
             decoration: BoxDecoration(
-              color: highlighted ? colors.secondary : null, // only to show the remote is on it
+              color: highlighted ? _highlight(colors) : null, // only to show the remote is on it
               borderRadius: BorderRadius.circular(10),
             ),
             child: child,
@@ -278,10 +281,10 @@ class _SidebarSection extends StatelessWidget {
   final List<Widget> children;
 
   @override
-  Widget build(BuildContext context) => FSidebarItem(
+  Widget build(BuildContext context) => _SidebarItem(
     // A fresh item after each time the sidebar closes, so anything you unfolded folds back
-    // up, and each time ← needs this section open and it wasn't already. forui only reads
-    // initiallyExpanded once, in its own initState, so forcing it open means rebuilding it.
+    // up, and each time ← needs this section open and it wasn't already. An item only reads
+    // initiallyExpanded when it's first built, so forcing it open means rebuilding it.
     key: ValueKey((label, closings, forceOpen)),
     focusNode: focusNode,
     label: switch (icon) {
@@ -293,9 +296,6 @@ class _SidebarSection extends StatelessWidget {
     initiallyExpanded: active || forceOpen > 0,
     // Only lit up while closed: once open, the page itself shows as selected.
     selected: active && !open,
-    // forui only gives an item an onPress of its own when it has children, and an item
-    // without one is disabled, so it can't take focus. While the sidebar is still closed
-    // there are no children yet, so ← from a page couldn't land here.
     onPress: () {},
     // No pages until the sidebar is fully open, so the rail stays a single icon (and the
     // arrow hides).
@@ -309,12 +309,7 @@ class _SidebarSection extends StatelessWidget {
 /// It only becomes a box when selected, not just when the remote passes over it, so the
 /// on-screen keyboard doesn't pop up every time you move down the sidebar.
 class _SidebarSearch extends StatefulWidget {
-  const _SidebarSearch({
-    required this.open,
-    required this.selected,
-    required this.onSearched,
-    this.focusNode,
-  });
+  const _SidebarSearch({required this.open, required this.selected, required this.onSearched, this.focusNode});
 
   final bool open;
   final FocusNode? focusNode;
@@ -381,16 +376,12 @@ class _SidebarSearchState extends State<_SidebarSearch> {
         onPress: widget.open ? _start : () => context.go('/search'),
       );
     }
-    return FTextField(
-      control: .managed(controller: _text),
+    return TextField(
+      controller: _text,
       focusNode: _field,
-      hint: 'Search',
       textInputAction: TextInputAction.search,
-      prefixBuilder: (context, style, _) => Padding(
-        padding: const EdgeInsetsDirectional.only(start: 10),
-        child: Icon(appIcons.search, size: 18, fill: 1),
-      ),
-      onSubmit: _submit,
+      decoration: InputDecoration(hintText: 'Search', prefixIcon: Icon(appIcons.search, size: 18, fill: 1)),
+      onSubmitted: _submit,
     );
   }
 }
@@ -414,7 +405,7 @@ class _SidebarLink extends StatelessWidget {
   final VoidCallback onPress;
 
   @override
-  Widget build(BuildContext context) => FSidebarItem(
+  Widget build(BuildContext context) => _SidebarItem(
     focusNode: focusNode,
     label: switch (icon) {
       final icon? => _IconLabel(icon: icon, label: label, open: open),
@@ -425,9 +416,9 @@ class _SidebarLink extends StatelessWidget {
   );
 }
 
-/// A sidebar item's icon and label. Laid out here rather than by [FSidebarItem] so the icon
-/// can sit in the middle of the closed rail (like the logo and the user picture), then slide
-/// over to the left as the sidebar opens and the label fades in beside it.
+/// A sidebar item's icon and label, laid out so the icon
+/// can sit in the middle of the closed rail (like the logo and the user picture), and stay
+/// there as the sidebar opens and the label fades in beside it.
 class _IconLabel extends StatelessWidget {
   const _IconLabel({required this.icon, required this.label, required this.open});
 
@@ -435,29 +426,21 @@ class _IconLabel extends StatelessWidget {
   final String label;
   final bool open;
 
-  static const _iconSize = 20.0;
+  static const _iconSize = 24.0;
   static const _gap = 8.0; // between the icon and the label, while open
   static const _duration = Duration(milliseconds: 180); // the same as the sidebar opening
 
   @override
   Widget build(BuildContext context) {
-    final theme = context.theme;
-    // The room an item's content has in the closed rail, after the group's and the item's
-    // own padding (which is wider on touch screens), so the icon can be centered in it.
-    final itemPadding = theme.sidebarStyle.groupStyle.itemStyle.padding.horizontal;
-    final closedRoom = _railWidth - 2 * _sidePadding - itemPadding;
+    // The room an item's content has in the closed rail, after the list's and the item's
+    // own padding, so the icon can be centered in it.
+    final closedRoom = _railWidth - 2 * _sidePadding - _SidebarItem.padding.horizontal;
     final centered = ((closedRoom - _iconSize) / 2).clamp(0.0, double.infinity);
 
     return Row(
       children: [
-        AnimatedContainer(duration: _duration, curve: Curves.easeOutCubic, width: open ? 0 : centered),
-        Icon(
-          icon,
-          size: _iconSize,
-          fill: 1,
-          color: theme.colors.foreground,
-          semanticLabel: open ? null : label,
-        ),
+        SizedBox(width: centered),
+        Icon(icon, size: _iconSize, fill: 1, semanticLabel: open ? null : label),
         AnimatedContainer(duration: _duration, curve: Curves.easeOutCubic, width: open ? _gap : 0),
         Expanded(child: _FadingLabel(label, open: open)),
       ],
@@ -494,15 +477,16 @@ class _SidebarUser extends StatelessWidget {
   static const _ringGap = 3.0; // between the picture and its ring
   static const _ringed = _avatarSize + 2 * _ringGap;
 
-  /// While closed, the side padding inside the card that puts the picture in the middle.
+  /// The side padding inside the card that puts the picture in the middle of the closed rail.
+  /// Kept on the left as the sidebar opens, so the picture stays put.
   static const _closedInner = (_railWidth - 2 * _sidePadding - _ringed) / 2;
 
   @override
   Widget build(BuildContext context) {
-    final theme = context.theme;
+    final colors = context.colors;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: _sidePadding), // lines up with the list
-      child: FTappable.static(
+      child: Tappable(
         onPress: () => showProfilePicker(context), // "Who's watching?"
         // Focused (remote) or hovered (mouse): the card fills in, like the other sidebar items.
         builder: (context, states, child) {
@@ -515,7 +499,7 @@ class _SidebarUser extends StatelessWidget {
                 child: AnimatedOpacity(
                   duration: _duration,
                   opacity: open ? 1 : 0,
-                  child: const FCard(child: SizedBox.expand()),
+                  child: const Card(child: SizedBox.expand()),
                 ),
               ),
               Positioned.fill(
@@ -524,8 +508,8 @@ class _SidebarUser extends StatelessWidget {
                   opacity: highlighted ? 1 : 0,
                   child: DecoratedBox(
                     decoration: ShapeDecoration(
-                      color: theme.colors.secondary,
-                      shape: RoundedSuperellipseBorder(borderRadius: theme.style.borderRadius.lg),
+                      color: _highlight(colors),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                     ),
                   ),
                 ),
@@ -534,17 +518,17 @@ class _SidebarUser extends StatelessWidget {
             ],
           );
         },
-        child:             AnimatedPadding(
+        child: AnimatedPadding(
           duration: _duration,
           curve: Curves.easeOutCubic,
-          padding: EdgeInsets.symmetric(vertical: 12, horizontal: open ? 12 : _closedInner),
+          padding: EdgeInsets.fromLTRB(_closedInner, 12, open ? 12 : _closedInner, 12),
           child: Row(
             children: [
               // A faint ring around the picture.
               DecoratedBox(
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  border: Border.all(color: theme.colors.primary.withValues(alpha: 0.35), width: 1.5),
+                  border: Border.all(color: colors.primary.withValues(alpha: 0.35), width: 1.5),
                 ),
                 child: const Padding(
                   padding: EdgeInsets.all(_ringGap),
@@ -557,16 +541,155 @@ class _SidebarUser extends StatelessWidget {
                 child: _FadingLabel(
                   jellyfin.userName ?? 'Switch user',
                   open: open,
-                  style: theme.typography.body.sm.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: theme.colors.foreground,
-                  ),
+                  style: context.text.labelLarge?.copyWith(fontWeight: FontWeight.bold),
                 ),
               ),
             ],
           ),
         ),
       ),
+    );
+  }
+}
+
+/// The fill behind whatever the remote or mouse is on.
+Color _highlight(ColorScheme colors) => colors.onSurface.withValues(alpha: 0.10);
+
+/// The sidebar's surface: [header] at the top, [footer] at the bottom, and [children]
+/// scrolling between them.
+class _SidebarFrame extends StatelessWidget {
+  const _SidebarFrame({required this.header, required this.footer, required this.children});
+
+  final Widget header;
+  final Widget footer;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    // See-through, with no edge: the page shows behind the rail, and the shell darkens it with
+    // a gradient while the sidebar is open (see AppShell).
+    return Material(
+      type: MaterialType.transparency,
+      child: SafeArea(
+        right: false,
+        child: Column(
+          children: [
+            Padding(padding: const EdgeInsets.only(top: 8), child: header),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Column(children: children),
+              ),
+            ),
+            Padding(padding: const EdgeInsets.only(bottom: 8), child: footer),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// One sidebar entry, drawn like a Material navigation drawer's: a pill that fills in when
+/// it's the page you're on. With [children] it's a section, and selecting it folds them
+/// away or back out.
+class _SidebarItem extends StatefulWidget {
+  const _SidebarItem({
+    super.key,
+    required this.label,
+    required this.onPress,
+    this.focusNode,
+    this.selected = false,
+    this.initiallyExpanded = false,
+    this.children = const [],
+  });
+
+  final Widget label;
+  final VoidCallback onPress;
+  final FocusNode? focusNode;
+  final bool selected;
+  final bool initiallyExpanded; // only read when it's first built
+  final List<Widget> children;
+
+  static const padding = EdgeInsets.symmetric(horizontal: 8, vertical: 12);
+
+  @override
+  State<_SidebarItem> createState() => _SidebarItemState();
+}
+
+class _SidebarItemState extends State<_SidebarItem> {
+  late bool _expanded = widget.initiallyExpanded;
+
+  void _press() {
+    if (widget.children.isNotEmpty) setState(() => _expanded = !_expanded);
+    widget.onPress();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final hasChildren = widget.children.isNotEmpty;
+    final item = Tappable(
+      focusNode: widget.focusNode,
+      onPress: _press,
+      builder: (context, states, child) {
+        final highlighted = isHighlighted(states);
+        return AnimatedContainer(
+          duration: const Duration(milliseconds: 120),
+          padding: _SidebarItem.padding,
+          decoration: ShapeDecoration(
+            color: switch ((widget.selected, highlighted)) {
+              (true, _) => colors.secondaryContainer,
+              (false, true) => _highlight(colors),
+              _ => Colors.transparent,
+            },
+            shape: StadiumBorder(
+              // Already filled in as the page you're on, so the remote shows as a ring.
+              side: widget.selected && highlighted
+                  ? BorderSide(color: colors.onSecondaryContainer, width: 2)
+                  : BorderSide.none,
+            ),
+          ),
+          child: child,
+        );
+      },
+      child: DefaultTextStyle.merge(
+        style: context.text.labelLarge?.copyWith(
+          color: widget.selected ? colors.onSecondaryContainer : colors.onSurfaceVariant,
+        ),
+        child: IconTheme.merge(
+          data: IconThemeData(color: widget.selected ? colors.onSecondaryContainer : colors.onSurfaceVariant),
+          child: Row(
+            children: [
+              Expanded(child: widget.label),
+              if (hasChildren)
+                AnimatedRotation(
+                  duration: const Duration(milliseconds: 150),
+                  turns: _expanded ? 0 : -0.25, // points right while folded, down while open
+                  child: Icon(appIcons.expand, size: 18),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (!hasChildren) return item;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      spacing: 2,
+      children: [
+        item,
+        AnimatedSize(
+          duration: const Duration(milliseconds: 150),
+          curve: Curves.easeOutCubic,
+          alignment: Alignment.topCenter,
+          child: _expanded
+              ? Padding(
+                  padding: const EdgeInsets.only(left: 20, top: 2),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, spacing: 2, children: widget.children),
+                )
+              : const SizedBox(width: double.infinity),
+        ),
+      ],
     );
   }
 }

@@ -7,7 +7,6 @@ import 'dart:math' as math;
 
 import 'package:dart_jellyfin/dart_jellyfin.dart';
 import 'package:flutter/services.dart';
-import 'package:forui/forui.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:media_kit/media_kit.dart';
@@ -15,13 +14,13 @@ import 'package:media_kit_video/media_kit_video.dart';
 import 'package:sensors_plus/sensors_plus.dart';
 import 'package:http/http.dart' as http;
 
-import '../../theme/tappable_states.dart';
 import '../../core/storage/app_cache.dart';
 import '../../core/cast/cast_controller.dart';
 import '../../core/focus/focus_rows.dart';
 import '../../core/format/format.dart';
 import '../../core/format/item_format.dart';
 import '../../core/jellyfin/jellyfin_controller.dart';
+import '../../core/platform/media_support.dart';
 import '../../core/platform/orientation.dart';
 import '../../core/jellyfin/playback_reporter.dart';
 import 'playback_settings.dart';
@@ -29,6 +28,8 @@ import '../../core/cast/sync_play_controller.dart';
 import 'cast_widgets.dart';
 import '../settings/choice_picker.dart';
 import '../home/home_modules.dart';
+import '../../theme/theme.dart';
+import '../../widgets/tappable.dart';
 
 part 'player_controls.dart';
 part 'player_segments.dart';
@@ -65,8 +66,14 @@ class _PlayerScreenState extends State<PlayerScreen> {
   /// The item playing. Starts as the one opened, and changes when the next episode plays.
   late String _itemId = widget.itemId;
 
-  final _player = Player();
-  late final _video = VideoController(_player);
+  final _player = Player(
+    // Twice media_kit's default read-ahead, so high-bitrate files (4K remuxes) don't run dry.
+    configuration: const PlayerConfiguration(bufferSize: 64 * 1024 * 1024),
+  );
+
+  /// Made when the first video opens, since how it draws depends on the file (see
+  /// [_videoConfiguration]). Null until then.
+  VideoController? _video;
   final _videoKey = GlobalKey<VideoState>();
   final _focus = FocusNode();
   final _subscriptions = <StreamSubscription<Object?>>[];
@@ -250,8 +257,11 @@ class _PlayerScreenState extends State<PlayerScreen> {
     if (mpv == null) return;
     final s = playbackSettings;
     try {
-      // Passthrough: hand Dolby and DTS to the receiver as they are, undecoded.
-      await mpv.setProperty('audio-spdif', s.passthrough ? 'ac3,eac3,dts,dts-hd,truehd' : '');
+      // Passthrough: hand Dolby and DTS to the receiver as they are, undecoded. Only the formats
+      // the TV or receiver says it takes: anything else (often TrueHD) mpv decodes itself,
+      // instead of sending something the output can't play, which leaves it silent and stuck.
+      final formats = s.passthrough ? await MediaSupport.passthroughFormats() : const <String>{};
+      await mpv.setProperty('audio-spdif', formats.join(','));
       await mpv.setProperty('audio-channels', s.passthrough ? 'auto' : (s.downmix ? 'stereo' : 'auto-safe'));
       // Night mode: a gentle compressor that lowers loud peaks and lifts quiet parts.
       await mpv.setProperty(
@@ -339,38 +349,34 @@ class _PlayerScreenState extends State<PlayerScreen> {
       _inGroup ? Future.value(null) : _fetchNextIn(item, widget.queue);
 
   /// "Resume from 12:34" or "Start from the beginning". Null if dismissed with Back.
-  Future<bool?> _askResume(JellyfinItem item, Duration at) => showFDialog<bool>(
-    context: context,
-    builder: (context, style, animation) => FDialog(
-      animation: animation,
-      builder: (context, _) => Padding(
+  Future<bool?> _askResume(JellyfinItem item, Duration at) => showDialog<bool>(
+context: context,
+builder: (context) => Dialog(child: Padding(
         padding: const EdgeInsets.all(24),
         child: Column(
           mainAxisSize: .min,
           crossAxisAlignment: .stretch,
           spacing: 10,
           children: [
-            Text('Pick up where you left off?', style: context.theme.typography.display.lg),
+            Text('Pick up where you left off?', style: context.text.titleLarge),
             Text(
               item.name,
-              style: context.theme.typography.body.sm.copyWith(color: context.theme.colors.mutedForeground),
+              style: context.text.bodyMedium?.copyWith(color: context.colors.onSurfaceVariant),
             ),
             const SizedBox(height: 4),
-            FButton(
+            FilledButton(
               autofocus: true,
-              onPress: () => Navigator.of(context).pop(true),
+              onPressed: () => Navigator.of(context).pop(true),
               child: Text('Resume from ${formatDuration(at)}'),
             ),
-            FButton(
-              variant: .outline,
-              onPress: () => Navigator.of(context).pop(false),
+            OutlinedButton(
+              onPressed: () => Navigator.of(context).pop(false),
               child: const Text('Start from the beginning'),
             ),
           ],
         ),
-      ),
-    ),
-  );
+      )),
+);
 
   /// Plays [item] on this device from [start]: the file as it is, or converted by the server
   /// when it's over the quality limit (or Settings says to always convert).
@@ -383,6 +389,11 @@ class _PlayerScreenState extends State<PlayerScreen> {
     final transcode = await _planTranscode(item);
     if (!mounted) return;
     _transcode = transcode;
+    if (_video == null) {
+      final configuration = await _videoConfiguration(item, transcode);
+      if (!mounted) return;
+      setState(() => _video = VideoController(_player, configuration: configuration));
+    }
 
     // Open directly at the start position, so there's no seek afterwards.
     // In a group, it waits paused until everyone has loaded; the group then starts it.
@@ -406,6 +417,27 @@ class _PlayerScreenState extends State<PlayerScreen> {
     if (mounted) setState(() => _segments = loaded);
 
     _startReporter(client, item);
+  }
+
+  /// How video gets to the screen. On Android, fastest is the hardware decoder drawing
+  /// straight to the screen (mpv's mediacodec_embed): without it, every frame is copied out of
+  /// the decoder and drawn again, which is too slow for 4K HEVC on a TV. It only works for
+  /// formats the decoder handles (nothing falls back to software that way), so any other file
+  /// keeps mpv's usual route. Decided by the first video; the next episode is almost always the
+  /// same format.
+  Future<VideoControllerConfiguration> _videoConfiguration(JellyfinItem item, _Transcode? transcode) async {
+    final video = _streamsOf(item, 'Video', external: false).firstOrNull;
+    final codec = video?['Codec'] as String?;
+    final bitDepth = video?['BitDepth'] as int?;
+    // Converting turns anything but H.264 into 8-bit H.264 (H.264 itself is copied as it is).
+    final name = transcode != null && MediaSupport.decoderName(codec, bitDepth)?.startsWith('avc') != true
+        ? 'avc'
+        : MediaSupport.decoderName(codec, bitDepth);
+    final decoders = await MediaSupport.hardwareDecoders();
+    if (name != null && decoders.contains(name)) {
+      return const VideoControllerConfiguration(vo: 'mediacodec_embed', hwdec: 'mediacodec');
+    }
+    return const VideoControllerConfiguration();
   }
 
   // ── Converting (transcoding) ──
@@ -1538,9 +1570,11 @@ class _PlayerScreenState extends State<PlayerScreen> {
                 GestureDetector(
                   behavior: HitTestBehavior.opaque,
                   onTapUp: (details) => _onVideoTapUp(details, compact: compact),
-                  child: Video(
+                  child: _video == null
+                      ? const SizedBox.expand()
+                      : Video(
                     key: _videoKey,
-                    controller: _video,
+                    controller: _video!,
                     controls: NoVideoControls,
                     fit: _fit,
                     fill: _black,
@@ -1580,7 +1614,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                   stream: _player.stream.buffering,
                   builder: (context, snapshot) =>
                   (snapshot.data ?? true) && _error == null
-                      ? const Center(child: FCircularProgress())
+                      ? const Center(child: CircularProgressIndicator())
                       : const SizedBox.shrink(),
                 ),
 
@@ -1722,20 +1756,19 @@ class _PlayerScreenState extends State<PlayerScreen> {
                           ),
                           Text(
                             "Couldn't play this",
-                            style: context.theme.typography.display.lg.copyWith(
+                            style: context.text.titleLarge?.copyWith(
                               color: _white,
                             ),
                           ),
                           Text(
                             _error!,
                             textAlign: TextAlign.center,
-                            style: context.theme.typography.body.sm.copyWith(
+                            style: context.text.bodyMedium?.copyWith(
                               color: const Color(0xB3FFFFFF),
                             ),
                           ),
-                          FButton(
-                            mainAxisSize: .min,
-                            onPress: () => context.pop(),
+                          FilledButton(
+                            onPressed: () => context.pop(),
                             child: const Text('Go back'),
                           ),
                         ],

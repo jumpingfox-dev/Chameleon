@@ -1,9 +1,9 @@
-import 'package:forui/forui.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../../theme/app_icons.dart';
-import '../../theme/tappable_states.dart';
 import '../../core/focus/scroll_into_view.dart';
+import '../../theme/theme.dart';
+import '../../widgets/tappable.dart';
 
 /// Text that's cut off after [limit] characters, with a "Read more" link to show the rest.
 /// Expanded text can be read with a keyboard or remote (see [KeyboardReadable]).
@@ -71,19 +71,19 @@ class _ExpandableTextState extends State<ExpandableText> {
               WidgetSpan(
                 alignment: PlaceholderAlignment.baseline,
                 baseline: TextBaseline.alphabetic,
-                child: FTappable(
+                child: Tappable(
                   focusNode: _linkFocus,
                   onPress: _toggle,
                   builder: (context, states, _) {
                     final active = isHighlighted(states);
-                    final color = context.theme.colors.primary;
+                    final color = context.colors.primary;
                     return Row(
                       mainAxisSize: MainAxisSize.min,
                       spacing: 4,
                       children: [
                         Text(
                           _expanded ? 'Show less' : 'Read more',
-                          style: context.theme.typography.body.sm.copyWith(
+                          style: context.text.bodyMedium?.copyWith(
                             color: color,
                             fontWeight: FontWeight.w600,
                             decoration: active

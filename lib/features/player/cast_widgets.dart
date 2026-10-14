@@ -4,24 +4,21 @@ import 'package:dart_jellyfin/dart_jellyfin.dart' show JellyfinItem;
 import 'package:flutter/foundation.dart';
 import 'package:flutter_chrome_cast/flutter_chrome_cast.dart' show CastMediaPlayerState;
 import 'package:flutter_to_airplay/flutter_to_airplay.dart';
-import 'package:forui/forui.dart';
 import 'package:material_ui/material_ui.dart';
 
-import '../../theme/tappable_states.dart';
 import '../../core/cast/cast_controller.dart';
 import '../../core/format/format.dart';
 import '../../core/jellyfin/jellyfin_controller.dart';
 import 'playback_settings.dart';
+import '../../theme/theme.dart';
+import '../../widgets/tappable.dart';
 
 // ─── Choosing a Chromecast ───────────────────────────────────────────────────
 
 /// Not casting: lists the Chromecasts on the network. Casting: offers to stop.
-Future<void> showCastPicker(BuildContext context) => showFDialog<void>(
-  context: context,
-  builder: (context, style, animation) => FDialog(
-    animation: animation,
-    builder: (context, _) => const _CastPickerBody(),
-  ),
+Future<void> showCastPicker(BuildContext context) => showDialog<void>(
+context: context,
+builder: (context) => Dialog(child: const _CastPickerBody()),
 );
 
 class _CastPickerBody extends StatelessWidget {
@@ -29,8 +26,8 @@ class _CastPickerBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = context.theme;
-    final muted = theme.typography.body.sm.copyWith(color: theme.colors.mutedForeground);
+    final theme = Theme.of(context);
+    final muted = theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant);
 
     return ListenableBuilder(
       listenable: castController,
@@ -42,41 +39,38 @@ class _CastPickerBody extends StatelessWidget {
           spacing: 10,
           children: [
             if (castController.isConnected) ...[
-              Text('Casting to ${castController.deviceName ?? 'a Chromecast'}', style: theme.typography.display.lg),
+              Text('Casting to ${castController.deviceName ?? 'a Chromecast'}', style: theme.textTheme.titleLarge),
               if (castController.nowPlaying != null) Text(castController.nowPlaying!.title, style: muted),
               const SizedBox(height: 4),
-              FButton(
+              FilledButton(
                 autofocus: true,
-                onPress: () {
+                onPressed: () {
                   castController.disconnect();
                   Navigator.of(context).pop();
                 },
                 child: const Text('Stop casting'),
               ),
             ] else ...[
-              Text('Cast to', style: theme.typography.display.lg),
+              Text('Cast to', style: theme.textTheme.titleLarge),
               if (castController.devices.isEmpty)
                 Text('Looking for Chromecasts on your network…', style: muted)
               else
                 for (final (i, device) in castController.devices.indexed)
-                  FButton(
-                    variant: .outline,
-                    mainAxisAlignment: .start,
+                  ListTile(
                     autofocus: i == 0,
-                    onPress: () {
+                    shape: const StadiumBorder(),
+                    leading: const Icon(Icons.cast_rounded, size: 20),
+                    title: Text(device.friendlyName, overflow: TextOverflow.ellipsis),
+                    onTap: () {
                       castController.connect(device);
                       Navigator.of(context).pop();
                     },
-                    child: Row(
-                      spacing: 12,
-                      children: [
-                        const Icon(Icons.cast_rounded, size: 20),
-                        Flexible(child: Text(device.friendlyName, overflow: TextOverflow.ellipsis)),
-                      ],
-                    ),
                   ),
             ],
-            FButton(variant: .outline, onPress: () => Navigator.of(context).pop(), child: const Text('Cancel')),
+            OutlinedButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancel'),
+            ),
           ],
         ),
       ),
@@ -115,7 +109,7 @@ class AirPlayButton extends StatelessWidget {
         height: size,
         prioritizesVideoDevices: true,
         tintColor: const Color(0xFFFFFFFF),
-        activeTintColor: context.theme.colors.primary,
+        activeTintColor: context.colors.primary,
         backgroundColor: const Color(0x00000000),
       ),
     );
@@ -142,7 +136,7 @@ class CastRemote extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = context.theme;
+    final theme = Theme.of(context);
     const white = Color(0xFFFFFFFF);
     const dim = Color(0xB3FFFFFF);
     final base = jellyfin.client?.baseUrl;
@@ -198,7 +192,7 @@ class CastRemote extends StatelessWidget {
                     Text(
                       'Casting to ${castController.deviceName ?? 'Chromecast'}',
                       textAlign: TextAlign.center,
-                      style: theme.typography.body.sm.copyWith(color: dim),
+                      style: theme.textTheme.bodyMedium?.copyWith(color: dim),
                     ),
                     const SizedBox(height: 4),
                     Text(
@@ -206,7 +200,7 @@ class CastRemote extends StatelessWidget {
                       textAlign: TextAlign.center,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: theme.typography.display.xl.copyWith(color: white),
+                      style: theme.textTheme.titleLarge?.copyWith(color: white),
                     ),
                     const Spacer(),
                     StreamBuilder<Duration>(
@@ -233,7 +227,7 @@ class CastRemote extends StatelessWidget {
                           ),
                         ),
                         buffering
-                            ? const SizedBox(width: 64, height: 64, child: Center(child: FCircularProgress()))
+                            ? const SizedBox(width: 64, height: 64, child: Center(child: CircularProgressIndicator()))
                             : _RemoteButton(
                           icon: castController.isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
                           label: castController.isPlaying ? 'Pause' : 'Play',
@@ -287,7 +281,7 @@ class _RemoteButton extends StatelessWidget {
   Widget build(BuildContext context) => Semantics(
     button: true,
     label: label,
-    child: FTappable(
+    child: Tappable(
       onPress: onPress,
       builder: (context, states, _) => AnimatedContainer(
         duration: const Duration(milliseconds: 120),
@@ -322,7 +316,7 @@ class _RemoteSeekBarState extends State<_RemoteSeekBar> {
     final fraction = _dragging ?? (total <= 0 ? 0.0 : (widget.position.inMilliseconds / total).clamp(0.0, 1.0));
     final shown = _dragging == null ? widget.position : widget.duration * fraction;
     const dim = Color(0xB3FFFFFF);
-    final timeStyle = context.theme.typography.body.sm.copyWith(color: dim);
+    final timeStyle = context.text.bodyMedium?.copyWith(color: dim);
 
     return Column(
       mainAxisSize: .min,
@@ -330,7 +324,7 @@ class _RemoteSeekBarState extends State<_RemoteSeekBar> {
         SliderTheme(
           data: SliderTheme.of(context).copyWith(
             trackHeight: 4,
-            activeTrackColor: context.theme.colors.primary,
+            activeTrackColor: context.colors.primary,
             inactiveTrackColor: const Color(0x4DFFFFFF),
             thumbColor: const Color(0xFFFFFFFF),
             overlayShape: SliderComponentShape.noOverlay,

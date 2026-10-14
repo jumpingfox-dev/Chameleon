@@ -1,12 +1,10 @@
 import 'dart:math' as math;
 
 import 'package:dart_jellyfin/dart_jellyfin.dart';
-import 'package:forui/forui.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../../theme/app_icons.dart';
-import '../../theme/tappable_states.dart';
 import '../../core/storage/app_cache.dart';
 import '../../core/focus/focus_rows.dart';
 import '../../core/format/format.dart';
@@ -18,6 +16,8 @@ import '../../widgets/hover_lift.dart';
 import 'person_tile.dart';
 import '../library/poster_card.dart';
 import '../../core/focus/scroll_into_view.dart';
+import '../../theme/theme.dart';
+import '../../widgets/tappable.dart';
 
 part 'detail_blocks.dart';
 part 'detail_cards.dart';
@@ -157,7 +157,7 @@ Future<void> showDetailPopout(
   // The tab's navigator covers only the area between the nav bars, so the popout does too.
   // Read everything needed from `context` now: if it belongs to a popout, it's about to close.
   final navigator = Navigator.of(context);
-  final barrierColor = context.theme.colors.barrier;
+  final barrierColor = context.colors.scrim;
 
   navigator.popUntil((route) => route is! PopupRoute); // close any open popouts
 
@@ -334,7 +334,7 @@ class PersonLayout extends DetailLayout {
         footer: [
           if (data.children.isNotEmpty) ...[
             const _CardDivider(),
-            Text('Movies & Shows', style: context.theme.typography.display.lg),
+            Text('Movies & Shows', style: context.text.titleLarge),
             _InlineItemGrid(data.children),
           ],
         ],
@@ -539,7 +539,7 @@ class _DetailPageState extends State<DetailPage> {
 
     final Widget body;
     if (_loading) {
-      body = const Center(child: FCircularProgress());
+      body = const Center(child: CircularProgressIndicator());
     } else if (_error != null || _data == null) {
       body = Center(
         child: Column(
@@ -547,9 +547,8 @@ class _DetailPageState extends State<DetailPage> {
           spacing: 12,
           children: [
             Text(_error ?? 'Nothing to show'),
-            FButton(
-              mainAxisSize: .min,
-              onPress: _load,
+            FilledButton(
+              onPressed: _load,
               child: const Text('Try again'),
             ),
           ],
@@ -586,8 +585,10 @@ class _DetailPageState extends State<DetailPage> {
     // Layouts with a floating back button use it in every state (loading, error and loaded),
     // so the button never changes style or position.
     if (widget.layout.floatingBackButton) {
-      return FScaffold(
-        child: Stack(
+      return Scaffold(
+        body: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Stack(
           children: [
             body,
             Positioned(
@@ -602,15 +603,21 @@ class _DetailPageState extends State<DetailPage> {
             ),
           ],
         ),
+        ),
       );
     }
 
-    final back = [FHeaderAction.back(onPress: () => context.pop())];
     final title = _data == null ? null : widget.layout.headerTitle(_data!);
-    final header = title == null
-        ? FHeader.nested(prefixes: back)
-        : FHeader.nested(title: Text(title), prefixes: back);
 
-    return FScaffold(header: header, child: body);
+    return Scaffold(
+      appBar: AppBar(
+        leading: BackButton(onPressed: () => context.pop()),
+        title: title == null ? null : Text(title),
+      ),
+      body: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        child: body,
+      ),
+    );
   }
 }

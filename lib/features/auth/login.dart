@@ -1,12 +1,12 @@
 import 'package:dart_jellyfin/dart_jellyfin.dart';
 import 'package:flutter/services.dart';
-import 'package:forui/forui.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../../core/jellyfin/jellyfin_controller.dart';
 import 'quick_connect_dialog.dart';
 import '../../widgets/app_logo.dart';
+import '../../theme/theme.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -64,8 +64,10 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   @override
-  Widget build(BuildContext context) => FScaffold(
-    child: SafeArea(
+  Widget build(BuildContext context) => Scaffold(
+    body: Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      child: SafeArea(
       child: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(16),
@@ -81,9 +83,8 @@ class _LoginScreenState extends State<LoginScreen> {
                   variant: AppLogoVariant.auto,
                 ),
                 const SizedBox(height: 24),
-                FCard(
-                  builder: (context, style, _) => Padding(
-                    padding: style.padding,
+                Card(child: Padding(
+                    padding: const EdgeInsets.all(16),
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -91,58 +92,66 @@ class _LoginScreenState extends State<LoginScreen> {
                       children: [
                         Text(
                           jellyfin.isConnected ? 'Add an Account' : 'Connect to Server',
-                          style: style.titleTextStyle,
+                          style: context.text.titleMedium,
                         ),
                         Text(
                           jellyfin.isConnected
                               ? 'Sign in another user. Everyone stays saved on this device.'
                               : 'Enter your server address and account.',
-                          style: style.subtitleTextStyle,
+                          style: context.text.bodyMedium?.copyWith(color: context.colors.onSurfaceVariant),
                         ),
                         Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           spacing: 8,
                           children: [
                             Expanded(
-                              child: FTextField(
-                                control: .managed(controller: _host),
-                                label: const Text('Host'),
-                                hint: '192.168.1.100',
+                              child: TextField(
+                                controller: _host,
                                 enabled: !_busy,
+                                decoration: InputDecoration(
+                                  label: const Text('Host'),
+                                  hintText: '192.168.1.100',
+                                ),
                               ),
                             ),
                             SizedBox(
                               width: 100,
-                              child: FTextField(
-                                control: .managed(controller: _port),
-                                label: const Text('Port'),
-                                hint: '8096',
+                              child: TextField(
+                                controller: _port,
+                                enabled: !_busy,
                                 keyboardType: TextInputType.number,
                                 inputFormatters: [
                                   FilteringTextInputFormatter.digitsOnly,
                                 ],
-                                enabled: !_busy,
+                                decoration: InputDecoration(
+                                  label: const Text('Port'),
+                                  hintText: '8096',
+                                ),
                               ),
                             ),
                           ],
                         ),
-                        FTextField(
-                          control: .managed(controller: _username),
-                          label: const Text('Username'),
+                        TextField(
+                          controller: _username,
                           enabled: !_busy,
+                          decoration: InputDecoration(
+                            label: const Text('Username'),
+                          ),
                         ),
-                        FTextField.password(
-                          control: .managed(controller: _password),
-                          label: const Text('Password'),
+                        TextField(
+                          controller: _password,
                           enabled: !_busy,
+                          obscureText: true,
+                          decoration: InputDecoration(
+                            label: const Text('Password'),
+                          ),
                         ),
-                        FButton(
-                          onPress: _busy ? null : _signIn,
+                        FilledButton(
+                          onPressed: _busy ? null : _signIn,
                           child: Text(_busy ? 'Connecting…' : 'Sign in'),
                         ),
-                        FButton(
-                          variant: .outline,
-                          onPress: _busy
+                        OutlinedButton(
+                          onPressed: _busy
                               ? null
                               : () async {
                             final signedIn = await showQuickConnect(
@@ -154,20 +163,19 @@ class _LoginScreenState extends State<LoginScreen> {
                           child: const Text('Use Quick Connect'),
                         ),
                         if (_canGoBack)
-                          FButton(
-                            variant: .outline,
-                            onPress: _busy ? null : _goBack,
+                          OutlinedButton(
+                            onPressed: _busy ? null : _goBack,
                             child: Text(jellyfin.isConnected ? 'Cancel' : "Back"),
                           ),
                       ],
                     ),
-                  ),
-                ),
+                  )),
               ],
             ),
           ),
         ),
       ),
+    ),
     ),
   );
 }
@@ -178,7 +186,7 @@ Future<void> _showSignInError(BuildContext context, String message) =>
       context: context,
       barrierDismissible: true,
       barrierLabel: 'Close',
-      barrierColor: context.theme.colors.barrier,
+      barrierColor: context.colors.scrim,
       transitionDuration: const Duration(milliseconds: 150),
       transitionBuilder: (context, animation, _, child) =>
           FadeTransition(opacity: animation, child: child),
@@ -187,9 +195,8 @@ Future<void> _showSignInError(BuildContext context, String message) =>
           constraints: const BoxConstraints(maxWidth: 400),
           child: Padding(
             padding: const EdgeInsets.all(16),
-            child: FCard(
-              builder: (context, style, _) => Padding(
-                padding: style.padding,
+            child: Card(child: Padding(
+                padding: const EdgeInsets.all(16),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -197,29 +204,26 @@ Future<void> _showSignInError(BuildContext context, String message) =>
                   children: [
                     Text(
                       "Couldn't sign in",
-                      style: context.theme.typography.display.lg,
+                      style: context.text.titleLarge,
                     ),
                     Text(
                       message,
-                      style: context.theme.typography.body.md.copyWith(
-                        color: context.theme.colors.mutedForeground,
+                      style: context.text.bodyLarge?.copyWith(
+                        color: context.colors.onSurfaceVariant,
                       ),
                     ),
                     const SizedBox(height: 8),
                     Align(
                       alignment: Alignment.centerRight,
-                      child: FButton(
-                        autofocus:
-                        true, // Select or Enter closes it straight away
-                        mainAxisSize: .min,
-                        onPress: () => Navigator.of(context).pop(),
+                      child: FilledButton(
+                        autofocus: true, // Select or Enter closes it straight away
+                        onPressed: () => Navigator.of(context).pop(),
                         child: const Text('OK'),
                       ),
                     ),
                   ],
                 ),
-              ),
-            ),
+              )),
           ),
         ),
       ),

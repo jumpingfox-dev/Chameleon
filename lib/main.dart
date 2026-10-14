@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:material_ui/material_ui.dart';
-import 'package:forui/forui.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:media_kit/media_kit.dart';
 
@@ -81,21 +80,9 @@ class Application extends StatelessWidget {
       return MaterialApp.router(
         debugShowCheckedModeBanner: false,
         scrollBehavior: const MaterialScrollBehavior().copyWith(scrollbars: false),
-        supportedLocales: const [
-          Locale('en', 'US'),
-          ...FLocalizations.supportedLocales,
-        ],
-        localizationsDelegates: GlobalMaterialLocalizations.delegates,
-        theme: theme.toApproximateMaterialTheme(),
+        theme: theme,
         builder: (context, child) => TextFieldArrowEscape(
-          child: RowFocusNavigation(
-            child: UiScaler(
-              child: FTheme(
-                data: theme,
-                child: FToaster(child: FTooltipGroup(child: child!)),
-              ),
-            ),
-          ),
+          child: RowFocusNavigation(child: UiScaler(child: child!)),
         ),
         routerConfig: appRouter,
       );

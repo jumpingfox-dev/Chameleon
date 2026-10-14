@@ -1,5 +1,4 @@
 import 'package:dart_jellyfin/dart_jellyfin.dart';
-import 'package:forui/forui.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../../theme/app_icons.dart';
@@ -7,6 +6,7 @@ import '../../core/storage/app_cache.dart';
 import '../../core/jellyfin/jellyfin_controller.dart';
 import '../detail/detail_page.dart';
 import 'poster_card.dart';
+import '../../theme/theme.dart';
 
 /// Everything you've favorited, in two sections: Movies and Shows.
 class FavoritesScreen extends StatefulWidget {
@@ -85,17 +85,20 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
   }
 
   @override
-  Widget build(BuildContext context) => FScaffold(
-    child: ListenableBuilder(
+  Widget build(BuildContext context) => Scaffold(
+    body: Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      child: ListenableBuilder(
       listenable: libraryViewOverride, // follow the poster/thumbnail choice
       builder: (context, _) => _buildBody(context),
+    ),
     ),
   );
 
   Widget _buildBody(BuildContext context) {
-    final colors = context.theme.colors;
+    final colors = context.colors;
 
-    if (_loading) return const Center(child: FCircularProgress());
+    if (_loading) return const Center(child: CircularProgressIndicator());
     if (_error != null) {
       return Center(
         child: Column(
@@ -103,9 +106,8 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
           spacing: 12,
           children: [
             Text(_error!),
-            FButton(
-              mainAxisSize: .min,
-              onPress: _load,
+            FilledButton(
+              onPressed: _load,
               child: const Text('Try again'),
             ),
           ],
@@ -118,15 +120,15 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
           mainAxisSize: MainAxisSize.min,
           spacing: 8,
           children: [
-            Icon(appIcons.favorite, size: 40, color: colors.mutedForeground, fill: 1),
+            Icon(appIcons.favorite, size: 40, color: colors.onSurfaceVariant, fill: 1),
             Text(
               'No favorites yet',
-              style: context.theme.typography.display.lg,
+              style: context.text.titleLarge,
             ),
             Text(
               'Select Favorite on any movie or show to add it here.',
-              style: context.theme.typography.body.sm.copyWith(
-                color: colors.mutedForeground,
+              style: context.text.bodyMedium?.copyWith(
+                color: colors.onSurfaceVariant,
               ),
             ),
           ],

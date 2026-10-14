@@ -30,13 +30,13 @@ class SliverDetailCard extends StatelessWidget {
       Text(
         title,
         textAlign: isPhone ? TextAlign.center : TextAlign.start,
-        style: context.theme.typography.display.xl,
+        style: context.text.titleLarge,
       ),
       if (subtitle != null)
         Text(
           subtitle!,
-          style: context.theme.typography.body.sm.copyWith(
-            color: context.theme.colors.mutedForeground,
+          style: context.text.bodyMedium?.copyWith(
+            color: context.colors.onSurfaceVariant,
           ),
         ),
       if (text != null && text.isNotEmpty) ...[
@@ -44,7 +44,7 @@ class SliverDetailCard extends StatelessWidget {
         ExpandableText(
           text,
           limit: isPhone ? 150 : 400,
-          style: context.theme.typography.body.md,
+          style: context.text.bodyLarge,
         ),
       ],
     ];
@@ -99,7 +99,7 @@ class DetailPoster extends StatelessWidget {
       child: ClipRRect(
         borderRadius: BorderRadius.circular(8),
         child: tag == null
-            ? ColoredBox(color: context.theme.colors.muted)
+            ? ColoredBox(color: context.colors.surfaceContainerHighest)
             : Image.network(
           jellyfin.client!.images.url(
             itemId: item.id,
@@ -123,18 +123,18 @@ class _RatingBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.theme.colors;
+    final colors = context.colors;
     return DecoratedBox(
       decoration: BoxDecoration(
-        border: Border.all(color: colors.mutedForeground),
+        border: Border.all(color: colors.onSurfaceVariant),
         borderRadius: BorderRadius.circular(4),
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
         child: Text(
           rating,
-          style: context.theme.typography.body.sm.copyWith(
-            color: colors.mutedForeground,
+          style: context.text.bodyMedium?.copyWith(
+            color: colors.onSurfaceVariant,
           ),
         ),
       ),
@@ -155,17 +155,15 @@ class _GenreButtons extends StatelessWidget {
       runSpacing: 8,
       children: [
         for (final genre in genres)
-          FButton(
-            variant: .outline,
-            size: .xs,
-            mainAxisSize: .min,
-            onPress: () {
+          OutlinedButton(
+            onPressed: () {
               final router = GoRouter.of(
                 context,
               ); // grab it before the popout (and this context) closes
               closeDetailPopouts(context);
               router.push('/home/genre/${Uri.encodeComponent(genre)}');
             },
+            style: const ButtonStyle(visualDensity: VisualDensity.compact),
             child: Text(genre),
           ),
       ],
@@ -178,10 +176,7 @@ class _CardDivider extends StatelessWidget {
   const _CardDivider();
 
   @override
-  Widget build(BuildContext context) => const FDivider(
-    style: .delta(padding: .value(.all(8))),
-    axis: .horizontal,
-  );
+  Widget build(BuildContext context) => const Divider(height: 16, indent: 8, endIndent: 8);
 }
 
 /// A grid of posters or thumbnails inside a card. It doesn't scroll on its own;
@@ -259,9 +254,9 @@ class _DetailCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => _TapShield(
-    child: FCard(
-      builder: (context, style, _) {
-        final padding = style.padding.resolve(Directionality.of(context));
+    child: Card(
+      child: Builder(builder: (context) {
+        const padding = EdgeInsets.all(16);
         return Stack(
           children: [
             if (edgeToEdge)
@@ -275,18 +270,16 @@ class _DetailCard extends StatelessWidget {
               Positioned(
                 top: 8,
                 right: 8,
-                child: FButton.icon(
-                  variant: .ghost,
-                  autofocus:
-                  FocusManager.instance.highlightMode ==
+                child: IconButton(
+                  autofocus: FocusManager.instance.highlightMode ==
                       FocusHighlightMode.traditional,
-                  onPress: () => Navigator.of(context).pop(),
-                  child: Icon(appIcons.close, fill: 1),
+                  onPressed: () => Navigator.of(context).pop(),
+                  icon: Icon(appIcons.close, fill: 1),
                 ),
               ),
           ],
         );
-      },
+      }),
     ),
   );
 }
@@ -359,7 +352,7 @@ class SliverSectionTitle extends StatelessWidget {
   Widget build(BuildContext context) => SliverToBoxAdapter(
     child: Padding(
       padding: const EdgeInsets.only(top: 8, bottom: 12),
-      child: Text(text, style: context.theme.typography.display.lg),
+      child: Text(text, style: context.text.titleLarge),
     ),
   );
 }
@@ -478,7 +471,7 @@ class _FloatingIconButton extends StatelessWidget {
   Widget build(BuildContext context) => Semantics(
     button: true,
     label: label,
-    child: FTappable(
+    child: Tappable(
       autofocus: autofocus,
       onPress: onPress,
       builder: (context, states, _) {

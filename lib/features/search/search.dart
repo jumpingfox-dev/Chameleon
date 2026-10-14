@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:dart_jellyfin/dart_jellyfin.dart';
-import 'package:forui/forui.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../../core/storage/app_cache.dart';
@@ -9,6 +8,8 @@ import '../../core/jellyfin/jellyfin_controller.dart';
 import '../detail/detail_page.dart';
 import '../detail/person_tile.dart';
 import '../library/poster_card.dart';
+import '../../theme/app_icons.dart';
+import '../../theme/theme.dart';
 
 class SearchScreen extends StatefulWidget {
   const SearchScreen({super.key, this.query});
@@ -158,36 +159,46 @@ class _SearchScreenState extends State<SearchScreen> {
   }
 
   @override
-  Widget build(BuildContext context) => FScaffold(
-    child: Column(
+  Widget build(BuildContext context) => Scaffold(
+    body: Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         const SizedBox(height: 24),
-        FTextField(
-          control: .managed(controller: _query),
-          hint: 'Search movies, shows, and actors',
-          autofocus:
-          _routeQuery ==
-              null, // open the keyboard when arriving from the bottom bar
-          clearable: (value) => value.text.isNotEmpty,
+        TextField(
+          controller: _query,
+          autofocus: _routeQuery == null, // open the keyboard when arriving from the bottom bar
           textInputAction: TextInputAction.search,
-          onSubmit: (text) {
+          onSubmitted: (text) {
             _debounce?.cancel();
             _search(text);
           },
+          decoration: InputDecoration(
+            hintText: 'Search movies, shows, and actors',
+            prefixIcon: Icon(appIcons.search, fill: 1),
+            // A clear button while there's something to clear.
+            suffixIcon: ListenableBuilder(
+              listenable: _query,
+              builder: (context, _) => _query.text.isEmpty
+                  ? const SizedBox.shrink()
+                  : IconButton(onPressed: _query.clear, icon: Icon(appIcons.close), tooltip: 'Clear'),
+            ),
+          ),
         ),
         const SizedBox(height: 16),
         Expanded(child: _buildResults(context)),
       ],
     ),
+    ),
   );
 
   Widget _buildResults(BuildContext context) {
-    final muted = context.theme.typography.body.md.copyWith(
-      color: context.theme.colors.mutedForeground,
+    final muted = context.text.bodyLarge?.copyWith(
+      color: context.colors.onSurfaceVariant,
     );
     if (_loading && _results.isEmpty) {
-      return const Center(child: FCircularProgress());
+      return const Center(child: CircularProgressIndicator());
     }
     if (_error != null) return Center(child: Text(_error!));
     if (_query.text.trim().isEmpty) {
@@ -202,7 +213,7 @@ class _SearchScreenState extends State<SearchScreen> {
               padding: const EdgeInsets.only(bottom: 12),
               child: Text(
                 'Suggested For You',
-                style: context.theme.typography.display.lg,
+                style: context.text.titleLarge,
               ),
             ),
           ),
@@ -265,6 +276,6 @@ class _SearchScreenState extends State<SearchScreen> {
 
   Widget _sectionTitle(BuildContext context, String text) => Padding(
     padding: const EdgeInsets.only(top: 8, bottom: 12),
-    child: Text(text, style: context.theme.typography.display.lg),
+    child: Text(text, style: context.text.titleLarge),
   );
 }

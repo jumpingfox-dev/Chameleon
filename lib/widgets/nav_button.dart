@@ -1,4 +1,3 @@
-import 'package:forui/forui.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../theme/app_icons.dart';
@@ -18,7 +17,7 @@ IconData libraryIcon(String? type) => switch (type) {
   _ => appIcons.folder,
 };
 
-/// A nav button: icon + label, ghost style, filled in when selected.
+/// A nav button: icon + label, a text button that turns tonal when selected.
 class NavButton extends StatelessWidget {
   const NavButton({
     super.key,
@@ -34,15 +33,15 @@ class NavButton extends StatelessWidget {
   final VoidCallback onPress;
 
   @override
-  Widget build(BuildContext context) => FButton(
-    variant: selected ? .secondary : .ghost,
-    size: .sm,
-    mainAxisSize: .min,
-    onPress: onPress,
-    child: Row(
+  Widget build(BuildContext context) {
+    const style = ButtonStyle(visualDensity: VisualDensity.compact);
+    final content = Row(
       mainAxisSize: MainAxisSize.min,
       spacing: 6,
       children: [if (icon != null) Icon(icon, size: 16, fill: 1), Text(label)],
-    ),
-  );
+    );
+    return selected
+        ? FilledButton.tonal(onPressed: onPress, style: style, child: content)
+        : TextButton(onPressed: onPress, style: style, child: content);
+  }
 }

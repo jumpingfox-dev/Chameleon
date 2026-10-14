@@ -94,9 +94,9 @@ Entering the sidebar (`_enterSidebar`) lands on the entry for wherever you are �
 or `'Libraries/<id>'`. Each sidebar entry keeps its own permanent `FocusNode`
 (`_navNodes`, via `_navNode(id)`), so focus can always be requested on it directly without
 walking the tree. If the entry's section (Libraries, Genres, Settings) happens to be folded —
-forui only reads `FSidebarItem.initiallyExpanded` once, when it's first built — `_enterSidebar`
+a section only reads `initiallyExpanded` once, when it's first built — `_enterSidebar`
 forces it open by bumping that label's entry in `_forceOpen`, which changes the section's
-`ValueKey` and makes forui rebuild it fresh with the right state. See `app_sidebar.dart`'s
+`ValueKey` so it's rebuilt fresh with the right state. See `app_sidebar.dart`'s
 `_SidebarSection` for the mechanics, and `architecture.md`'s note on `part` files for why the
 sidebar lives in a separate file sharing `app_shell.dart`'s private names.
 
@@ -118,8 +118,8 @@ loaded.
 4. **If you add a new sidebar entry**, give it a name in `_here`'s mapping and a focus node
    via `nodeFor(id)` in `app_sidebar.dart` — see [adding-a-screen.md](adding-a-screen.md).
 5. **Don't rely on hover state for anything that must also work by remote.** Check
-   `states.contains(FTappableVariant.focused)` too (or use the shared `isHighlighted(states)`
-   helper in `theme/tappable_states.dart`, which already checks both).
+   `states.contains(WidgetState.focused)` too (or use the shared `isHighlighted(states)`
+   helper in `widgets/tappable.dart`, which already checks both).
 
 ## Nothing focused yet
 

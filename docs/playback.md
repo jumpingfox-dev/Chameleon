@@ -31,6 +31,24 @@ see [adding-a-setting.md](adding-a-setting.md) for where those are read). Switch
 mid-transcode (`_reopenTranscode`) stops and reopens the stream at the same position; a plain
 audio-track switch during direct play doesn't need that.
 
+## Video decoding and audio passthrough (Android)
+
+What the device can do comes from Android, through the `chameleon/media` channel in
+`MainActivity.kt` (`core/platform/media_support.dart` on the Dart side):
+
+- **Video.** `_videoConfiguration` checks the file's video codec and bit depth against the
+  hardware decoders Android lists. If one fits, mpv uses `vo=mediacodec_embed` with
+  `hwdec=mediacodec`: the decoder draws straight to the screen, which is what keeps 4K HEVC
+  smooth on a TV. Otherwise it keeps media_kit's default (`vo=gpu`), which can fall back to
+  software decoding. Subtitles aren't affected either way: the app draws them itself. The
+  video controller is made when the first video opens, so it can't change for later episodes
+  in the same player.
+- **Passthrough.** With "Surround sound passthrough" on, mpv's `audio-spdif` lists only the
+  formats Android says the current output (HDMI, a soundbar) takes as they are. Anything else,
+  often TrueHD, is decoded by mpv instead of being sent somewhere that can't play it.
+- **Transcoding** never copies TrueHD, which doesn't fit the stream's container. With
+  passthrough on, the server converts surround audio to Dolby Digital Plus.
+
 ## Reporting progress
 
 `PlaybackReporter` (`core/jellyfin/playback_reporter.dart`) is the one thing that tells Jellyfin

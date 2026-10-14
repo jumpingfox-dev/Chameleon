@@ -103,7 +103,7 @@ class _ClockState extends State<_Clock> {
     padding: const EdgeInsets.only(left: 8, right: 4),
     child: Text(
       _formatClock(_now),
-      style: context.theme.typography.display.lg.copyWith(color: _white, fontWeight: FontWeight.w500),
+      style: context.text.titleLarge?.copyWith(color: _white, fontWeight: FontWeight.w500),
     ),
   );
 }
@@ -402,7 +402,7 @@ class _TapSeekIndicator extends StatelessWidget {
                   ),
                   Text(
                     '${seek?.seconds ?? 10} seconds',
-                    style: context.theme.typography.body.sm.copyWith(
+                    style: context.text.bodyMedium?.copyWith(
                       color: _white,
                       fontWeight: FontWeight.w600,
                     ),
@@ -438,7 +438,7 @@ class _ControlButton extends StatelessWidget {
   Widget build(BuildContext context) => Semantics(
     button: true,
     label: label,
-    child: FTappable(
+    child: Tappable(
       focusNode: focusNode,
       onPress: onPress,
       builder: (context, states, _) {
@@ -491,7 +491,7 @@ class _PlayerTitle extends StatelessWidget {
       name,
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
-      style: context.theme.typography.display.xl.copyWith(color: _white),
+      style: context.text.titleLarge?.copyWith(color: _white),
     );
 
     return Column(
@@ -522,7 +522,7 @@ class _PlayerTitle extends StatelessWidget {
             details,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: context.theme.typography.body.sm.copyWith(color: _dimWhite),
+            style: context.text.bodyMedium?.copyWith(color: _dimWhite),
           ),
       ],
     );
@@ -548,7 +548,7 @@ class _TimeRow extends StatelessWidget {
           : Duration.zero;
       final rate = player.state.rate > 0 ? player.state.rate : 1.0;
       final endsAt = DateTime.now().add(remaining * (1 / rate));
-      final style = context.theme.typography.body.sm.copyWith(color: _dimWhite);
+      final style = context.text.bodyMedium?.copyWith(color: _dimWhite);
 
       return Row(
         children: [
@@ -558,10 +558,7 @@ class _TimeRow extends StatelessWidget {
                 : '${formatDuration(position)}  ·  $chapter',
             // While scrubbing, this is where you'll land: bold, in the theme's color.
             style: preview != null
-                ? style.copyWith(
-              color: style.color,
-              fontWeight: FontWeight.w700,
-            )
+                ? style?.copyWith(fontWeight: FontWeight.w700)
                 : style,
           ),
           const Spacer(),
@@ -627,7 +624,7 @@ class _SeekBarState extends State<_SeekBar> {
           : widget.preview;
       final played = fractionOf(preview ?? state.position);
       final buffered = fractionOf(state.buffer);
-      final primary = context.theme.colors.primary;
+      final primary = context.colors.primary;
       // Phones: a thicker bar, a bigger handle and a taller touch area, for thumbs.
       final compact = isPhoneLayout(context);
       final thickness = compact ? 6.0 : 4.0;

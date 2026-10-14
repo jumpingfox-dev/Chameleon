@@ -1,7 +1,4 @@
-import 'package:forui/forui.dart';
 import 'package:material_ui/material_ui.dart';
-
-import '../../theme/tappable_states.dart';
 
 /// An on/off setting. The whole row is one button, so the remote can select and toggle it.
 class SwitchSetting extends StatelessWidget {
@@ -21,53 +18,12 @@ class SwitchSetting extends StatelessWidget {
   final bool enabled;
 
   @override
-  Widget build(BuildContext context) {
-    final theme = context.theme;
-    return Semantics(
-      toggled: value,
-      enabled: enabled,
-      child: FTappable(
-        onPress: enabled ? () => onChange(!value) : null,
-        builder: (context, states, _) {
-          final highlighted = isHighlighted(states);
-          return AnimatedContainer(
-            duration: const Duration(milliseconds: 120),
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-            decoration: BoxDecoration(
-              color: highlighted ? theme.colors.secondary : const Color(0x00000000),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Opacity(
-              opacity: enabled ? 1 : 0.5,
-              child: Row(
-                spacing: 16,
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: .start,
-                      spacing: 2,
-                      children: [
-                        Text(label, style: theme.typography.body.md.copyWith(fontWeight: FontWeight.w500)),
-                        if (description != null)
-                          Text(
-                            description!,
-                            style: theme.typography.body.sm.copyWith(color: theme.colors.mutedForeground),
-                          ),
-                      ],
-                    ),
-                  ),
-                  // The row handles presses and focus; the switch only shows the state.
-                  ExcludeFocus(
-                    child: IgnorePointer(
-                      child: FSwitch(value: value, enabled: enabled, onChange: (_) {}),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
+  Widget build(BuildContext context) => SwitchListTile(
+    title: Text(label),
+    subtitle: description == null ? null : Text(description!),
+    value: value,
+    onChanged: enabled ? onChange : null,
+    contentPadding: const EdgeInsets.symmetric(horizontal: 10),
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+  );
 }

@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart';
-import 'package:forui/forui.dart';
 
 import 'custom_colors.dart';
+import 'palette.dart';
 import 'theme_presets.dart';
 import '../core/storage/storage.dart';
 
@@ -9,13 +9,7 @@ const customThemeId = 'custom';
 const defaultSeed = ThemeSeed(270, 280, 8, 1);
 
 class ThemeController extends ValueNotifier<ThemePreset> {
-  ThemeController._(
-    super.value,
-    this._custom,
-    this._seed,
-    this._customIni,
-    this._advanced,
-  );
+  ThemeController._(super.value, this._custom, this._seed, this._customIni, this._advanced);
 
   static const _key = 'selected_theme';
   static const _seedKey = 'custom_seed';
@@ -34,28 +28,22 @@ class ThemeController extends ValueNotifier<ThemePreset> {
   /// The saved INI, or the current seed written out as INI if none has been saved yet.
   String get customIni => _customIni ?? colorsToIni(generateColors(_seed));
 
-  static FColors _resolve(ThemeSeed seed, String? ini, bool advanced) {
+  static Palette _resolve(ThemeSeed seed, String? ini, bool advanced) {
     final seedColors = generateColors(seed);
     if (!advanced || ini == null) return seedColors;
     return parseColorIni(ini, seedColors).colors ?? seedColors;
   }
 
-  static ThemePreset _preset(FColors colors) =>
-      ThemePreset(id: customThemeId, label: 'Custom', colors: colors);
+  static ThemePreset _preset(Palette colors) => ThemePreset(id: customThemeId, label: 'Custom', colors: colors);
 
   static Future<ThemeController> load() async {
-
-    final seed =
-        ThemeSeed.parse(storage.getString(_seedKey) ?? '') ?? defaultSeed;
+    final seed = ThemeSeed.parse(storage.getString(_seedKey) ?? '') ?? defaultSeed;
     final ini = storage.getString(_iniKey);
     final advanced = storage.getBool(_advancedKey) ?? false;
     final custom = _preset(_resolve(seed, ini, advanced));
 
     final savedId = storage.getString(_key);
-    final selected = [
-      ...themePresets,
-      custom,
-    ].firstWhere((p) => p.id == savedId, orElse: () => themePresets.first);
+    final selected = [...themePresets, custom].firstWhere((p) => p.id == savedId, orElse: () => themePresets.first);
     return ThemeController._(selected, custom, seed, ini, advanced);
   }
 

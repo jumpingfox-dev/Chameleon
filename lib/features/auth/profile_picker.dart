@@ -1,6 +1,5 @@
 import 'package:dart_jellyfin/dart_jellyfin.dart';
 import 'package:flutter/services.dart';
-import 'package:forui/forui.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -9,6 +8,7 @@ import '../../core/format/format.dart';
 import '../../core/jellyfin/jellyfin_controller.dart';
 import '../../widgets/app_logo.dart';
 import 'quick_connect_dialog.dart';
+import '../../theme/theme.dart';
 
 // ─── "Who's watching?" ───────────────────────────────────────────────────────
 //
@@ -21,8 +21,10 @@ class ProfilePickerScreen extends StatelessWidget {
   const ProfilePickerScreen({super.key});
 
   @override
-  Widget build(BuildContext context) => FScaffold(
-    child: SafeArea(
+  Widget build(BuildContext context) => Scaffold(
+    body: Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      child: SafeArea(
       child: ListenableBuilder(
         listenable: jellyfin,
         builder: (context, _) => Center(
@@ -33,7 +35,7 @@ class ProfilePickerScreen extends StatelessWidget {
                 ? const Column(
                     mainAxisSize: .min,
                     spacing: 16,
-                    children: [FCircularProgress(), Text('Switching…')],
+                    children: [CircularProgressIndicator(), Text('Switching…')],
                   )
                 : const Column(
                     mainAxisSize: .min,
@@ -52,27 +54,24 @@ class ProfilePickerScreen extends StatelessWidget {
         ),
       ),
     ),
+    ),
   );
 }
 
 /// The same picker as a pop-up, for the Add User / Switch User button.
-Future<void> showProfilePicker(BuildContext context) => showFDialog<void>(
-  context: context,
-  builder: (context, style, animation) => FDialog(
-    animation: animation,
-    constraints: const BoxConstraints(minWidth: 280, maxWidth: 760),
-    builder: (context, _) => Padding(
+Future<void> showProfilePicker(BuildContext context) => showDialog<void>(
+context: context,
+builder: (context) => Dialog(child: ConstrainedBox(constraints: const BoxConstraints(minWidth: 280, maxWidth: 760), child: Padding(
       padding: const EdgeInsets.all(24),
       child: Column(
         mainAxisSize: .min,
         children: [
-          Text("Who's watching?", textAlign: TextAlign.center, style: context.theme.typography.display.xl3),
+          Text("Who's watching?", textAlign: TextAlign.center, style: context.text.headlineMedium),
           const SizedBox(height: 24),
           const Flexible(child: SingleChildScrollView(child: ProfilePicker(inDialog: true))),
         ],
       ),
-    ),
-  ),
+    ))),
 );
 
 /// One person in the picker. At least one of [saved] or [public] is set.
@@ -236,9 +235,9 @@ class _ProfilePickerState extends State<ProfilePicker> {
               ),
             ],
           ),
-          if (_loadingPublic && profiles.isEmpty) const FCircularProgress(),
+          if (_loadingPublic && profiles.isEmpty) const CircularProgressIndicator(),
           if (_error != null)
-            Text(_error!, textAlign: TextAlign.center, style: TextStyle(color: context.theme.colors.error)),
+            Text(_error!, textAlign: TextAlign.center, style: TextStyle(color: context.colors.error)),
         ],
       );
     },
@@ -279,15 +278,16 @@ class _ProfileTileState extends State<_ProfileTile> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = context.theme;
+    final theme = Theme.of(context);
     final active = _focused || _hovered;
-    final initials = Text(initialsOf(widget.name), style: theme.typography.display.xl2);
+    final initials = Text(initialsOf(widget.name), style: theme.textTheme.headlineSmall);
 
-    final Widget picture = widget.icon != null
-        ? FAvatar.raw(size: _size, child: Icon(widget.icon, size: 44, fill: 1))
-        : widget.imageUrl != null
-        ? FAvatar(image: NetworkImage(widget.imageUrl!), fallback: initials, size: _size)
-        : FAvatar.raw(size: _size, child: initials);
+    // The initials sit under the picture, so they show while it loads or if it can't.
+    final Widget picture = CircleAvatar(
+      radius: _size / 2,
+      foregroundImage: widget.icon == null && widget.imageUrl != null ? NetworkImage(widget.imageUrl!) : null,
+      child: widget.icon != null ? Icon(widget.icon, size: 44, fill: 1) : initials,
+    );
 
     return FocusableActionDetector(
       autofocus: widget.autofocus,
@@ -326,15 +326,15 @@ class _ProfileTileState extends State<_ProfileTile> {
                         border: Border.all(
                           width: 3,
                           color: active
-                              ? theme.colors.primary
+                              ? theme.colorScheme.primary
                               : widget.current
-                              ? theme.colors.border
+                              ? theme.colorScheme.outlineVariant
                               : Colors.transparent,
                         ),
                       ),
                       child: Opacity(opacity: widget.busy ? 0.4 : 1, child: picture),
                     ),
-                    if (widget.busy) const FCircularProgress(),
+                    if (widget.busy) const CircularProgressIndicator(),
                   ],
                 ),
               ),
@@ -343,13 +343,13 @@ class _ProfileTileState extends State<_ProfileTile> {
                 textAlign: TextAlign.center,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: theme.typography.body.md.copyWith(
-                  color: active ? theme.colors.foreground : theme.colors.mutedForeground,
+                style: theme.textTheme.bodyLarge?.copyWith(
+                  color: active ? theme.colorScheme.onSurface : theme.colorScheme.onSurfaceVariant,
                   fontWeight: active || widget.current ? FontWeight.w600 : null,
                 ),
               ),
               if (widget.current)
-                Text('Signed in', style: theme.typography.body.xs.copyWith(color: theme.colors.primary)),
+                Text('Signed in', style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.primary)),
             ],
           ),
         ),
@@ -361,12 +361,9 @@ class _ProfileTileState extends State<_ProfileTile> {
 // ─── Password ────────────────────────────────────────────────────────────────
 
 /// Asks for [user]'s password, with Quick Connect as the no-typing alternative.
-Future<void> _showPasswordDialog(BuildContext context, PublicUser user) => showFDialog<void>(
-  context: context,
-  builder: (context, style, animation) => FDialog(
-    animation: animation,
-    builder: (context, _) => _PasswordBody(user: user),
-  ),
+Future<void> _showPasswordDialog(BuildContext context, PublicUser user) => showDialog<void>(
+context: context,
+builder: (context) => Dialog(child: _PasswordBody(user: user)),
 );
 
 class _PasswordBody extends StatefulWidget {
@@ -414,7 +411,7 @@ class _PasswordBodyState extends State<_PasswordBody> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = context.theme;
+    final theme = Theme.of(context);
     return Padding(
       padding: const EdgeInsets.all(24),
       child: Column(
@@ -422,17 +419,27 @@ class _PasswordBodyState extends State<_PasswordBody> {
         crossAxisAlignment: .stretch,
         spacing: 12,
         children: [
-          Text(widget.user.name, style: theme.typography.display.lg),
-          FTextField.password(
-            control: .managed(controller: _password),
-            autofocus: true,
+          Text(widget.user.name, style: theme.textTheme.titleLarge),
+          TextField(
+            controller: _password,
             enabled: !_busy,
-            onSubmit: (_) => _signIn(),
+            autofocus: true,
+            obscureText: true,
+            onSubmitted: (_) => _signIn(),
           ),
-          if (_error != null) Text(_error!, style: TextStyle(color: theme.colors.error)),
-          FButton(onPress: _busy ? null : _signIn, child: Text(_busy ? 'Signing in…' : 'Sign in')),
-          FButton(variant: .outline, onPress: _busy ? null : _quickConnect, child: const Text('Use Quick Connect')),
-          FButton(variant: .ghost, onPress: () => Navigator.of(context).pop(), child: const Text('Cancel')),
+          if (_error != null) Text(_error!, style: TextStyle(color: theme.colorScheme.error)),
+          FilledButton(
+            onPressed: _busy ? null : _signIn,
+            child: Text(_busy ? 'Signing in…' : 'Sign in'),
+          ),
+          OutlinedButton(
+            onPressed: _busy ? null : _quickConnect,
+            child: const Text('Use Quick Connect'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
         ],
       ),
     );

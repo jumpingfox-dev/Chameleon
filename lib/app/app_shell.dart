@@ -1,5 +1,4 @@
 import 'package:flutter/services.dart';
-import 'package:forui/forui.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -11,12 +10,13 @@ import '../features/library/library.dart';
 import '../features/search/search.dart';
 import '../features/settings/settings.dart';
 import '../theme/app_icons.dart';
-import '../theme/tappable_states.dart';
+import '../theme/theme.dart';
 import '../core/focus/focus_rows.dart';
 import '../features/home/home_layout.dart';
 import '../core/jellyfin/jellyfin_controller.dart';
 import '../core/platform/orientation.dart';
 import '../widgets/app_logo.dart';
+import '../widgets/tappable.dart';
 import '../features/auth/profile_actions.dart';
 import '../features/auth/profile_picker.dart';
 
@@ -24,96 +24,78 @@ part 'app_sidebar.dart';
 
 /// Bottom-nav pages (phones). Order = bottom bar order = router branch order.
 typedef AppDestination = ({
-String label,
-IconData Function(AppIconSet icons) icon, // looked up in the current icon style when drawn
-String path,
-Widget Function(GoRouterState state) screen, // state: e.g. the ?tab= on Settings
-List<RouteBase> routes, // sub-pages that keep this tab selected
+  String label,
+  IconData Function(AppIconSet icons) icon, // looked up in the current icon style when drawn
+  String path,
+  Widget Function(GoRouterState state) screen, // state: e.g. the ?tab= on Settings
+  List<RouteBase> routes, // sub-pages that keep this tab selected
 });
 
 final destinations = <AppDestination>[
   (
-  label: 'Home',
-  icon: (i) => i.home,
-  path: '/home',
-  screen: (_) => const HomeScreen(),
-  routes: [
-    GoRoute(
-      path: 'favorites',
-      builder: (context, state) => const FavoritesScreen(),
-    ),
-    GoRoute(
-      path: 'genres',
-      builder: (context, state) => const GenresScreen(),
-    ),
-    GoRoute(
-      path: 'library/:id',
-      builder: (context, state) =>
-          LibraryScreen(libraryId: state.pathParameters['id']!),
-    ),
-    GoRoute(
-      path: 'genre/:name',
-      builder: (context, state) =>
-          LibraryScreen(genre: state.pathParameters['name']!),
-    ),
-    GoRoute(
-      path: 'collection/:id',
-      builder: (context, state) =>
-          CollectionScreen(collectionId: state.pathParameters['id']!),
-    ),
-    GoRoute(
-      path: 'movie/:id',
-      builder: (context, state) =>
-          MovieScreen(movieId: state.pathParameters['id']!),
-    ),
-    GoRoute(
-      path: 'series/:id',
-      builder: (context, state) =>
-          SeriesScreen(seriesId: state.pathParameters['id']!),
-    ),
-    GoRoute(
-      path: 'person/:id',
-      builder: (context, state) =>
-          PersonScreen(personId: state.pathParameters['id']!),
-    ),
-  ],
+    label: 'Home',
+    icon: (i) => i.home,
+    path: '/home',
+    screen: (_) => const HomeScreen(),
+    routes: [
+      GoRoute(path: 'favorites', builder: (context, state) => const FavoritesScreen()),
+      GoRoute(path: 'genres', builder: (context, state) => const GenresScreen()),
+      GoRoute(
+        path: 'library/:id',
+        builder: (context, state) => LibraryScreen(libraryId: state.pathParameters['id']!),
+      ),
+      GoRoute(
+        path: 'genre/:name',
+        builder: (context, state) => LibraryScreen(genre: state.pathParameters['name']!),
+      ),
+      GoRoute(
+        path: 'collection/:id',
+        builder: (context, state) => CollectionScreen(collectionId: state.pathParameters['id']!),
+      ),
+      GoRoute(
+        path: 'movie/:id',
+        builder: (context, state) => MovieScreen(movieId: state.pathParameters['id']!),
+      ),
+      GoRoute(
+        path: 'series/:id',
+        builder: (context, state) => SeriesScreen(seriesId: state.pathParameters['id']!),
+      ),
+      GoRoute(
+        path: 'person/:id',
+        builder: (context, state) => PersonScreen(personId: state.pathParameters['id']!),
+      ),
+    ],
   ),
   (
-  label: 'Search',
-  icon: (i) => i.search,
-  path: '/search',
-  screen: (state) => SearchScreen(query: state.uri.queryParameters['q']),
-  routes: [
-    GoRoute(
-      path: 'person/:id',
-      builder: (context, state) =>
-          PersonScreen(personId: state.pathParameters['id']!),
-    ),
-  ],
+    label: 'Search',
+    icon: (i) => i.search,
+    path: '/search',
+    screen: (state) => SearchScreen(query: state.uri.queryParameters['q']),
+    routes: [
+      GoRoute(
+        path: 'person/:id',
+        builder: (context, state) => PersonScreen(personId: state.pathParameters['id']!),
+      ),
+    ],
   ),
   (
-  label: 'Settings',
-  icon: (i) => i.settings,
-  path: '/settings',
-  screen: (state) => SettingsScreen(initialTab: state.uri.queryParameters['tab']),
-  routes: const [],
+    label: 'Settings',
+    icon: (i) => i.settings,
+    path: '/settings',
+    screen: (state) => SettingsScreen(initialTab: state.uri.queryParameters['tab']),
+    routes: const [],
   ),
   (
-  label: 'Profile',
-  icon: (i) => i.profile,
-  path: '/profile',
-  screen: (state) => SettingsScreen(initialTab: state.uri.queryParameters['tab'] ?? 'Account'),
-  routes: const [],
+    label: 'Profile',
+    icon: (i) => i.profile,
+    path: '/profile',
+    screen: (state) => SettingsScreen(initialTab: state.uri.queryParameters['tab'] ?? 'Account'),
+    routes: const [],
   ),
 ];
 
 class AppShell extends StatefulWidget {
-  const AppShell({
-    super.key,
-    required this.navigationShell,
-    required this.location,
-    this.tab,
-  });
+  const AppShell({super.key, required this.navigationShell, required this.location, this.tab});
 
   final StatefulNavigationShell navigationShell;
   final String location; // current path, e.g. /home/library/movies
@@ -127,8 +109,11 @@ class AppShell extends StatefulWidget {
 const _railWidth = 64.0;
 const _openWidth = 264.0;
 
-/// Side padding for the sidebar's list (forui's default is 16, which makes the closed rail
-/// chunky). The header and footer use the same, so everything lines up down the middle.
+/// How far past the open sidebar its gradient carries on fading out across the page.
+const _gradientTail = 240.0;
+
+/// Side padding for the sidebar's list. The header and footer use the same, so everything
+/// lines up down the middle.
 const _sidePadding = 8.0;
 
 class _AppShellState extends State<AppShell> {
@@ -150,8 +135,8 @@ class _AppShellState extends State<AppShell> {
   /// Bumped for one label each time [_enterSidebar] needs that section open to reach a page
   /// inside it — its own section may be sitting collapsed from an earlier visit, if the page
   /// became "active" by a route pushed from outside the sidebar (a Genre button on a movie's
-  /// details, say). A section's key includes its own entry here, so forui always builds it
-  /// fresh with [FSidebarItem.initiallyExpanded] true when this changes. Pressing a section
+  /// details, say). A section's key includes its own entry here, so it's always built fresh,
+  /// starting unfolded, when this changes. Pressing a section
   /// to fold or unfold it by hand never touches this, so that keeps its usual animation.
   final _forceOpen = <String, int>{};
 
@@ -159,8 +144,7 @@ class _AppShellState extends State<AppShell> {
   /// so ← from a page can land on the entry for where you are. Each entry keeps its own node
   /// for good; nothing is handed from one entry to another.
   final _navNodes = <String, FocusNode>{};
-  FocusNode _navNode(String id) =>
-      _navNodes.putIfAbsent(id, () => FocusNode(debugLabel: 'Sidebar: $id'));
+  FocusNode _navNode(String id) => _navNodes.putIfAbsent(id, () => FocusNode(debugLabel: 'Sidebar: $id'));
 
   /// The sidebar entries for where you are: its link or section, and the page inside that
   /// section, if there is one.
@@ -198,14 +182,11 @@ class _AppShellState extends State<AppShell> {
     super.dispose();
   }
 
-  void _goBranch(int index) => widget.navigationShell.goBranch(
-    index,
-    initialLocation: index == widget.navigationShell.currentIndex,
-  );
+  void _goBranch(int index) =>
+      widget.navigationShell.goBranch(index, initialLocation: index == widget.navigationShell.currentIndex);
 
   bool _isArrow(KeyEvent event, LogicalKeyboardKey key) =>
-      (event is KeyDownEvent || event is KeyRepeatEvent) &&
-          event.logicalKey == key;
+      (event is KeyDownEvent || event is KeyRepeatEvent) && event.logicalKey == key;
 
   /// ← on a page: move left within the page if anything's there, otherwise into the sidebar.
   KeyEventResult _onPageKey(FocusNode node, KeyEvent event) {
@@ -310,7 +291,8 @@ class _AppShellState extends State<AppShell> {
     // You've already moved on (into the page, or back into the sidebar): leave focus be.
     if (attempt > 0 && (_pageScope.hasFocus || _navScope.hasFocus)) return;
 
-    final first = firstFocusable(_pageScope, mainOnly: true) ??
+    final first =
+        firstFocusable(_pageScope, mainOnly: true) ??
         (attempt >= 20 ? firstFocusable(_pageScope) : null); // ~2 s, then anything
     if (first != null) {
       first.requestFocus();
@@ -362,30 +344,19 @@ class _AppShellState extends State<AppShell> {
 
       final isPhone = isPhoneLayout(context);
 
-      return FScaffold(
-        childPad: false,
-        footer: isPhone
-            ? SafeArea(
-          key: _footerKey,
-          top: false,
-          child: FBottomNavigationBar(
-            index: widget.navigationShell.currentIndex,
-            onChange: _goBranch,
-            children: [
-              for (final d in destinations)
-                FBottomNavigationBarItem(
-                  icon: Icon(
-                    d.icon(appIcons),
-                    fill: 1,
-                    size: 26,
-                    semanticLabel: d.label,
-                  ),
-                ),
-            ],
-          ),
-        )
+      return Scaffold(
+        bottomNavigationBar: isPhone
+            ? NavigationBar(
+                key: _footerKey,
+                selectedIndex: widget.navigationShell.currentIndex,
+                onDestinationSelected: _goBranch,
+                destinations: [
+                  for (final d in destinations)
+                    NavigationDestination(icon: Icon(d.icon(appIcons), fill: 1), label: d.label),
+                ],
+              )
             : null,
-        child: Builder(
+        body: Builder(
           builder: (context) {
             Widget page = MediaQuery.removeViewInsets(
               context: context,
@@ -410,9 +381,7 @@ class _AppShellState extends State<AppShell> {
               WidgetsBinding.instance.addPostFrameCallback((_) => _measureFooter());
               final screen = MediaQuery.sizeOf(context);
               return MediaQuery(
-                data: MediaQuery.of(context).copyWith(
-                  size: Size(screen.width, screen.height - _footerHeight),
-                ),
+                data: MediaQuery.of(context).copyWith(size: Size(screen.width, screen.height - _footerHeight)),
                 child: page,
               );
             }
@@ -427,8 +396,9 @@ class _AppShellState extends State<AppShell> {
                   // The sidebar already clears the cutout, so pages don't add room for it again.
                   child: MediaQuery.removePadding(context: context, removeLeft: true, child: page),
                 ),
-                // Dims the page while the sidebar is open, like the popups on the detail pages.
-                // Selecting the dimmed page closes it and goes back to where you were.
+                // While the sidebar is open, a black gradient behind it fades out across the page,
+                // so its links stay readable over posters. Selecting the page closes it and goes
+                // back to where you were.
                 Positioned.fill(
                   child: ListenableBuilder(
                     listenable: _sidebarOpen,
@@ -445,7 +415,21 @@ class _AppShellState extends State<AppShell> {
                           child: AnimatedOpacity(
                             duration: const Duration(milliseconds: 180),
                             opacity: open ? 1 : 0,
-                            child: ColoredBox(color: context.theme.colors.barrier),
+                            child: Align(
+                              alignment: Alignment.centerLeft,
+                              child: SizedBox(
+                                width: inset + _openWidth + _gradientTail,
+                                height: double.infinity,
+                                child: const DecoratedBox(
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      colors: [Color(0xFF000000), Color(0xD9000000), Color(0x00000000)],
+                                      stops: [0, 0.5, 1],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
                           ),
                         ),
                       );

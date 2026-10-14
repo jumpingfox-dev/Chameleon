@@ -1,4 +1,3 @@
-import 'package:forui/forui.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../../theme/app_icons.dart';
@@ -31,12 +30,11 @@ class UserAvatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: jellyfin,
-    builder: (context, _) => jellyfin.userImage != null
-        ? FAvatar(
-      image: jellyfin.userImage!,
-      fallback: Text(jellyfin.initials),
-      size: size,
-    )
-        : FAvatar.raw(size: size, child: Text(jellyfin.initials)),
+    // The initials sit under the picture, so they show while it loads or if it can't.
+    builder: (context, _) => CircleAvatar(
+      radius: size / 2,
+      foregroundImage: jellyfin.userImage,
+      child: Text(jellyfin.initials),
+    ),
   );
 }

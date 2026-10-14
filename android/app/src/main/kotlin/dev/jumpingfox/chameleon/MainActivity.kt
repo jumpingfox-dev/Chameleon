@@ -14,6 +14,7 @@ import android.view.View
 import android.view.ViewGroup
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
+import io.flutter.embedding.engine.renderer.FlutterRenderer
 import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterActivity() {
@@ -30,6 +31,11 @@ class MainActivity : FlutterActivity() {
     }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
+        // Video frames reach Flutter through a SurfaceTexture rather than an ImageReader. Flutter
+        // draws an ImageReader's whole buffer, ignoring the decoder's crop, so a decoder that pads
+        // its frames (many TV chips round 2160 up to 2176, say) shows the padding as green edges.
+        // A SurfaceTexture applies the crop. Only the video player (media_kit) creates these.
+        FlutterRenderer.debugForceSurfaceProducerGlTextures = true
         super.configureFlutterEngine(flutterEngine)
         // What this device can do with video and audio, so the player picks how to play each file
         // (see lib/core/platform/media_support.dart).

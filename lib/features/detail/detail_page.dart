@@ -147,6 +147,19 @@ Future<JellyfinItem?> nextEpisodeFor(String seriesId) async {
   return episodes.items.firstOrNull;
 }
 
+/// Whether a detail popout is open, for the parts of the screen outside its tab (the TV
+/// sidebar's rail) to dim along with the page.
+final detailPopoutOpen = ValueNotifier(false);
+
+/// The navigator holding the open popouts, so [closeOpenDetailPopouts] can reach them from
+/// outside the tab.
+NavigatorState? _popoutNavigator;
+int _openPopouts = 0;
+
+/// Closes any open detail popout, from anywhere.
+void closeOpenDetailPopouts() =>
+    _popoutNavigator?.popUntil((route) => route is! PopupRoute);
+
 /// Shows a detail layout in a large card floating over the current screen's content,
 /// leaving the nav bars visible and usable. Any popout already open is closed first.
 Future<void> showDetailPopout(
@@ -161,6 +174,9 @@ Future<void> showDetailPopout(
   final barrierColor = context.colors.scrim;
 
   navigator.popUntil((route) => route is! PopupRoute); // close any open popouts
+  _popoutNavigator = navigator;
+  _openPopouts++;
+  detailPopoutOpen.value = true;
 
   return showGeneralDialog(
     context: navigator.context,
@@ -210,7 +226,11 @@ Future<void> showDetailPopout(
         ),
       );
     },
-  );
+  ).whenComplete(() {
+    // Counted, since opening one closes the last: that one finishes after this one opened.
+    _openPopouts--;
+    if (_openPopouts == 0) detailPopoutOpen.value = false;
+  });
 }
 
 /// Closes every open detail popout, e.g. before going to a full page like a genre.

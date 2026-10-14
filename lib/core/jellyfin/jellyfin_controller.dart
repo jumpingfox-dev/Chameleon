@@ -24,36 +24,21 @@ class JellyfinLibrary {
   final String? collectionType; // 'movies', 'tvshows', 'music', ...
 }
 
-/// Combines the Host and Port fields into a server URL.
-/// An empty port means "no port", for reverse-proxy setups like https://jellyfin.example.com.
-String composeServerUrl(String host, String port) {
-  var h = host.trim().replaceAll(RegExp(r'/+$'), '');
-  if (!h.startsWith('http://') && !h.startsWith('https://')) h = 'http://$h';
-  final uri = Uri.parse(h);
-  final p = int.tryParse(port.trim());
-  final url = (p == null ? uri : uri.replace(port: p)).toString();
-  return url.replaceAll(RegExp(r'/+$'), '');
-}
-
-/// Splits a saved server URL back into Host and Port for pre-filling the form.
-(String host, String port) splitServerUrl(String url) {
-  final uri = Uri.parse(url);
-  final scheme = uri.scheme == 'https'
-      ? 'https://'
-      : ''; // http is the default, so hide it
-  final path = uri.path == '/' ? '' : uri.path;
-  return ('$scheme${uri.host}$path', uri.hasPort ? '${uri.port}' : '');
-}
-
-/// Turns "192.168.1.20" into "http://192.168.1.20:8096" and strips trailing slashes.
+/// Turns what was typed in the Server field into a URL: "192.168.1.20" becomes
+/// "http://192.168.1.20:8096" (Jellyfin's default port), "192.168.1.20:8098" keeps its port,
+/// and an address with its own http:// or https:// is taken as is, for reverse-proxy setups
+/// like https://jellyfin.example.com. Trailing slashes are dropped.
 String normalizeServerUrl(String input) {
-  var url = input.trim();
+  var url = input.trim().replaceAll(RegExp(r'/+$'), '');
   if (!url.startsWith('http://') && !url.startsWith('https://')) {
-    url = 'http://$url';
-    if (!Uri.parse(url).hasPort) url = '$url:8096'; // Jellyfin's default port
+    final uri = Uri.parse('http://$url');
+    url = (uri.hasPort ? uri : uri.replace(port: 8096)).toString(); // keeps any path after the port
   }
   return url.replaceAll(RegExp(r'/+$'), '');
 }
+
+/// A saved server URL as it's shown in the Server field: without the http:// it implies.
+String displayServerUrl(String url) => url.startsWith('http://') ? url.substring(7) : url;
 
 /// A friendly message for any error the package throws.
 String describeJellyfinError(Object error) {

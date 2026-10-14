@@ -97,10 +97,10 @@ class _QuickConnectBodyState extends State<_QuickConnectBody> {
         crossAxisAlignment: .stretch,
         spacing: 12,
         children: [
-          Text('Quick Connect', style: theme.textTheme.titleLarge),
+          Text('Quick Connect', textAlign: TextAlign.center, style: theme.textTheme.titleLarge),
 
           if (_error != null) ...[
-            Text(_error!, style: muted?.copyWith(color: theme.colorScheme.error)),
+            Text(_error!, textAlign: TextAlign.center, style: muted?.copyWith(color: theme.colorScheme.error)),
           ] else if (request == null || _signingIn) ...[
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 24),
@@ -110,6 +110,7 @@ class _QuickConnectBodyState extends State<_QuickConnectBody> {
           ] else ...[
             Text(
               'On a device that\'s already signed in, open Quick Connect and enter this code.',
+              textAlign: TextAlign.center,
               style: muted,
             ),
             // The code, big enough to read from the couch.
@@ -126,6 +127,7 @@ class _QuickConnectBodyState extends State<_QuickConnectBody> {
             Text(
               'In the Jellyfin web app it\'s under your profile → Quick Connect. '
                   'In Chameleon, it\'s in Settings → Account.',
+              textAlign: TextAlign.center,
               style: muted,
             ),
             Text('Waiting for approval…', textAlign: TextAlign.center, style: muted),

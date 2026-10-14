@@ -70,7 +70,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     scrollDirection: Axis.horizontal,
                     padding: pageSides(context),
                     child: Row(
-                      spacing: 4,
+                      spacing: 8, // as the settings tabs
                       children: [
                         NavButton(
                           label: 'Favorites',

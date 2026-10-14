@@ -530,8 +530,7 @@ class _HomeModuleViewState extends State<HomeModuleView>
     final imageHeight = view == LibraryView.poster
         ? tileWidth * 3 / 2
         : tileWidth * 9 / 16;
-    const captionHeight = 44.0;
-    final rowHeight = imageHeight + (captions ? captionHeight : 0);
+    final rowHeight = imageHeight + (captions ? _TileCaption.heightOf(context) : 0);
     final muted = context.text.bodyMedium?.copyWith(
       color: context.colors.onSurfaceVariant,
     );
@@ -1012,6 +1011,12 @@ class _CarouselSlide extends StatelessWidget {
       if (rating != null && rating.isNotEmpty) rating,
     ].join('  ·  ');
     const white = Color(0xFFFFFFFF);
+    final title = Text(
+      item.name,
+      maxLines: 2,
+      overflow: TextOverflow.ellipsis,
+      style: context.text.headlineSmall?.copyWith(color: white),
+    );
 
     return MouseRegion(
       cursor: SystemMouseCursors.click,
@@ -1082,14 +1087,11 @@ class _CarouselSlide extends StatelessWidget {
                         ),
                         fit: BoxFit.contain,
                         alignment: Alignment.bottomLeft,
+                        // The name instead, if the logo won't load (a saved page can ask for
+                        // one the server has since replaced).
+                        errorBuilder: (_, _, _) => title,
                       )
-                          : Text(
-                        item.name,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: context.text.headlineSmall
-                            ?.copyWith(color: white),
-                      ),
+                          : title,
                     ),
                     if (facts.isNotEmpty)
                       Text(
@@ -1152,6 +1154,33 @@ class _TileCaption extends StatelessWidget {
 
   final JellyfinItem item;
 
+  static const _top = 6.0; // between the artwork and the title
+  static const _gap = 2.0; // between the title and the line under it
+
+  static TextStyle? _titleStyle(BuildContext context) =>
+      context.text.bodyMedium?.copyWith(fontWeight: FontWeight.w600);
+  static TextStyle? _subtitleStyle(BuildContext context) =>
+      context.text.bodySmall?.copyWith(color: context.colors.onSurfaceVariant);
+
+  /// The room a caption takes, measured with the fonts and text size in use, so a bigger
+  /// system font size or a taller font doesn't overflow the row.
+  static double heightOf(BuildContext context) {
+    final scaler = MediaQuery.textScalerOf(context);
+    double line(TextStyle? style) {
+      final painter = TextPainter(
+        text: TextSpan(text: 'Ag', style: style),
+        textDirection: TextDirection.ltr,
+        textScaler: scaler,
+        maxLines: 1,
+      )..layout();
+      final height = painter.height;
+      painter.dispose();
+      return height;
+    }
+
+    return _top + line(_titleStyle(context)) + _gap + line(_subtitleStyle(context));
+  }
+
   @override
   Widget build(BuildContext context) {
     final isEpisode = item.type == JellyfinItemKind.episode;
@@ -1165,27 +1194,23 @@ class _TileCaption extends StatelessWidget {
 
     return Padding(
       // Lines the text up with the artwork, which sits slightly inset until hovered.
-      padding: const EdgeInsets.fromLTRB(8, 6, 8, 0),
+      padding: const EdgeInsets.fromLTRB(8, _top, 8, 0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        spacing: 2,
+        spacing: _gap,
         children: [
           Text(
             title,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: context.text.bodyMedium?.copyWith(
-              fontWeight: FontWeight.w600,
-            ),
+            style: _titleStyle(context),
           ),
           if (subtitle != null && subtitle.isNotEmpty)
             Text(
               subtitle,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: context.text.bodySmall?.copyWith(
-                color: context.colors.onSurfaceVariant,
-              ),
+              style: _subtitleStyle(context),
             ),
         ],
       ),

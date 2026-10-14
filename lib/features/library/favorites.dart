@@ -7,6 +7,7 @@ import '../../core/jellyfin/jellyfin_controller.dart';
 import '../detail/detail_page.dart';
 import 'poster_card.dart';
 import '../../theme/theme.dart';
+import '../../core/platform/page_insets.dart';
 
 /// Everything you've favorited, in two sections: Movies and Shows.
 class FavoritesScreen extends StatefulWidget {
@@ -138,7 +139,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
 
     return CustomScrollView(
       slivers: [
-        const SliverToBoxAdapter(child: SizedBox(height: 8)),
+        SliverToBoxAdapter(child: SizedBox(height: pageTop(context))),
         if (_movies.isNotEmpty) ...[
           const SliverSectionTitle('Movies'),
           SliverItemGrid(items: _movies),

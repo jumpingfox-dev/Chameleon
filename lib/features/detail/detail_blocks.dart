@@ -163,7 +163,7 @@ class _GenreButtons extends StatelessWidget {
               closeDetailPopouts(context);
               router.push('/home/genre/${Uri.encodeComponent(genre)}');
             },
-            style: const ButtonStyle(visualDensity: VisualDensity.compact),
+            style: genreButtonStyle(context.colors, compact: true),
             child: Text(genre),
           ),
       ],

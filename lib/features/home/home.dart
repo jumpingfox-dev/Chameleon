@@ -56,9 +56,7 @@ class _HomeScreenState extends State<HomeScreen> {
             return ListView(
               // Extra space at the bottom so the last module isn't hidden behind the Edit button.
               // No side padding: rows scroll edge to edge, everything else adds pageSides.
-              // More room at the top on wider screens, where a TV can crop the edge; the
-              // sidebar's logo lines up with it.
-              padding: EdgeInsets.fromLTRB(0, isPhone ? 12 : 32, 0, 48),
+              padding: EdgeInsets.fromLTRB(0, pageTop(context), 0, 48),
               children: [
                 // Library links: phones only, since wider screens have them in the top bar.
                 if (isPhone &&

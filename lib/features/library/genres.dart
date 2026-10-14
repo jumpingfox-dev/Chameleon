@@ -4,6 +4,7 @@ import 'package:material_ui/material_ui.dart';
 import '../../core/jellyfin/jellyfin_controller.dart';
 import '../../theme/app_icons.dart';
 import '../../theme/theme.dart';
+import '../../core/platform/page_insets.dart';
 
 IconData _iconFor(String genre) {
   final name = genre.toLowerCase();
@@ -34,7 +35,7 @@ class GenresScreen extends StatelessWidget {
         }
 
         return GridView.builder(
-          padding: const EdgeInsets.symmetric(vertical: 16),
+          padding: EdgeInsets.only(top: pageTop(context), bottom: 16),
           gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
             maxCrossAxisExtent:
                 200, // tile width; more columns on wider screens
@@ -46,6 +47,7 @@ class GenresScreen extends StatelessWidget {
           itemBuilder: (context, i) {
             final genre = genres[i];
             return OutlinedButton(
+              style: genreButtonStyle(context.colors),
               onPressed: () =>
                   context.go('/home/genre/${Uri.encodeComponent(genre)}'),
               child: Column(

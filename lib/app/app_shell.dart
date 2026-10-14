@@ -266,7 +266,11 @@ class _AppShellState extends State<AppShell> {
     final pageNode = _navNodes[page];
     if (pageNode != null && pageNode.canRequestFocus && _isIn(pageNode, _navScope)) {
       pageNode.requestFocus();
-      if (pageNode.context case final context?) Scrollable.ensureVisible(context, alignment: 0.5);
+      // Scrolled to only if it's out of sight (a long list of genres), so the links don't
+      // move otherwise.
+      if (pageNode.context case final context?) {
+        Scrollable.ensureVisible(context, alignmentPolicy: ScrollPositionAlignmentPolicy.keepVisibleAtEnd);
+      }
       return;
     }
     if (attempt >= 20) return; // ~1 s: give up rather than wait forever
@@ -423,8 +427,10 @@ class _AppShellState extends State<AppShell> {
                                 child: const DecoratedBox(
                                   decoration: BoxDecoration(
                                     gradient: LinearGradient(
-                                      colors: [Color(0xFF000000), Color(0xD9000000), Color(0x00000000)],
-                                      stops: [0, 0.5, 1],
+                                      // Solid under the links and wordmark, so a page title
+                                      // lined up with the logo doesn't show through it.
+                                      colors: [Color(0xFF000000), Color(0xFF000000), Color(0x00000000)],
+                                      stops: [0, 0.45, 1],
                                     ),
                                   ),
                                 ),

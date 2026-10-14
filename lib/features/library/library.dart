@@ -9,6 +9,7 @@ import '../detail/detail_page.dart';
 import 'poster_card.dart';
 import '../../theme/theme.dart';
 import '../../widgets/tappable.dart';
+import '../../core/platform/page_insets.dart';
 
 /// Shows one library's movies/shows/albums, or everything in one genre.
 class LibraryScreen extends StatefulWidget {
@@ -298,10 +299,15 @@ class _LibraryScreenState extends State<LibraryScreen> {
     builder: (context, _) {
       final view = libraryViewFor(context);
       return Scaffold(
-        appBar: AppBar(title: Text(_title), automaticallyImplyLeading: false),
-        // The posters on the left, and the view toggle and A–Z down the right-hand side.
         body: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12),
+          padding: EdgeInsets.fromLTRB(12, pageTop(context), 12, 0),
+          child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+          Text(_title, style: context.text.headlineSmall),
+          const SizedBox(height: 12),
+          // The posters on the left, and the view toggle and A–Z down the right-hand side.
+          Expanded(
           child: Row(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -315,6 +321,9 @@ class _LibraryScreenState extends State<LibraryScreen> {
               onToggleView: () => libraryViewOverride.value =
               view == LibraryView.poster ? LibraryView.thumbnail : LibraryView.poster,
             ),
+          ],
+        ),
+        ),
           ],
         ),
         ),

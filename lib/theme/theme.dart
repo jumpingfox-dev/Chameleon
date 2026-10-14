@@ -103,6 +103,16 @@ TextTheme _textTheme(ColorScheme colors, {required String displayFont, required 
 /// the family name Flutter should use for it.
 String _googleFamily(String name) => GoogleFonts.getFont(name).fontFamily!;
 
+/// Genre buttons: rounded rectangles on the card color with light text, rather than Material's
+/// accent-colored pills, which look busy in a grid or a row of genres. The theme's focus ring
+/// still applies.
+ButtonStyle genreButtonStyle(ColorScheme colors, {bool compact = false}) => OutlinedButton.styleFrom(
+  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+  backgroundColor: colors.surfaceContainer,
+  foregroundColor: colors.onSurface,
+  visualDensity: compact ? VisualDensity.compact : null,
+);
+
 /// Shortcuts to the current theme's colors and text styles.
 extension ThemeContext on BuildContext {
   ColorScheme get colors => Theme.of(this).colorScheme;

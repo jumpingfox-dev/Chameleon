@@ -18,6 +18,7 @@ import '../library/poster_card.dart';
 import '../../core/focus/scroll_into_view.dart';
 import '../../theme/theme.dart';
 import '../../widgets/tappable.dart';
+import '../../core/platform/page_insets.dart';
 
 part 'detail_blocks.dart';
 part 'detail_cards.dart';
@@ -610,9 +611,16 @@ class _DetailPageState extends State<DetailPage> {
     final title = _data == null ? null : widget.layout.headerTitle(_data!);
 
     return Scaffold(
-      appBar: AppBar(
-        leading: BackButton(onPressed: () => context.pop()),
-        title: title == null ? null : Text(title),
+      // Moved down by the same room as other pages get above their content.
+      appBar: PreferredSize(
+        preferredSize: Size.fromHeight(kToolbarHeight + pageTop(context) - 12),
+        child: Padding(
+          padding: EdgeInsets.only(top: pageTop(context) - 12),
+          child: AppBar(
+            leading: BackButton(onPressed: () => context.pop()),
+            title: title == null ? null : Text(title),
+          ),
+        ),
       ),
       body: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 12),

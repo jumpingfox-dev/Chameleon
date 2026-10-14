@@ -28,6 +28,7 @@ import '../../core/storage/storage.dart';
 import 'switch_setting.dart';
 import '../../theme/theme.dart';
 import '../../widgets/tappable.dart';
+import '../../core/platform/page_insets.dart';
 
 part 'sync_play_settings.dart';
 
@@ -86,7 +87,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       controller: _scroll,
       child: ListView(
         controller: _scroll,
-        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 4),
+        padding: EdgeInsets.fromLTRB(4, pageTop(context), 4, 16),
         children: [
           // Tab pills, above the card. Phones only: wider screens pick the page from the sidebar.
           if (isPhoneLayout(context)) ...[

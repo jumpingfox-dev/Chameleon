@@ -52,19 +52,17 @@ class _Sidebar extends StatelessWidget {
           builder: (context, constraints) {
             final roomy = open && constraints.maxWidth >= inset + _openWidth - 0.5;
             return _SidebarFrame(
+              // Home, Search, Favorites, Libraries, Genres (if any), Settings, Edit home.
+              entries: jellyfin.genres.isNotEmpty ? 7 : 6,
               header: Padding(
-                // Room above so the logo lines up with the top of the page's first section
-                // (see HomeScreen), and below to set it apart from the links. On the left, the
-                // room that centers the mark in the rail, where it stays as the sidebar opens.
-                padding: EdgeInsets.fromLTRB(inset + _SidebarLogo.railInset, 16, _sidePadding, 12),
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: _SidebarLogo(open: open, focusNode: nodeFor('Home'), onPress: () => goTo('/home')),
-                ),
+                // On the left, the room that centers the mark in the rail, where it stays as
+                // the sidebar opens.
+                padding: EdgeInsets.fromLTRB(inset + _SidebarLogo.railInset, 0, _sidePadding, 0),
+                child: Align(alignment: Alignment.centerLeft, child: _SidebarLogo(open: open)),
               ),
               footer: Padding(
-                padding: EdgeInsets.only(left: inset),
-                child: _SidebarUser(open: open),
+                padding: EdgeInsets.only(left: inset + _SidebarUser.railInset),
+                child: const Align(alignment: Alignment.centerLeft, child: _SidebarUser()),
               ),
               children: [
                 Padding(
@@ -74,8 +72,16 @@ class _Sidebar extends StatelessWidget {
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: _sidePadding),
                         child: Column(
-                          spacing: 2,
+                          spacing: _SidebarFrame.spacing,
                           children: [
+                            _SidebarLink(
+                              label: 'Home',
+                              icon: appIcons.home,
+                              focusNode: nodeFor('Home'),
+                              open: open,
+                              selected: loc == '/home',
+                              onPress: () => goTo('/home'),
+                            ),
                             _SidebarSearch(
                               open: open,
                               focusNode: nodeFor('Search'),
@@ -189,69 +195,43 @@ class _Sidebar extends StatelessWidget {
   );
 }
 
-/// The logo at the top of the sidebar, which takes you home: just the mark while the sidebar
-/// is closed, turning into the full wordmark as it opens.
+/// The logo at the top of the sidebar: just the mark while the sidebar is closed, turning
+/// into the full wordmark as it opens.
 class _SidebarLogo extends StatelessWidget {
-  const _SidebarLogo({required this.open, required this.onPress, this.focusNode});
+  const _SidebarLogo({required this.open});
 
   final bool open;
-  final VoidCallback onPress; // home
-  final FocusNode? focusNode;
 
   static const _height = 34.0;
-  static const _padding = 8.0; // around the picture, filled in while focused
 
   /// The room left of the logo that centers the mark in the closed rail.
-  static const railInset = (_railWidth - _markWidth - 2 * _padding) / 2;
+  static const railInset = (_railWidth - _markWidth) / 2;
 
   // From the SVGs' sizes: the mark is 89 × 101, the whole wordmark 553 × 101.
   static const _markWidth = _height * 89.02 / 101.24;
   static const _wordmarkWidth = _height * 553.35 / 101.24;
 
+  // The wordmark starts with the mark, so it's shown through a window that's just the mark's
+  // width while closed and widens with the sidebar, uncovering the name. One picture and no
+  // crossfade, so it moves exactly in step with the sidebar.
   @override
-  Widget build(BuildContext context) {
-    final colors = context.colors;
-    return Semantics(
-      label: 'Home',
-      button: true,
-      child: Tappable(
-        focusNode: focusNode,
-        onPress: onPress,
-        builder: (context, states, child) {
-          final highlighted = isHighlighted(states);
-          return AnimatedContainer(
-            duration: const Duration(milliseconds: 120),
-            padding: const EdgeInsets.all(_padding),
-            decoration: BoxDecoration(
-              color: highlighted ? _highlight(colors) : null, // only to show the remote is on it
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: child,
-          );
-        },
-        // The wordmark starts with the mark, so it's shown through a window that's just the
-        // mark's width while closed and widens with the sidebar, uncovering the name. One
-        // picture and no crossfade, so it moves exactly in step with the sidebar.
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 180), // the same as the sidebar opening
-          curve: Curves.easeOutCubic,
-          width: open ? _wordmarkWidth : _markWidth,
-          height: _height,
-          child: const UnconstrainedBox(
-            alignment: Alignment.centerLeft,
-            constrainedAxis: Axis.vertical,
-            clipBehavior: Clip.hardEdge, // cut off quietly (no overflow warning)
-            child: AppLogo(
-              asset: 'assets/images/text_logo.svg',
-              colorAsset: 'assets/images/text_logo_color.svg',
-              height: _height,
-              variant: AppLogoVariant.auto,
-            ),
-          ),
-        ),
+  Widget build(BuildContext context) => AnimatedContainer(
+    duration: const Duration(milliseconds: 180), // the same as the sidebar opening
+    curve: Curves.easeOutCubic,
+    width: open ? _wordmarkWidth : _markWidth,
+    height: _height,
+    child: const UnconstrainedBox(
+      alignment: Alignment.centerLeft,
+      constrainedAxis: Axis.vertical,
+      clipBehavior: Clip.hardEdge, // cut off quietly (no overflow warning)
+      child: AppLogo(
+        asset: 'assets/images/text_logo.svg',
+        colorAsset: 'assets/images/text_logo_color.svg',
+        height: _height,
+        variant: AppLogoVariant.auto,
       ),
-    );
-  }
+    ),
+  );
 }
 
 /// A sidebar entry that folds a list of pages (the libraries, the settings pages) under one
@@ -376,12 +356,26 @@ class _SidebarSearchState extends State<_SidebarSearch> {
         onPress: widget.open ? _start : () => context.go('/search'),
       );
     }
-    return TextField(
-      controller: _text,
-      focusNode: _field,
-      textInputAction: TextInputAction.search,
-      decoration: InputDecoration(hintText: 'Search', prefixIcon: Icon(appIcons.search, size: 18, fill: 1)),
-      onSubmitted: _submit,
+    // Round like the links' highlight, and exactly a link's height, so the links below stay put.
+    return SizedBox(
+      height: _SidebarItem.height,
+      child: TextField(
+        controller: _text,
+        focusNode: _field,
+        textInputAction: TextInputAction.search,
+        expands: true, // fills the height above, with the text centered in it
+        maxLines: null,
+        textAlignVertical: TextAlignVertical.center,
+        decoration: InputDecoration(
+          hintText: 'Search',
+          prefixIcon: Icon(appIcons.search, size: 18, fill: 1),
+          prefixIconConstraints: const BoxConstraints(minWidth: 44),
+          isDense: true,
+          contentPadding: EdgeInsets.zero,
+          border: const OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(999))),
+        ),
+        onSubmitted: _submit,
+      ),
     );
   }
 }
@@ -427,8 +421,7 @@ class _IconLabel extends StatelessWidget {
   final bool open;
 
   static const _iconSize = 24.0;
-  static const _gap = 8.0; // between the icon and the label, while open
-  static const _duration = Duration(milliseconds: 180); // the same as the sidebar opening
+  static const _gap = 8.0; // between the icon and the label
 
   @override
   Widget build(BuildContext context) {
@@ -441,8 +434,14 @@ class _IconLabel extends StatelessWidget {
       children: [
         SizedBox(width: centered),
         Icon(icon, size: _iconSize, fill: 1, semanticLabel: open ? null : label),
-        AnimatedContainer(duration: _duration, curve: Curves.easeOutCubic, width: open ? _gap : 0),
-        Expanded(child: _FadingLabel(label, open: open)),
+        // The gap is part of the label's room, which is all that shrinks as the sidebar
+        // closes, so the icon and spacer never need more than the closed rail has.
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.only(left: _gap),
+            child: _FadingLabel(label, open: open),
+          ),
+        ),
       ],
     );
   }
@@ -450,104 +449,53 @@ class _IconLabel extends StatelessWidget {
 
 /// Text that fades out when the sidebar closes, and is cut off cleanly while it narrows.
 class _FadingLabel extends StatelessWidget {
-  const _FadingLabel(this.text, {required this.open, this.style});
+  const _FadingLabel(this.text, {required this.open});
 
   final String text;
   final bool open;
-  final TextStyle? style;
 
   @override
   Widget build(BuildContext context) => AnimatedOpacity(
     duration: const Duration(milliseconds: 150),
     opacity: open ? 1 : 0,
-    child: Text(text, style: style, maxLines: 1, softWrap: false, overflow: TextOverflow.fade),
+    child: Text(text, maxLines: 1, softWrap: false, overflow: TextOverflow.fade),
   );
 }
 
-/// The signed-in user at the bottom of the sidebar, as a card. Selecting it switches user.
-/// While the sidebar is closed it tightens up to just the picture.
+/// The signed-in user's picture at the bottom of the sidebar. Selecting it switches user.
 class _SidebarUser extends StatelessWidget {
-  const _SidebarUser({required this.open});
+  const _SidebarUser();
 
-  final bool open;
-
-  static const _duration = Duration(milliseconds: 180); // the same as the sidebar opening
-
-  static const _avatarSize = 32.0;
+  static const _avatarSize = 36.0;
   static const _ringGap = 3.0; // between the picture and its ring
   static const _ringed = _avatarSize + 2 * _ringGap;
 
-  /// The side padding inside the card that puts the picture in the middle of the closed rail.
-  /// Kept on the left as the sidebar opens, so the picture stays put.
-  static const _closedInner = (_railWidth - 2 * _sidePadding - _ringed) / 2;
+  /// The room left of the picture that centers it in the closed rail.
+  static const railInset = (_railWidth - _ringed) / 2;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: _sidePadding), // lines up with the list
-      child: Tappable(
-        onPress: () => showProfilePicker(context), // "Who's watching?"
-        // Focused (remote) or hovered (mouse): the card fills in, like the other sidebar items.
-        builder: (context, states, child) {
-          final highlighted = isHighlighted(states);
-          return Stack(
-            children: [
-              // The card fades in behind the picture and name as the sidebar opens, so while
-              // it's closed there's just the picture.
-              Positioned.fill(
-                child: AnimatedOpacity(
-                  duration: _duration,
-                  opacity: open ? 1 : 0,
-                  child: const Card(child: SizedBox.expand()),
-                ),
-              ),
-              Positioned.fill(
-                child: AnimatedOpacity(
-                  duration: const Duration(milliseconds: 120),
-                  opacity: highlighted ? 1 : 0,
-                  child: DecoratedBox(
-                    decoration: ShapeDecoration(
-                      color: _highlight(colors),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                    ),
-                  ),
-                ),
-              ),
-              child!,
-            ],
-          );
-        },
-        child: AnimatedPadding(
-          duration: _duration,
-          curve: Curves.easeOutCubic,
-          padding: EdgeInsets.fromLTRB(_closedInner, 12, open ? 12 : _closedInner, 12),
-          child: Row(
-            children: [
-              // A faint ring around the picture.
-              DecoratedBox(
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(color: colors.primary.withValues(alpha: 0.35), width: 1.5),
-                ),
-                child: const Padding(
-                  padding: EdgeInsets.all(_ringGap),
-                  child: UserAvatar(size: _avatarSize),
-                ),
-              ),
-              // The gap closes up with the sidebar, so the picture can sit in the middle.
-              AnimatedContainer(duration: _duration, curve: Curves.easeOutCubic, width: open ? 10 : 0),
-              Expanded(
-                child: _FadingLabel(
-                  jellyfin.userName ?? 'Switch user',
-                  open: open,
-                  style: context.text.labelLarge?.copyWith(fontWeight: FontWeight.bold),
-                ),
-              ),
-            ],
+    return Tappable(
+      onPress: () => showProfilePicker(context), // "Who's watching?"
+      semanticsLabel: 'Switch user (${jellyfin.userName ?? 'signed in'})',
+      // A faint ring around the picture, which lights up when the remote or mouse is on it.
+      builder: (context, states, child) {
+        final highlighted = isHighlighted(states);
+        return AnimatedContainer(
+          duration: const Duration(milliseconds: 120),
+          padding: const EdgeInsets.all(_ringGap),
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: highlighted ? colors.primary : colors.primary.withValues(alpha: 0.35),
+              width: highlighted ? 2.5 : 1.5,
+            ),
           ),
-        ),
-      ),
+          child: child,
+        );
+      },
+      child: const UserAvatar(size: _avatarSize),
     );
   }
 }
@@ -555,34 +503,64 @@ class _SidebarUser extends StatelessWidget {
 /// The fill behind whatever the remote or mouse is on.
 Color _highlight(ColorScheme colors) => colors.onSurface.withValues(alpha: 0.10);
 
-/// The sidebar's surface: [header] at the top, [footer] at the bottom, and [children]
-/// scrolling between them.
+/// The sidebar's surface: [header] (the logo) at the top, [footer] (the avatar) at the
+/// bottom, and the links ([children]) between them.
+///
+/// The links sit in the middle of that space, as they are with the sidebar closed: [entries]
+/// links, every section folded. That spot is worked out from the closed sidebar and kept as it
+/// opens, so nothing moves; sections unfold downwards, and the list scrolls if it runs out of
+/// room.
 class _SidebarFrame extends StatelessWidget {
-  const _SidebarFrame({required this.header, required this.footer, required this.children});
+  const _SidebarFrame({
+    required this.entries,
+    required this.header,
+    required this.footer,
+    required this.children,
+  });
 
+  final int entries;
   final Widget header;
   final Widget footer;
   final List<Widget> children;
 
+  /// Between the links.
+  static const spacing = 2.0;
+
+  /// From the top and bottom edges to the logo and the avatar. The logo's top then lines up
+  /// with the top of each page's content (see pageTop).
+  static const _edge = 32.0;
+
+  /// The least room between the logo or avatar and the links.
+  static const _minGap = 16.0;
+
   @override
   Widget build(BuildContext context) {
+    final closedHeight = entries * _SidebarItem.height + (entries - 1) * spacing;
     // See-through, with no edge: the page shows behind the rail, and the shell darkens it with
     // a gradient while the sidebar is open (see AppShell).
     return Material(
       type: MaterialType.transparency,
       child: SafeArea(
         right: false,
-        child: Column(
-          children: [
-            Padding(padding: const EdgeInsets.only(top: 8), child: header),
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                child: Column(children: children),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: _edge),
+          child: Column(
+            children: [
+              header,
+              Expanded(
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final gap = ((constraints.maxHeight - closedHeight) / 2).clamp(_minGap, double.infinity);
+                    return SingleChildScrollView(
+                      padding: EdgeInsets.only(top: gap, bottom: _minGap),
+                      child: Column(children: children),
+                    );
+                  },
+                ),
               ),
-            ),
-            Padding(padding: const EdgeInsets.only(bottom: 8), child: footer),
-          ],
+              footer,
+            ],
+          ),
         ),
       ),
     );
@@ -611,6 +589,9 @@ class _SidebarItem extends StatefulWidget {
   final List<Widget> children;
 
   static const padding = EdgeInsets.symmetric(horizontal: 8, vertical: 12);
+
+  /// A link's height: its padding around the icon.
+  static double get height => padding.vertical + _IconLabel._iconSize;
 
   @override
   State<_SidebarItem> createState() => _SidebarItemState();
@@ -643,10 +624,13 @@ class _SidebarItemState extends State<_SidebarItem> {
               _ => Colors.transparent,
             },
             shape: StadiumBorder(
-              // Already filled in as the page you're on, so the remote shows as a ring.
-              side: widget.selected && highlighted
-                  ? BorderSide(color: colors.onSecondaryContainer, width: 2)
-                  : BorderSide.none,
+              // Already filled in as the page you're on, so the remote shows as a ring. Always
+              // there (just clear when unused): a border takes room, and it appearing would
+              // push every link below it down.
+              side: BorderSide(
+                color: widget.selected && highlighted ? colors.onSecondaryContainer : Colors.transparent,
+                width: 2,
+              ),
             ),
           ),
           child: child,
@@ -673,9 +657,10 @@ class _SidebarItemState extends State<_SidebarItem> {
       ),
     );
     if (!hasChildren) return item;
+    // No spacing in this column: folded, the pages take no room at all, so the links below
+    // don't move when the sidebar opens.
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
-      spacing: 2,
       children: [
         item,
         AnimatedSize(
@@ -684,8 +669,12 @@ class _SidebarItemState extends State<_SidebarItem> {
           alignment: Alignment.topCenter,
           child: _expanded
               ? Padding(
-                  padding: const EdgeInsets.only(left: 20, top: 2),
-                  child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, spacing: 2, children: widget.children),
+                  padding: const EdgeInsets.only(left: 20, top: _SidebarFrame.spacing),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    spacing: _SidebarFrame.spacing,
+                    children: widget.children,
+                  ),
                 )
               : const SizedBox(width: double.infinity),
         ),

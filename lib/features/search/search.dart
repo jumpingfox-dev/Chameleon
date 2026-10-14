@@ -10,6 +10,7 @@ import '../detail/person_tile.dart';
 import '../library/poster_card.dart';
 import '../../theme/app_icons.dart';
 import '../../theme/theme.dart';
+import '../../core/platform/page_insets.dart';
 
 class SearchScreen extends StatefulWidget {
   const SearchScreen({super.key, this.query});
@@ -165,7 +166,7 @@ class _SearchScreenState extends State<SearchScreen> {
       child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const SizedBox(height: 24),
+        SizedBox(height: pageTop(context)),
         TextField(
           controller: _query,
           autofocus: _routeQuery == null, // open the keyboard when arriving from the bottom bar

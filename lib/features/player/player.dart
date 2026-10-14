@@ -3,6 +3,7 @@
 // whatever icon style is chosen in Settings.
 
 import 'dart:async';
+import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:dart_jellyfin/dart_jellyfin.dart';
@@ -1148,13 +1149,15 @@ builder: (context) => Dialog(child: Padding(
   /// upright for a moment, it turns upright; sideways again, it turns back.
   ///
   /// Flutter can't tell how the phone is held, so this reads the motion sensor (which way
-  /// gravity pulls). On TVs and other devices without one, the stream just ends.
+  /// gravity pulls). On TVs and other devices without one, the stream just ends. Only on
+  /// Android and iOS: sensors_plus has nothing for desktops, and asking there throws.
   StreamSubscription<AccelerometerEvent>? _tilt;
   bool _turnedSideways = false; // the phone has been held sideways since the player opened
   DateTime? _uprightSince; // when the phone was last tipped upright, while it stays upright
   List<DeviceOrientation>? _heldTo;
 
   void _followTilt() {
+    if (!Platform.isAndroid && !Platform.isIOS) return;
     _tilt = accelerometerEventStream(samplingPeriod: SensorInterval.uiInterval).listen(
           (e) {
         // Gravity is about 9.8 along whichever edge points down. Lying flat, it's on z
@@ -1553,229 +1556,234 @@ builder: (context) => Dialog(child: Padding(
         _stopFollowingTilt();
         AppOrientation.menus();
       },
-      child: Focus(
-        focusNode: _focus,
-        autofocus: true,
-        onKeyEvent: _onKey,
-        child: MouseRegion(
-          cursor: _controlsVisible
-              ? MouseCursor.defer
-              : SystemMouseCursors.none,
-          onHover: (_) => _showControls(),
-          child: ColoredBox(
-            color: _black,
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTapUp: (details) => _onVideoTapUp(details, compact: compact),
-                  child: _video == null
-                      ? const SizedBox.expand()
-                      : Video(
-                    key: _videoKey,
-                    controller: _video!,
-                    controls: NoVideoControls,
-                    fit: _fit,
-                    fill: _black,
-                    subtitleViewConfiguration: SubtitleViewConfiguration(
-                      visible: false, // drawn below instead, in the style from Settings
-                    ),
-                  ),
-                ),
-
-                // ── Subtitles: size, color, font and style from Settings. Sliding up above the
-                //    controls while they show. The base size is the same share of the screen's
-                //    height on a phone as on a TV. ──
-                IgnorePointer(
-                  child: AnimatedPadding(
-                    duration: const Duration(milliseconds: 200), // the same speed as the controls' fade
-                    curve: Curves.easeOut,
-                    padding: _subtitlePadding(lifted: _controlsVisible),
-                    child: Align(
-                      alignment: Alignment.bottomCenter,
-                      child: StreamBuilder<List<String>>(
-                        stream: _player.stream.subtitle,
-                        initialData: _player.state.subtitle,
-                        builder: (context, snapshot) {
-                          final text = (snapshot.data ?? const <String>[])
-                              .where((line) => line.trim().isNotEmpty)
-                              .join('\n');
-                          if (text.isEmpty || _casting) return const SizedBox.shrink();
-                          return SubtitleText(text, baseSize: compact ? 20 : 36, height: compact ? 1.2 : 1.3);
-                        },
+      // The player has no Scaffold, so this gives its text Material's default style (without
+      // it, Flutter underlines text in yellow to flag the missing style).
+      child: Material(
+        type: MaterialType.transparency,
+        child: Focus(
+          focusNode: _focus,
+          autofocus: true,
+          onKeyEvent: _onKey,
+          child: MouseRegion(
+            cursor: _controlsVisible
+                ? MouseCursor.defer
+                : SystemMouseCursors.none,
+            onHover: (_) => _showControls(),
+            child: ColoredBox(
+              color: _black,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTapUp: (details) => _onVideoTapUp(details, compact: compact),
+                    child: _video == null
+                        ? const SizedBox.expand()
+                        : Video(
+                      key: _videoKey,
+                      controller: _video!,
+                      controls: NoVideoControls,
+                      fit: _fit,
+                      fill: _black,
+                      subtitleViewConfiguration: SubtitleViewConfiguration(
+                        visible: false, // drawn below instead, in the style from Settings
                       ),
                     ),
                   ),
-                ),
 
-                // ── Buffering ──
-                StreamBuilder<bool>(
-                  stream: _player.stream.buffering,
-                  builder: (context, snapshot) =>
-                  (snapshot.data ?? true) && _error == null
-                      ? const Center(child: CircularProgressIndicator())
-                      : const SizedBox.shrink(),
-                ),
-
-                // ── Shade behind the controls. Outside the safe area, so it reaches every edge
-                //    (including behind the camera cutout) instead of stopping short of it.
-                IgnorePointer(
-                  child: AnimatedOpacity(
-                    opacity: _controlsVisible ? 1 : 0,
-                    duration: const Duration(milliseconds: 200),
-                    child: _ControlsShade(compact: compact),
-                  ),
-                ),
-
-                // ── Double-tap seek: "« 10 seconds" (or the step from Settings) on the side that was tapped ──
-                IgnorePointer(child: _TapSeekIndicator(seek: _tapSeek, visible: _tapSeekVisible)),
-
-                // ── Everything drawn over the video, kept clear of the screen's edges.
-                //    Both sides get the camera cutout's inset (not just the cutout side), so the
-                //    controls stay centred. Phones also keep clear of the rounded bottom corners.
-                Positioned.fill(
-                  child: Padding(
-                    padding: _overlayInsets(context, compact: compact),
-                    child: Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        // ── Age rating intro ──
-                        if (rating != null && rating.isNotEmpty)
-                          AnimatedPositioned(
-                            duration: const Duration(milliseconds: 200), // the same speed as the controls' fade
-                            curve: Curves.easeOut,
-                            left: compact ? 16 : 32,
-                            // Below the logo while the controls show; up in the corner once they're hidden.
-                            top: _controlsVisible ? (compact ? 110 : 140) : (compact ? 12 : 24),
-                            child: _RatingIntro(rating: rating, visible: _ratingVisible),
-                          ),
-
-                        // ── Controls ──
-                        AnimatedOpacity(
-                          opacity: _controlsVisible ? 1 : 0,
-                          duration: const Duration(milliseconds: 200),
-                          child: IgnorePointer(
-                            ignoring: !_controlsVisible,
-                            child: _PlayerControls(
-                              player: _player,
-                              item: _item,
-                              trickplay: _trickplay,
-                              chapters: _namedChapters,
-                              preview: _scrub ?? _dragPreview,
-                              filled: _fit == BoxFit.cover,
-                              hasChapters: _chapters.isNotEmpty,
-                              backNode: _backNode,
-                              audioNode: _audioNode,
-                              subtitlesNode: _subtitlesNode,
-                              fitNode: _fitNode,
-                              previousNode: _previousNode,
-                              playNode: _playNode,
-                              nextNode: _nextNode,
-                              seekNode: _seekNode,
-                              onDragPreview: (position) => setState(() => _dragPreview = position),
-                              onBack: () => context.pop(),
-                              onPlayOrPause: _playOrPause,
-                              onPreviousChapter: _previousChapter,
-                              onNextChapter: _nextChapter,
-                              onToggleFit: _toggleFit,
-                              onAudio: _openAudio,
-                              onSubtitles: _openSubtitles,
-                              onInteract: _showControls,
-                              onCast: () => showCastPicker(context),
-                            ),
-                          ),
+                  // ── Subtitles: size, color, font and style from Settings. Sliding up above the
+                  //    controls while they show. The base size is the same share of the screen's
+                  //    height on a phone as on a TV. ──
+                  IgnorePointer(
+                    child: AnimatedPadding(
+                      duration: const Duration(milliseconds: 200), // the same speed as the controls' fade
+                      curve: Curves.easeOut,
+                      padding: _subtitlePadding(lifted: _controlsVisible),
+                      child: Align(
+                        alignment: Alignment.bottomCenter,
+                        child: StreamBuilder<List<String>>(
+                          stream: _player.stream.subtitle,
+                          initialData: _player.state.subtitle,
+                          builder: (context, snapshot) {
+                            final text = (snapshot.data ?? const <String>[])
+                                .where((line) => line.trim().isNotEmpty)
+                                .join('\n');
+                            if (text.isEmpty || _casting) return const SizedBox.shrink();
+                            return SubtitleText(text, baseSize: compact ? 20 : 36, height: compact ? 1.2 : 1.3);
+                          },
                         ),
-
-                        // ── Skip intro / credits / ... ──
-                        AnimatedPositioned(
-                          duration: const Duration(milliseconds: 200),
-                          curve: Curves.easeOut,
-                          right: compact ? 16 : 32,
-                          // Above the controls when they're showing; near the corner otherwise.
-                          bottom: _controlsVisible ? (compact ? 146 : 170) : (compact ? 12 : 24),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            spacing: 12,
-                            children: [
-                              _Notice(text: _notice),
-                              // Up Next takes the skip button's place (it covers "Skip Credits").
-                              if (_upNextShown && _next != null)
-                                Focus(
-                                  focusNode: _upNextScope,
-                                  skipTraversal: true,
-                                  canRequestFocus: false,
-                                  child: _UpNextCard(
-                                    next: _next!,
-                                    countdown: _countdown,
-                                    stillWatching: _stillWatching,
-                                    compact: compact,
-                                    playNode: _upNextNode,
-                                    onPlay: () => _playNext(automatic: false),
-                                    onCancel: _stillWatching ? () => context.pop() : () => _hideUpNext(dismissed: true),
-                                  ),
-                                )
-                              else
-                                _SkipButton(
-                                  segment: _activeSegment,
-                                  onPress: _skipSegment,
-                                  focusNode: _skipNode,
-                                  selected: _skipFocused,
-                                ),
-                            ],
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
                   ),
-                ),
 
-                // ── Casting: this screen becomes the Chromecast's remote ──
-                if (_casting && _item != null)
-                  CastRemote(
-                    item: _item!,
-                    onBack: () => context.pop(), // casting carries on
-                    onAudio: _openCastAudio,
-                    onSubtitles: _openCastSubtitles,
+                  // ── Buffering ──
+                  StreamBuilder<bool>(
+                    stream: _player.stream.buffering,
+                    builder: (context, snapshot) =>
+                    (snapshot.data ?? true) && _error == null
+                        ? const Center(child: CircularProgressIndicator())
+                        : const SizedBox.shrink(),
                   ),
 
-                // ── Errors ──
-                if (_error != null)
-                  ColoredBox(
-                    color: _black,
-                    child: Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        spacing: 12,
+                  // ── Shade behind the controls. Outside the safe area, so it reaches every edge
+                  //    (including behind the camera cutout) instead of stopping short of it.
+                  IgnorePointer(
+                    child: AnimatedOpacity(
+                      opacity: _controlsVisible ? 1 : 0,
+                      duration: const Duration(milliseconds: 200),
+                      child: _ControlsShade(compact: compact),
+                    ),
+                  ),
+
+                  // ── Double-tap seek: "« 10 seconds" (or the step from Settings) on the side that was tapped ──
+                  IgnorePointer(child: _TapSeekIndicator(seek: _tapSeek, visible: _tapSeekVisible)),
+
+                  // ── Everything drawn over the video, kept clear of the screen's edges.
+                  //    Both sides get the camera cutout's inset (not just the cutout side), so the
+                  //    controls stay centred. Phones also keep clear of the rounded bottom corners.
+                  Positioned.fill(
+                    child: Padding(
+                      padding: _overlayInsets(context, compact: compact),
+                      child: Stack(
+                        fit: StackFit.expand,
                         children: [
-                          const Icon(
-                            Icons.error_outline_rounded,
-                            size: 40,
-                            color: _white,
-                          ),
-                          Text(
-                            "Couldn't play this",
-                            style: context.text.titleLarge?.copyWith(
-                              color: _white,
+                          // ── Age rating intro ──
+                          if (rating != null && rating.isNotEmpty)
+                            AnimatedPositioned(
+                              duration: const Duration(milliseconds: 200), // the same speed as the controls' fade
+                              curve: Curves.easeOut,
+                              left: compact ? 16 : 32,
+                              // Below the logo while the controls show; up in the corner once they're hidden.
+                              top: _controlsVisible ? (compact ? 110 : 140) : (compact ? 12 : 24),
+                              child: _RatingIntro(rating: rating, visible: _ratingVisible),
+                            ),
+
+                          // ── Controls ──
+                          AnimatedOpacity(
+                            opacity: _controlsVisible ? 1 : 0,
+                            duration: const Duration(milliseconds: 200),
+                            child: IgnorePointer(
+                              ignoring: !_controlsVisible,
+                              child: _PlayerControls(
+                                player: _player,
+                                item: _item,
+                                trickplay: _trickplay,
+                                chapters: _namedChapters,
+                                preview: _scrub ?? _dragPreview,
+                                filled: _fit == BoxFit.cover,
+                                hasChapters: _chapters.isNotEmpty,
+                                backNode: _backNode,
+                                audioNode: _audioNode,
+                                subtitlesNode: _subtitlesNode,
+                                fitNode: _fitNode,
+                                previousNode: _previousNode,
+                                playNode: _playNode,
+                                nextNode: _nextNode,
+                                seekNode: _seekNode,
+                                onDragPreview: (position) => setState(() => _dragPreview = position),
+                                onBack: () => context.pop(),
+                                onPlayOrPause: _playOrPause,
+                                onPreviousChapter: _previousChapter,
+                                onNextChapter: _nextChapter,
+                                onToggleFit: _toggleFit,
+                                onAudio: _openAudio,
+                                onSubtitles: _openSubtitles,
+                                onInteract: _showControls,
+                                onCast: () => showCastPicker(context),
+                              ),
                             ),
                           ),
-                          Text(
-                            _error!,
-                            textAlign: TextAlign.center,
-                            style: context.text.bodyMedium?.copyWith(
-                              color: const Color(0xB3FFFFFF),
+
+                          // ── Skip intro / credits / ... ──
+                          AnimatedPositioned(
+                            duration: const Duration(milliseconds: 200),
+                            curve: Curves.easeOut,
+                            right: compact ? 16 : 32,
+                            // Above the controls when they're showing; near the corner otherwise.
+                            bottom: _controlsVisible ? (compact ? 146 : 170) : (compact ? 12 : 24),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              spacing: 12,
+                              children: [
+                                _Notice(text: _notice),
+                                // Up Next takes the skip button's place (it covers "Skip Credits").
+                                if (_upNextShown && _next != null)
+                                  Focus(
+                                    focusNode: _upNextScope,
+                                    skipTraversal: true,
+                                    canRequestFocus: false,
+                                    child: _UpNextCard(
+                                      next: _next!,
+                                      countdown: _countdown,
+                                      stillWatching: _stillWatching,
+                                      compact: compact,
+                                      playNode: _upNextNode,
+                                      onPlay: () => _playNext(automatic: false),
+                                      onCancel: _stillWatching ? () => context.pop() : () => _hideUpNext(dismissed: true),
+                                    ),
+                                  )
+                                else
+                                  _SkipButton(
+                                    segment: _activeSegment,
+                                    onPress: _skipSegment,
+                                    focusNode: _skipNode,
+                                    selected: _skipFocused,
+                                  ),
+                              ],
                             ),
-                          ),
-                          FilledButton(
-                            onPressed: () => context.pop(),
-                            child: const Text('Go back'),
                           ),
                         ],
                       ),
                     ),
                   ),
-              ],
+
+                  // ── Casting: this screen becomes the Chromecast's remote ──
+                  if (_casting && _item != null)
+                    CastRemote(
+                      item: _item!,
+                      onBack: () => context.pop(), // casting carries on
+                      onAudio: _openCastAudio,
+                      onSubtitles: _openCastSubtitles,
+                    ),
+
+                  // ── Errors ──
+                  if (_error != null)
+                    ColoredBox(
+                      color: _black,
+                      child: Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          spacing: 12,
+                          children: [
+                            const Icon(
+                              Icons.error_outline_rounded,
+                              size: 40,
+                              color: _white,
+                            ),
+                            Text(
+                              "Couldn't play this",
+                              style: context.text.titleLarge?.copyWith(
+                                color: _white,
+                              ),
+                            ),
+                            Text(
+                              _error!,
+                              textAlign: TextAlign.center,
+                              style: context.text.bodyMedium?.copyWith(
+                                color: const Color(0xB3FFFFFF),
+                              ),
+                            ),
+                            FilledButton(
+                              onPressed: () => context.pop(),
+                              child: const Text('Go back'),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                ],
+              ),
             ),
           ),
         ),

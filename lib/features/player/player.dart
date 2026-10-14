@@ -1659,7 +1659,7 @@ builder: (context) => Dialog(child: Padding(
                               // Below the logo, lined up with it, while the controls show; up in the
                               // corner once they're hidden.
                               left: _controlsVisible ? playerTitleLeft(compact: compact) : (compact ? 16 : 32),
-                              top: _controlsVisible ? (compact ? 110 : 140) : (compact ? 12 : 24),
+                              top: _controlsVisible ? _topBarTop(compact: compact) + (compact ? 102 : 128) : (compact ? 12 : 24),
                               child: _RatingIntro(rating: rating, visible: _ratingVisible),
                             ),
 

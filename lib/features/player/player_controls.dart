@@ -224,7 +224,7 @@ class _PlayerControls extends StatelessWidget {
 
         // ── Top: back and logo ──
         Positioned(
-          top: compact ? 8 : 12,
+          top: _topBarTop(compact: compact),
           left: _topBarLeft,
           right: 12,
           child: Row(
@@ -419,6 +419,9 @@ class _TapSeekIndicator extends StatelessWidget {
 /// The top bar's left edge, and the back button's icon size (bigger on phones, for thumbs).
 const _topBarLeft = 12.0;
 double _backIconSize({required bool compact}) => compact ? 28 : 24;
+
+/// How far the top bar (back, logo and title) sits below the top edge.
+double _topBarTop({required bool compact}) => compact ? 20 : 36;
 
 /// Where the title (the logo) starts, after the back button. Whatever is shown under the
 /// title (the age rating) starts here too, so they line up.

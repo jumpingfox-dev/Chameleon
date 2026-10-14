@@ -61,8 +61,8 @@ class _Sidebar extends StatelessWidget {
                 child: Align(alignment: Alignment.centerLeft, child: _SidebarLogo(open: open)),
               ),
               footer: Padding(
-                padding: EdgeInsets.only(left: inset + _SidebarUser.railInset),
-                child: const Align(alignment: Alignment.centerLeft, child: _SidebarUser()),
+                padding: EdgeInsets.only(left: inset + _SidebarUser.railInset, right: _sidePadding),
+                child: _SidebarUser(open: open),
               ),
               children: [
                 Padding(
@@ -195,8 +195,8 @@ class _Sidebar extends StatelessWidget {
   );
 }
 
-/// The logo at the top of the sidebar: just the mark while the sidebar is closed, turning
-/// into the full wordmark as it opens.
+/// The logo at the top of the sidebar: just the mark while the sidebar is closed, with the
+/// name beside it once it opens.
 class _SidebarLogo extends StatelessWidget {
   const _SidebarLogo({required this.open});
 
@@ -211,26 +211,42 @@ class _SidebarLogo extends StatelessWidget {
   static const _markWidth = _height * 89.02 / 101.24;
   static const _wordmarkWidth = _height * 553.35 / 101.24;
 
-  // The wordmark starts with the mark, so it's shown through a window that's just the mark's
-  // width while closed and widens with the sidebar, uncovering the name. One picture and no
-  // crossfade, so it moves exactly in step with the sidebar.
-  @override
-  Widget build(BuildContext context) => AnimatedContainer(
-    duration: const Duration(milliseconds: 180), // the same as the sidebar opening
-    curve: Curves.easeOutCubic,
-    width: open ? _wordmarkWidth : _markWidth,
+  static const _logo = AppLogo(
+    asset: 'assets/images/text_logo.svg',
+    colorAsset: 'assets/images/text_logo_color.svg',
     height: _height,
-    child: const UnconstrainedBox(
-      alignment: Alignment.centerLeft,
-      constrainedAxis: Axis.vertical,
-      clipBehavior: Clip.hardEdge, // cut off quietly (no overflow warning)
-      child: AppLogo(
-        asset: 'assets/images/text_logo.svg',
-        colorAsset: 'assets/images/text_logo_color.svg',
-        height: _height,
-        variant: AppLogoVariant.auto,
+    variant: AppLogoVariant.auto,
+  );
+
+  /// The part of the wordmark from [start], [width] wide.
+  static Widget _slice(double start, double width) => SizedBox(
+    width: width,
+    height: _height,
+    child: ClipRect(
+      child: OverflowBox(
+        alignment: Alignment.centerLeft,
+        maxWidth: double.infinity,
+        child: Transform.translate(offset: Offset(-start, 0), child: _logo),
       ),
     ),
+  );
+
+  // The wordmark starts with the mark, so it's shown in two parts: the mark, which stays put,
+  // and the name after it, which the widening sidebar uncovers as it fades in, the same as
+  // the links' labels and the user's name.
+  @override
+  Widget build(BuildContext context) => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      _slice(0, _markWidth),
+      Flexible(
+        child: AnimatedOpacity(
+          duration: const Duration(milliseconds: 150), // as _FadingLabel
+          opacity: open ? 1 : 0,
+          child: _slice(_markWidth, _wordmarkWidth - _markWidth),
+        ),
+      ),
+    ],
   );
 }
 
@@ -462,13 +478,17 @@ class _FadingLabel extends StatelessWidget {
   );
 }
 
-/// The signed-in user's picture at the bottom of the sidebar. Selecting it switches user.
+/// The signed-in user's picture at the bottom of the sidebar, with their name beside it while
+/// the sidebar is open. Selecting it switches user.
 class _SidebarUser extends StatelessWidget {
-  const _SidebarUser();
+  const _SidebarUser({required this.open});
+
+  final bool open;
 
   static const _avatarSize = 36.0;
   static const _ringGap = 3.0; // between the picture and its ring
-  static const _ringed = _avatarSize + 2 * _ringGap;
+  static const _ringWidth = 2.5; // the ring at its thickest, when highlighted
+  static const _ringed = _avatarSize + 2 * (_ringGap + _ringWidth);
 
   /// The room left of the picture that centers it in the closed rail.
   static const railInset = (_railWidth - _ringed) / 2;
@@ -479,20 +499,32 @@ class _SidebarUser extends StatelessWidget {
     return Tappable(
       onPress: () => showProfilePicker(context), // "Who's watching?"
       semanticsLabel: 'Switch user (${jellyfin.userName ?? 'signed in'})',
-      // A faint ring around the picture, which lights up when the remote or mouse is on it.
       builder: (context, states, child) {
         final highlighted = isHighlighted(states);
-        return AnimatedContainer(
-          duration: const Duration(milliseconds: 120),
-          padding: const EdgeInsets.all(_ringGap),
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            border: Border.all(
-              color: highlighted ? colors.primary : colors.primary.withValues(alpha: 0.35),
-              width: highlighted ? 2.5 : 1.5,
+        return Row(
+          children: [
+            // A faint ring around the picture, which lights up when the remote or mouse is on
+            // it. Drawn over the padding rather than adding to it, so the ring thickening
+            // never changes the picture's size (and with it, where the links above sit).
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 120),
+              padding: const EdgeInsets.all(_ringGap + _ringWidth),
+              foregroundDecoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: highlighted ? colors.primary : colors.primary.withValues(alpha: 0.35),
+                  width: highlighted ? _ringWidth : 1.5,
+                ),
+              ),
+              child: child,
             ),
-          ),
-          child: child,
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.only(left: _IconLabel._gap),
+                child: _FadingLabel(jellyfin.userName ?? '', open: open),
+              ),
+            ),
+          ],
         );
       },
       child: const UserAvatar(size: _avatarSize),

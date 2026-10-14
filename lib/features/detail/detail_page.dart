@@ -588,7 +588,7 @@ class _DetailPageState extends State<DetailPage> {
     if (widget.layout.floatingBackButton) {
       return Scaffold(
         body: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12),
+          padding: pageSides(context, extra: 12),
           child: Stack(
           children: [
             body,
@@ -623,7 +623,7 @@ class _DetailPageState extends State<DetailPage> {
         ),
       ),
       body: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12),
+        padding: pageSides(context, extra: 12),
         child: body,
       ),
     );

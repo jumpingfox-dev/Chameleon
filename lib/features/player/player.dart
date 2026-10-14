@@ -115,7 +115,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
   EdgeInsets _subtitlePadding({required bool lifted}) {
     lifted = lifted && playbackSettings.liftSubtitles; // "Move up when controls show" in Settings
     final size = MediaQuery.sizeOf(context);
-    final raise = size.height * playbackSettings.subtitlePosition.raise;
+    final raise = size.height * playbackSettings.subtitleRaise;
     final clearance = _isPhone ? _controlsClearancePhone : _controlsClearance;
     final sides = size.width * _subtitleSides;
     return EdgeInsets.fromLTRB(sides, 0, sides, lifted ? math.max(raise, clearance) : raise);
@@ -1465,8 +1465,12 @@ builder: (context) => Dialog(child: Padding(
     playbackSettings.autoplayStreak = 0; // someone's there: no "Are you still watching?" yet
 
     // ── Anywhere ──
-    if (key == LogicalKeyboardKey.escape || key == LogicalKeyboardKey.goBack) {
-      // First Back hides the controls; with them hidden, Back leaves the player.
+    // Escape on a keyboard. A remote's Back goes through the PopScope below instead (the same
+    // rule: hide the controls first, then leave). Handling Back here too left the player as the
+    // key went down, and then Android acted on Back again as it came up, on the page underneath,
+    // which could close the app.
+    if (key == LogicalKeyboardKey.escape) {
+      // First Escape hides the controls; with them hidden, Escape leaves the player.
       if (!isRepeat) _controlsVisible ? _hideControlsNow() : context.pop();
       return KeyEventResult.handled;
     }
@@ -1652,8 +1656,9 @@ builder: (context) => Dialog(child: Padding(
                             AnimatedPositioned(
                               duration: const Duration(milliseconds: 200), // the same speed as the controls' fade
                               curve: Curves.easeOut,
-                              left: compact ? 16 : 32,
-                              // Below the logo while the controls show; up in the corner once they're hidden.
+                              // Below the logo, lined up with it, while the controls show; up in the
+                              // corner once they're hidden.
+                              left: _controlsVisible ? playerTitleLeft(compact: compact) : (compact ? 16 : 32),
                               top: _controlsVisible ? (compact ? 110 : 140) : (compact ? 12 : 24),
                               child: _RatingIntro(rating: rating, visible: _ratingVisible),
                             ),

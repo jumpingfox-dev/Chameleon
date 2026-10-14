@@ -500,9 +500,16 @@ class IconController extends ValueNotifier<IconStyle> {
 
   static const _key = 'icon_style';
 
-  static Future<IconController> load() async {
-    final saved = IconStyle.values.asNameMap()[storage.getString(_key)];
-    return IconController._(saved ?? IconStyle.materialSymbols);
+  static Future<IconController> load() async => IconController._(_saved());
+
+  static IconStyle _saved() => IconStyle.values.asNameMap()[storage.getString(_key)] ?? IconStyle.materialSymbols;
+
+  /// Loads the icon style saved for whoever is signed in now (see Storage.user).
+  void reload() {
+    final saved = _saved();
+    if (saved == value) return;
+    value = saved;
+    _redrawEverything();
   }
 
   Future<void> select(IconStyle style) async {

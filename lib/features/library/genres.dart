@@ -20,7 +20,7 @@ class GenresScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Scaffold(
     body: Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
+      padding: pageSides(context, extra: 12),
       child: ListenableBuilder(
       listenable: jellyfin,
       builder: (context, _) {

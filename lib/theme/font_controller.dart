@@ -113,15 +113,19 @@ class FontController extends ChangeNotifier {
   String get display => _display;
   String get body => _body;
 
-  static Future<FontController> load() async {
-    String pick(String? saved, String fallback) =>
-        saved != null && GoogleFonts.asMap().containsKey(saved)
-        ? saved
-        : fallback;
-    return FontController._(
-      pick(storage.getString(_displayKey), defaultDisplay),
-      pick(storage.getString(_bodyKey), defaultBody),
-    );
+  static Future<FontController> load() async =>
+      FontController._(_saved(_displayKey, defaultDisplay), _saved(_bodyKey, defaultBody));
+
+  static String _saved(String key, String fallback) {
+    final saved = storage.getString(key);
+    return saved != null && GoogleFonts.asMap().containsKey(saved) ? saved : fallback;
+  }
+
+  /// Loads the fonts saved for whoever is signed in now (see Storage.user).
+  void reload() {
+    _display = _saved(_displayKey, defaultDisplay);
+    _body = _saved(_bodyKey, defaultBody);
+    notifyListeners();
   }
 
   Future<void> setDisplay(String font) async {

@@ -372,7 +372,7 @@ class _SidebarSearchState extends State<_SidebarSearch> {
           prefixIconConstraints: const BoxConstraints(minWidth: 44),
           isDense: true,
           contentPadding: EdgeInsets.zero,
-          border: const OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(999))),
+          border: searchFieldBorder,
         ),
         onSubmitted: _submit,
       ),
@@ -623,14 +623,16 @@ class _SidebarItemState extends State<_SidebarItem> {
               (false, true) => _highlight(colors),
               _ => Colors.transparent,
             },
+            shape: const StadiumBorder(),
+          ),
+          // Already filled in as the page you're on, so the remote shows as a ring. Drawn on top
+          // rather than as a border, which would take room: the icon would sit off-center in
+          // its circle, and the link would be taller than a link is meant to be.
+          foregroundDecoration: ShapeDecoration(
             shape: StadiumBorder(
-              // Already filled in as the page you're on, so the remote shows as a ring. Always
-              // there (just clear when unused): a border takes room, and it appearing would
-              // push every link below it down.
-              side: BorderSide(
-                color: widget.selected && highlighted ? colors.onSecondaryContainer : Colors.transparent,
-                width: 2,
-              ),
+              side: widget.selected && highlighted
+                  ? BorderSide(color: colors.onSecondaryContainer, width: 2)
+                  : BorderSide.none,
             ),
           ),
           child: child,
@@ -669,7 +671,7 @@ class _SidebarItemState extends State<_SidebarItem> {
           alignment: Alignment.topCenter,
           child: _expanded
               ? Padding(
-                  padding: const EdgeInsets.only(left: 20, top: _SidebarFrame.spacing),
+                  padding: const EdgeInsets.only(left: 28, top: _SidebarFrame.spacing),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     spacing: _SidebarFrame.spacing,

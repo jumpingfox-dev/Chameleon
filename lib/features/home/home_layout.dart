@@ -90,8 +90,9 @@ class HomeLayoutController extends ValueNotifier<List<HomeModule>> {
     for (final t in defaultTypes) HomeModule(id: t.name, type: t),
   ];
 
-  static Future<HomeLayoutController> load() async {
+  static Future<HomeLayoutController> load() async => HomeLayoutController._(_readSaved());
 
+  static List<HomeModule> _readSaved() {
     List<HomeModule>? modules;
     final raw = storage.getString(_key);
     if (raw != null) {
@@ -105,8 +106,11 @@ class HomeLayoutController extends ValueNotifier<List<HomeModule>> {
       }
     }
     modules ??= _migrateOldLayout() ?? _defaults;
-    return HomeLayoutController._(List.unmodifiable(modules));
+    return List.unmodifiable(modules);
   }
+
+  /// Loads the layout saved for whoever is signed in now (see Storage.user).
+  void reload() => value = _readSaved();
 
   /// Carries over a layout saved by the earlier version: a list of type names, plus "type=view" entries.
   static List<HomeModule>? _migrateOldLayout() {

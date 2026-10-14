@@ -88,7 +88,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
   @override
   Widget build(BuildContext context) => Scaffold(
     body: Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
+      padding: pageSides(context, extra: 12),
       child: ListenableBuilder(
       listenable: libraryViewOverride, // follow the poster/thumbnail choice
       builder: (context, _) => _buildBody(context),

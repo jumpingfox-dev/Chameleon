@@ -48,9 +48,10 @@ ThemeData buildTheme(Palette palette, {required String displayFont, required Str
             (s.contains(WidgetState.selected) ? BorderSide.none : BorderSide(color: colors.outlineVariant)),
       ),
     ),
-    // Material's outlined text fields, which DropdownMenu and the app's ChoiceField match.
+    // Material's outlined text fields, with rounder corners. DropdownMenu and the app's
+    // ChoiceField use the same. Search boxes go further, to pills (see searchFieldBorder).
     inputDecorationTheme: InputDecorationTheme(
-      border: const OutlineInputBorder(),
+      border: const OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
       hintStyle: text.bodyLarge?.copyWith(color: colors.onSurfaceVariant),
     ),
     cardTheme: CardThemeData(
@@ -102,6 +103,9 @@ TextTheme _textTheme(ColorScheme colors, {required String displayFont, required 
 /// Registers the font with google_fonts (downloading it if needed) and returns
 /// the family name Flutter should use for it.
 String _googleFamily(String name) => GoogleFonts.getFont(name).fontFamily!;
+
+/// The outline for search boxes: a pill, like the sidebar's links.
+const searchFieldBorder = OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(999)));
 
 /// Genre buttons: rounded rectangles on the card color with light text, rather than Material's
 /// accent-colored pills, which look busy in a grid or a row of genres. The theme's focus ring

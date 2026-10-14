@@ -37,6 +37,11 @@ class ThemeController extends ValueNotifier<ThemePreset> {
   static ThemePreset _preset(Palette colors) => ThemePreset(id: customThemeId, label: 'Custom', colors: colors);
 
   static Future<ThemeController> load() async {
+    final saved = _readSaved();
+    return ThemeController._(saved.selected, saved.custom, saved.seed, saved.ini, saved.advanced);
+  }
+
+  static ({ThemePreset selected, ThemePreset custom, ThemeSeed seed, String? ini, bool advanced}) _readSaved() {
     final seed = ThemeSeed.parse(storage.getString(_seedKey) ?? '') ?? defaultSeed;
     final ini = storage.getString(_iniKey);
     final advanced = storage.getBool(_advancedKey) ?? false;
@@ -44,7 +49,17 @@ class ThemeController extends ValueNotifier<ThemePreset> {
 
     final savedId = storage.getString(_key);
     final selected = [...themePresets, custom].firstWhere((p) => p.id == savedId, orElse: () => themePresets.first);
-    return ThemeController._(selected, custom, seed, ini, advanced);
+    return (selected: selected, custom: custom, seed: seed, ini: ini, advanced: advanced);
+  }
+
+  /// Loads the theme saved for whoever is signed in now (see Storage.user).
+  void reload() {
+    final saved = _readSaved();
+    _seed = saved.seed;
+    _customIni = saved.ini;
+    _advanced = saved.advanced;
+    _custom = saved.custom;
+    value = saved.selected;
   }
 
   Future<void> select(ThemePreset preset) async {

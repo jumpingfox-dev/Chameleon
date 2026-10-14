@@ -46,6 +46,14 @@ Future<void> main() async {
   iconController = await IconController.load();
   playbackSettings = await PlaybackSettings.load();
   homeLayout = await HomeLayoutController.load();
+  // Everyone has their own settings: load theirs whenever someone else signs in.
+  storage.user.addListener(() {
+    themeController.reload();
+    fontController.reload();
+    iconController.reload();
+    playbackSettings.reload();
+    homeLayout.reload();
+  });
 
   jellyfin = JellyfinController();
   await jellyfin.load();
@@ -54,8 +62,19 @@ Future<void> main() async {
   // Does nothing where casting isn't available (desktop, or devices without Play services).
   await castController.init();
 
-  // Clean up in the background so it doesn't delay startup.
-  unawaited(pruneFontCache([fontController.display, fontController.body, playbackSettings.subtitleFont]));
+  // Clean up in the background so it doesn't delay startup. Everyone's fonts stay cached,
+  // not just those of whoever is signed in now.
+  unawaited(
+    pruneFontCache({
+      fontController.display,
+      fontController.body,
+      playbackSettings.subtitleFont,
+      ...storage.everyonesValues('font_display'),
+      ...storage.everyonesValues('font_body'),
+      for (final saved in storage.everyonesValues(PlaybackSettings.storageKey))
+        ?PlaybackSettings.subtitleFontIn(saved),
+    }),
+  );
 
   syncPlay.openPlayer = (itemId) => appRouter.push('/play/$itemId?syncplay=1');
 

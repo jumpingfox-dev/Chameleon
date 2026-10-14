@@ -389,6 +389,21 @@ class _HomeModuleViewState extends State<HomeModuleView>
     }
   }
 
+  /// Moves this section [by] places, and keeps it in view: the button you pressed stays
+  /// focused, so the page follows it.
+  Future<void> _move(int by) async {
+    await homeLayout.move(widget.module.id, by);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      Scrollable.ensureVisible(
+        context,
+        alignment: 0.3,
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOutCubic,
+      );
+    });
+  }
+
   /// View toggle, move up, move down and remove: shown next to the title in edit mode.
   List<Widget> _editControls(BuildContext context) => [
     if (widget.module.type != HomeModuleType.carousel)
@@ -406,15 +421,11 @@ class _HomeModuleViewState extends State<HomeModuleView>
             : const AspectIcon(width: 11, height: 16),
       ),
     IconButton(
-      onPressed: widget.isFirst
-          ? null
-          : () => homeLayout.move(widget.module.id, -1),
+      onPressed: widget.isFirst ? null : () => _move(-1),
       icon: Icon(appIcons.moveUp, fill: 1),
     ),
     IconButton(
-      onPressed: widget.isLast
-          ? null
-          : () => homeLayout.move(widget.module.id, 1),
+      onPressed: widget.isLast ? null : () => _move(1),
       icon: Icon(appIcons.moveDown, fill: 1),
     ),
     IconButton(
@@ -459,7 +470,7 @@ class _HomeModuleViewState extends State<HomeModuleView>
               Padding(
                 padding: pageSides(
                   context,
-                  extra: 16 + (isCarousel ? 0 : _cardInset(_viewFor(context))),
+                  extra: 16 + (isCarousel ? 0 : _cardInset(context, _viewFor(context))),
                 ),
                 child: Row(
                   children: [
@@ -498,10 +509,13 @@ class _HomeModuleViewState extends State<HomeModuleView>
     );
 
     final Widget content;
-    if (_error != null) {
+    if (widget.editing || (items == null && _error == null)) {
+      // Editing (just the layout, no artwork) or still loading: the banner's shape.
+      content = const _Pulsing(child: _PlaceholderBanner());
+    } else if (_error != null) {
       content = Center(child: Text(_error!, style: muted));
     } else if (items == null) {
-      content = const Center(child: CircularProgressIndicator());
+      content = const SizedBox.shrink();
     } else if (items.isEmpty) {
       content = Center(child: Text('Nothing to feature yet', style: muted));
     } else {
@@ -512,12 +526,7 @@ class _HomeModuleViewState extends State<HomeModuleView>
   }
 
   Widget _row(BuildContext context, LibraryView view, {bool captions = false}) {
-    // Bigger on wider screens (a TV is watched from across the room); phones keep theirs.
-    final isPhone = isPhoneLayout(context);
-    final tileWidth = switch (view) {
-      LibraryView.poster => isPhone ? 150.0 : 180.0,
-      LibraryView.thumbnail => isPhone ? 280.0 : 340.0,
-    };
+    final tileWidth = _tileWidth(context, view);
     final imageHeight = view == LibraryView.poster
         ? tileWidth * 3 / 2
         : tileWidth * 9 / 16;
@@ -529,7 +538,17 @@ class _HomeModuleViewState extends State<HomeModuleView>
     final items = _content?.items;
 
     final Widget content;
-    if (_error != null) {
+    if (widget.editing || (items == null && _error == null)) {
+      // Editing (just the layout, no artwork) or still loading: tiles' shapes in their place.
+      content = _Pulsing(
+        child: _PlaceholderRow(
+          tileWidth: tileWidth,
+          imageHeight: imageHeight,
+          inset: _cardInset(context, view),
+          captions: captions,
+        ),
+      );
+    } else if (_error != null) {
       content = Padding(
         padding: pageSides(context),
         child: Align(
@@ -538,7 +557,7 @@ class _HomeModuleViewState extends State<HomeModuleView>
         ),
       );
     } else if (items == null) {
-      content = const Center(child: CircularProgressIndicator());
+      content = const SizedBox.shrink();
     } else if (items.isEmpty) {
       content = Align(
         alignment: Alignment.center,
@@ -579,9 +598,19 @@ class _HomeModuleViewState extends State<HomeModuleView>
     return SizedBox(height: rowHeight, child: content);
   }
 
+  /// A tile's width in a row. Bigger on wider screens (a TV is watched from across the room);
+  /// phones keep theirs.
+  static double _tileWidth(BuildContext context, LibraryView view) {
+    final isPhone = isPhoneLayout(context);
+    return switch (view) {
+      LibraryView.poster => isPhone ? 150.0 : 180.0,
+      LibraryView.thumbnail => isPhone ? 280.0 : 340.0,
+    };
+  }
+
   /// How far a resting card's artwork sits in from its edge (PosterCard draws it at 0.94).
-  static double _cardInset(LibraryView view) =>
-      (view == LibraryView.poster ? 150.0 : 280.0) * (1 - 0.94) / 2;
+  static double _cardInset(BuildContext context, LibraryView view) =>
+      _tileWidth(context, view) * (1 - 0.94) / 2;
 }
 
 // ─── Adding sections ─────────────────────────────────────────────────────────
@@ -773,6 +802,7 @@ class _OptionPickerState extends State<_OptionPicker> {
                 autofocus: true,
                 decoration: InputDecoration(
                   hintText: 'Search',
+                  border: searchFieldBorder,
                 ),
               ),
               Expanded(child: list),
@@ -1161,4 +1191,127 @@ class _TileCaption extends StatelessWidget {
       ),
     );
   }
+}
+// ─── Placeholders ────────────────────────────────────────────────────────────
+
+/// Fades [child] gently in and out, to show something is on its way.
+class _Pulsing extends StatefulWidget {
+  const _Pulsing({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_Pulsing> createState() => _PulsingState();
+}
+
+class _PulsingState extends State<_Pulsing> with SingleTickerProviderStateMixin {
+  late final _controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 900))
+    ..repeat(reverse: true);
+  late final _opacity = Tween(begin: 0.5, end: 1.0).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => FadeTransition(opacity: _opacity, child: widget.child);
+}
+
+/// A plain block standing in for artwork or a line of text.
+class _PlaceholderBlock extends StatelessWidget {
+  const _PlaceholderBlock({this.width, this.height, this.radius = 8, this.color});
+
+  final double? width;
+  final double? height;
+  final double radius;
+  final Color? color; // lighter, for lines drawn over a larger block
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: width,
+    height: height,
+    decoration: BoxDecoration(
+      color: color ?? context.colors.surfaceContainerHigh,
+      borderRadius: BorderRadius.circular(radius),
+    ),
+  );
+}
+
+/// A row's tiles, without their artwork: the same sizes and spacing as the real ones, and
+/// title lines under them where the row has captions. Not focusable: nothing to open yet.
+class _PlaceholderRow extends StatelessWidget {
+  const _PlaceholderRow({
+    required this.tileWidth,
+    required this.imageHeight,
+    required this.inset,
+    required this.captions,
+  });
+
+  final double tileWidth;
+  final double imageHeight;
+  final double inset; // where a resting card's artwork starts (PosterCard draws it smaller)
+  final bool captions;
+
+  @override
+  Widget build(BuildContext context) => ListView.separated(
+    scrollDirection: Axis.horizontal,
+    physics: const NeverScrollableScrollPhysics(),
+    padding: pageSides(context),
+    itemCount: 12, // more than fit, so the row runs off the edge like a real one
+    separatorBuilder: (_, _) => const SizedBox(width: 4),
+    itemBuilder: (context, _) => SizedBox(
+      width: tileWidth,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: EdgeInsets.all(inset),
+            child: _PlaceholderBlock(height: imageHeight - 2 * inset),
+          ),
+          if (captions) ...[
+            // Where _TileCaption puts the title and the line under it.
+            const SizedBox(height: 6),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: _PlaceholderBlock(width: tileWidth * 0.6, height: 12, radius: 4),
+            ),
+            const SizedBox(height: 6),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: _PlaceholderBlock(width: tileWidth * 0.3, height: 10, radius: 4),
+            ),
+          ],
+        ],
+      ),
+    ),
+  );
+}
+
+/// The featured banner without its artwork: the banner's shape, with lines where its title
+/// and description go.
+class _PlaceholderBanner extends StatelessWidget {
+  const _PlaceholderBanner();
+
+  @override
+  Widget build(BuildContext context) => Stack(
+    fit: StackFit.expand,
+    children: [
+      const _PlaceholderBlock(radius: 12),
+      Positioned(
+        left: 32,
+        bottom: 32,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          spacing: 10,
+          children: [
+            _PlaceholderBlock(width: 220, height: 40, radius: 6, color: context.colors.surfaceContainerHighest),
+            _PlaceholderBlock(width: 320, height: 12, radius: 4, color: context.colors.surfaceContainerHighest),
+            _PlaceholderBlock(width: 260, height: 12, radius: 4, color: context.colors.surfaceContainerHighest),
+          ],
+        ),
+      ),
+    ],
+  );
 }

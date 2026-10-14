@@ -58,18 +58,9 @@ enum SubtitleSize {
   final double scale;
 }
 
-/// How far up from the bottom of the screen subtitles sit, as a share of its height.
-enum SubtitlePosition {
-  lowest('2%', 0.02),
-  low('4%', 0.04),
-  middle('8%', 0.08),
-  high('12%', 0.12),
-  highest('16%', 0.16);
-
-  const SubtitlePosition(this.label, this.raise);
-  final String label;
-  final double raise;
-}
+/// How far up from the bottom of the screen subtitles can sit, in percent of its height.
+const subtitleHeightMin = 1;
+const subtitleHeightMax = 20;
 
 enum SubtitleColor {
   white('White', Color(0xFFFFFFFF)),
@@ -144,7 +135,19 @@ const stillWatchingOptions = [0, 2, 3, 4, 5];
 class PlaybackSettings extends ChangeNotifier {
   PlaybackSettings._();
 
-  static const _key = 'playback_settings';
+  static const _key = storageKey;
+
+  /// Where they're saved (see Storage).
+  static const storageKey = 'playback_settings';
+
+  /// The subtitle font in saved settings, or null if there isn't one.
+  static String? subtitleFontIn(String saved) {
+    try {
+      return (jsonDecode(saved) as Map<String, dynamic>)['subtitleFont'] as String?;
+    } catch (_) {
+      return null;
+    }
+  }
 
   // Skipping
   Map<SkipKind, SkipMode> skip = {for (final k in SkipKind.values) k: SkipMode.ask};
@@ -169,7 +172,10 @@ class PlaybackSettings extends ChangeNotifier {
   // Subtitles
   String subtitleFont = defaultSubtitleFont; // any Google Font
   SubtitleSize subtitleSize = SubtitleSize.medium;
-  SubtitlePosition subtitlePosition = SubtitlePosition.low; // 4%, what you have now
+  int subtitleHeight = 4; // percent of the screen's height, up from the bottom
+
+  /// [subtitleHeight] as a share of the screen's height.
+  double get subtitleRaise => subtitleHeight / 100;
   SubtitleColor subtitleColor = SubtitleColor.white;
   SubtitleBackground subtitleBackground = SubtitleBackground.shadow;
   bool liftSubtitles = true; // move up while the controls show
@@ -188,15 +194,23 @@ class PlaybackSettings extends ChangeNotifier {
   /// Not saved: it starts over each time the app opens.
   int autoplayStreak = 0;
 
-  static Future<PlaybackSettings> load() async {
-    final settings = PlaybackSettings._();
+  static Future<PlaybackSettings> load() async => PlaybackSettings._().._readSaved();
+
+  void _readSaved() {
     try {
       final raw = storage.getString(_key);
-      if (raw != null) settings._read(jsonDecode(raw) as Map<String, dynamic>);
+      if (raw != null) _read(jsonDecode(raw) as Map<String, dynamic>);
     } catch (e) {
       debugPrint('PlaybackSettings.load: $e'); // unreadable: keep the defaults
     }
-    return settings;
+  }
+
+  /// Loads the settings saved for whoever is signed in now (see Storage.user): back to the
+  /// defaults first, so nothing carries over from the last person.
+  void reload() {
+    _read(PlaybackSettings._()._write());
+    _readSaved();
+    notifyListeners();
   }
 
   /// Applies [edit], tells listeners and saves.
@@ -275,7 +289,7 @@ class PlaybackSettings extends ChangeNotifier {
     'resume': resume.name,
     'subtitleFont': subtitleFont,
     'subtitleSize': subtitleSize.name,
-    'subtitlePosition': subtitlePosition.name,
+    'subtitleHeight': subtitleHeight,
     'subtitleColor': subtitleColor.name,
     'subtitleBackground': subtitleBackground.name,
     'liftSubtitles': liftSubtitles,
@@ -310,7 +324,9 @@ class PlaybackSettings extends ChangeNotifier {
     resume = pick(ResumeMode.values, j['resume'], resume);
     if (j['subtitleFont'] case final String f when f.isNotEmpty) subtitleFont = f;
     subtitleSize = pick(SubtitleSize.values, j['subtitleSize'], subtitleSize);
-    subtitlePosition = pick(SubtitlePosition.values, j['subtitlePosition'], subtitlePosition);
+    // Before the slider, height was one of five steps, saved by name.
+    final oldStep = const {'lowest': 2, 'low': 4, 'middle': 8, 'high': 12, 'highest': 16}[j['subtitlePosition']];
+    subtitleHeight = number('subtitleHeight', oldStep ?? subtitleHeight).clamp(subtitleHeightMin, subtitleHeightMax);
     subtitleColor = pick(SubtitleColor.values, j['subtitleColor'], subtitleColor);
     subtitleBackground = pick(SubtitleBackground.values, j['subtitleBackground'], subtitleBackground);
     liftSubtitles = flag('liftSubtitles', liftSubtitles);

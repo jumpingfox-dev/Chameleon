@@ -411,6 +411,7 @@ class JellyfinController extends ChangeNotifier {
     await storage.setString(_kServer, url);
     await storage.setString(_kToken, token);
     await storage.setString(_kUserId, userId);
+    storage.useUser(url, userId); // this person's own theme, fonts and settings
     // Save (or refresh) this account. A new account gets a placeholder name until
     // _refresh below fills in the real name and picture.
     final existing = currentAccount;
@@ -578,6 +579,7 @@ class JellyfinController extends ChangeNotifier {
     await storage.remove(
       _kUserId,
     ); // the server address is kept to pre-fill login
+    storage.useUser(null, null);
     client?.clearSession();
     client = null;
     userName = null;

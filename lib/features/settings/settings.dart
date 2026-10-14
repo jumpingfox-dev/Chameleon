@@ -82,7 +82,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget build(BuildContext context) => Scaffold(
     // With the remote, keeps headings and the end of the page in view (see FocusReveal).
     body: Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
+      padding: pageSides(context, extra: 12),
       child: FocusReveal(
       controller: _scroll,
       child: ListView(
@@ -172,6 +172,11 @@ class _FontPreviewState extends State<_FontPreview> {
     },
     child: AnimatedSwitcher(
       duration: const Duration(milliseconds: 200),
+      // Left-aligned like every other list of choices (AnimatedSwitcher centers by default).
+      layoutBuilder: (current, previous) => Stack(
+        alignment: AlignmentDirectional.centerStart,
+        children: [...previous, ?current],
+      ),
       child: _style == null
           ? Text(
         widget.font,
@@ -355,7 +360,6 @@ class _AccountCardState extends State<_AccountCard> {
           // ── Switch user / sign out ──
           for (final action in profileActions(context)) ...[
             OutlinedButton.icon(
-              style: const ButtonStyle(alignment: AlignmentDirectional.centerStart),
               onPressed: action.onPress,
               icon: Icon(action.icon, size: 20, fill: 1),
               label: Text(action.label),
@@ -481,6 +485,57 @@ class _SectionTitle extends StatelessWidget {
       ),
     );
   }
+}
+
+/// A whole-number setting on a slider, with its value shown beside it. With a remote or
+/// keyboard, ←/→ step it by one, and ↑/↓ move on as usual.
+class _SliderSetting extends StatelessWidget {
+  const _SliderSetting({
+    required this.label,
+    required this.value,
+    required this.min,
+    required this.max,
+    required this.format,
+    required this.onChange,
+  });
+
+  final String label;
+  final int value;
+  final int min;
+  final int max;
+  final String Function(int value) format;
+  final ValueChanged<int> onChange;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(label, style: context.text.bodyMedium?.copyWith(fontWeight: FontWeight.w500)),
+      Row(
+        children: [
+          Expanded(
+            // Directional navigation: by default a slider also takes ↑/↓ to change its value,
+            // which would trap the remote on it.
+            child: MediaQuery(
+              data: MediaQuery.of(context).copyWith(navigationMode: NavigationMode.directional),
+              child: Slider(
+              value: value.toDouble(),
+              min: min.toDouble(),
+              max: max.toDouble(),
+              divisions: max - min, // steps of one
+              label: format(value),
+              onChanged: (v) => onChange(v.round()),
+            ),
+            ),
+          ),
+          SizedBox(
+            width: 48,
+            child: Text(format(value), textAlign: TextAlign.end, style: context.text.bodyLarge),
+          ),
+        ],
+      ),
+    ],
+  );
 }
 
 /// A setting with a list of choices: a dropdown on phones, a remote-friendly picker elsewhere.
@@ -686,12 +741,13 @@ class _PlaybackCard extends StatelessWidget {
             onChange: (v) => update((s) => s.subtitleSize = v),
           ),
           _gap,
-          _PickerSetting<SubtitlePosition>(
+          _SliderSetting(
             label: 'Height',
-            value: s.subtitlePosition,
-            options: SubtitlePosition.values,
-            format: (p) => p.label,
-            onChange: (p) => update((s) => s.subtitlePosition = p),
+            value: s.subtitleHeight,
+            min: subtitleHeightMin,
+            max: subtitleHeightMax,
+            format: (v) => '$v%',
+            onChange: (v) => update((s) => s.subtitleHeight = v),
           ),
           _gap,
           _PickerSetting<SubtitleColor>(
@@ -801,7 +857,7 @@ class _SubtitlePreview extends StatelessWidget {
     child: Container(
       height: 120,
       alignment: Alignment.bottomCenter,
-      padding: EdgeInsets.fromLTRB(16, 0, 16, 6 + 120 * playbackSettings.subtitlePosition.raise),
+      padding: EdgeInsets.fromLTRB(16, 0, 16, 6 + 120 * playbackSettings.subtitleRaise),
       decoration: const BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,

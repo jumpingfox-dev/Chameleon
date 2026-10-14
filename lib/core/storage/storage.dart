@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:drift/drift.dart';
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'database.dart';
@@ -10,11 +11,37 @@ import 'database.dart';
 /// Settings are read once at startup and kept in memory, so reading one is instant and needs
 /// no `await`; saving one writes it through to the database. Accounts and cached pages are
 /// read when they're needed.
+///
+/// Settings belong to whoever is signed in ([user]): each person has their own theme, fonts,
+/// playback settings and so on. A few belong to the device instead ([_deviceKeys]). Someone
+/// who hasn't changed a setting yet gets the value from before settings were kept per person
+/// (stored under the bare key), so updating keeps everyone's choices.
 class Storage {
-  Storage._(this._db, this._settings);
+  Storage._(this._db, this._settings) : user = ValueNotifier(_userFrom(_settings));
 
   final AppDatabase _db;
   final Map<String, String> _settings;
+
+  /// Settings for the whole device rather than one person: which server and account are
+  /// signed in, this device's id, and the import marker.
+  static const _deviceKeys = {'jf_server', 'jf_token', 'jf_user_id', 'jf_device_id', _importedKey};
+
+  /// Whose settings are read and saved: "server|userId", or null when nobody is signed in.
+  /// Listened to by everything that holds settings, to load the new person's.
+  final ValueNotifier<String?> user;
+
+  /// Switches to [userId] on [server]'s settings, or to nobody's with null.
+  void useUser(String? server, String? userId) =>
+      user.value = server == null || userId == null ? null : '$server|$userId';
+
+  static String? _userFrom(Map<String, String> settings) {
+    final server = settings['jf_server'], userId = settings['jf_user_id'];
+    return server == null || userId == null ? null : '$server|$userId';
+  }
+
+  /// Where [key] is kept for the current person.
+  String _scoped(String key) =>
+      user.value == null || _deviceKeys.contains(key) ? key : '${user.value}/$key';
 
   /// Opens the database. On the first run after updating from a version that used
   /// shared_preferences, brings everything across first.
@@ -27,16 +54,16 @@ class Storage {
 
   // ─── Settings ──────────────────────────────────────────────────────────────
 
-  String? getString(String key) => _settings[key];
+  String? getString(String key) => _settings[_scoped(key)] ?? _settings[key];
 
-  bool? getBool(String key) => switch (_settings[key]) {
+  bool? getBool(String key) => switch (getString(key)) {
     'true' => true,
     'false' => false,
     _ => null,
   };
 
   List<String>? getStringList(String key) {
-    final raw = _settings[key];
+    final raw = getString(key);
     if (raw == null) return null;
     try {
       return [for (final s in jsonDecode(raw) as List) s as String];
@@ -46,9 +73,10 @@ class Storage {
   }
 
   Future<void> setString(String key, String value) async {
-    _settings[key] = value;
+    final scoped = _scoped(key);
+    _settings[scoped] = value;
     await _db.into(_db.settings).insertOnConflictUpdate(
-      SettingsCompanion.insert(key: key, value: value),
+      SettingsCompanion.insert(key: scoped, value: value),
     );
   }
 
@@ -57,9 +85,18 @@ class Storage {
   Future<void> setStringList(String key, List<String> value) =>
       setString(key, jsonEncode(value));
 
+  /// [key]'s value for everyone: each person's, and the one from before settings were kept
+  /// per person.
+  Iterable<String> everyonesValues(String key) => _settings.entries
+      .where((e) => e.key == key || e.key.endsWith('/$key'))
+      .map((e) => e.value);
+
+  /// Removes the current person's [key]. They then get the value from before settings were
+  /// kept per person, if there is one.
   Future<void> remove(String key) async {
-    _settings.remove(key);
-    await (_db.delete(_db.settings)..where((t) => t.key.equals(key))).go();
+    final scoped = _scoped(key);
+    _settings.remove(scoped);
+    await (_db.delete(_db.settings)..where((t) => t.key.equals(scoped))).go();
   }
 
   // ─── Accounts ──────────────────────────────────────────────────────────────

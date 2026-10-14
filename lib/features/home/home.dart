@@ -1,3 +1,4 @@
+import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -57,6 +58,9 @@ class _HomeScreenState extends State<HomeScreen> {
               // Extra space at the bottom so the last module isn't hidden behind the Edit button.
               // No side padding: rows scroll edge to edge, everything else adds pageSides.
               padding: EdgeInsets.fromLTRB(0, pageTop(context), 0, 48),
+              // While editing, every section is built, off screen too: moving one past the
+              // edge would otherwise take it (and the button you're on) away, losing your place.
+              scrollCacheExtent: editing ? const ScrollCacheExtent.pixels(100000) : null,
               children: [
                 // Library links: phones only, since wider screens have them in the top bar.
                 if (isPhone &&

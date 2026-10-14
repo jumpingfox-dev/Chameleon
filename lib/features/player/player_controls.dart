@@ -225,21 +225,20 @@ class _PlayerControls extends StatelessWidget {
         // ── Top: back and logo ──
         Positioned(
           top: compact ? 8 : 12,
-          left: 12,
+          left: _topBarLeft,
           right: 12,
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.center, // the back arrow sits level with the middle of the title block
-            spacing: 8,
+            spacing: _topBarSpacing,
             children: [
-              // Phones only: TV remotes and keyboards have their own Back button.
-              if (compact)
-                _ControlButton(
-                  focusNode: backNode,
-                  icon: Icons.arrow_back_rounded,
-                  label: 'Back',
-                  size: 28,
-                  onPress: onBack,
-                ),
+              // On TVs too: a remote's own Back button works as well, but this one is there to see.
+              _ControlButton(
+                focusNode: backNode,
+                icon: Icons.arrow_back_rounded,
+                label: 'Back',
+                size: _backIconSize(compact: compact),
+                onPress: onBack,
+              ),
               // The title takes all the free space, so everything after it sits at the far right.
               if (item != null)
                 Expanded(
@@ -417,6 +416,16 @@ class _TapSeekIndicator extends StatelessWidget {
   }
 }
 
+/// The top bar's left edge, and the back button's icon size (bigger on phones, for thumbs).
+const _topBarLeft = 12.0;
+double _backIconSize({required bool compact}) => compact ? 28 : 24;
+
+/// Where the title (the logo) starts, after the back button. Whatever is shown under the
+/// title (the age rating) starts here too, so they line up.
+double playerTitleLeft({required bool compact}) =>
+    _topBarLeft + _backIconSize(compact: compact) + 2 * _ControlButton.paddingFor(compact: compact) + _topBarSpacing;
+const _topBarSpacing = 8.0;
+
 /// A round icon button. Focused (remote or keyboard): a solid white circle with a dark icon.
 /// Hovered: a soft translucent circle. Otherwise: just the white icon.
 class _ControlButton extends StatelessWidget {
@@ -434,6 +443,9 @@ class _ControlButton extends StatelessWidget {
   final double size;
   final FocusNode? focusNode;
 
+  /// Around the icon: more on phones, for 48 px targets for thumbs.
+  static double paddingFor({required bool compact}) => compact ? 10 : 7;
+
   @override
   Widget build(BuildContext context) => Semantics(
     button: true,
@@ -446,7 +458,7 @@ class _ControlButton extends StatelessWidget {
         final compact = isPhoneLayout(context);
         return AnimatedContainer(
           duration: const Duration(milliseconds: 120),
-          padding: EdgeInsets.all(compact ? 10 : 7), // phones: 48 px targets for thumbs
+          padding: EdgeInsets.all(paddingFor(compact: compact)),
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             // Focused (remote or keyboard) or hovered: the same soft translucent circle.

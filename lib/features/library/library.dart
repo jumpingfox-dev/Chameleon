@@ -300,7 +300,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
       final view = libraryViewFor(context);
       return Scaffold(
         body: Padding(
-          padding: EdgeInsets.fromLTRB(12, pageTop(context), 12, 0),
+          padding: pageSides(context, extra: 12).copyWith(top: pageTop(context)),
           child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

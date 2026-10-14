@@ -158,11 +158,11 @@ class _ChoicePickerState<T> extends State<_ChoicePicker<T>> {
       );
     }
 
+    // Escape for keyboards. A remote's Back is left to the system, which closes this dialog:
+    // handling it here as well would close the dialog on the key going down, and then Android
+    // would act on Back again, on whatever is underneath, as the key comes up.
     return CallbackShortcuts(
-      bindings: {
-        const SingleActivator(LogicalKeyboardKey.escape): _close,
-        const SingleActivator(LogicalKeyboardKey.goBack): _close,
-      },
+      bindings: {const SingleActivator(LogicalKeyboardKey.escape): _close},
       child: SizedBox(
         width: math.min(440, size.width - 32),
         // Searchable pickers keep a steady height so the card doesn't jump as you type;
@@ -189,6 +189,7 @@ class _ChoicePickerState<T> extends State<_ChoicePicker<T>> {
                         controller: _query,
                         decoration: InputDecoration(
                           hintText: widget.searchHint,
+                          border: searchFieldBorder,
                         ),
                       ),
                     ),

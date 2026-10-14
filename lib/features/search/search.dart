@@ -162,7 +162,7 @@ class _SearchScreenState extends State<SearchScreen> {
   @override
   Widget build(BuildContext context) => Scaffold(
     body: Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
+      padding: pageSides(context, extra: 12),
       child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -177,6 +177,7 @@ class _SearchScreenState extends State<SearchScreen> {
           },
           decoration: InputDecoration(
             hintText: 'Search movies, shows, and actors',
+            border: searchFieldBorder,
             prefixIcon: Icon(appIcons.search, fill: 1),
             // A clear button while there's something to clear.
             suffixIcon: ListenableBuilder(
